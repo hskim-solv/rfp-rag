@@ -143,3 +143,53 @@ class LLMAnswerGenerator:
             answer = payload.answer or ""
             return answer if "없는 정보" in answer else f"{answer} 없는 정보".strip()
         return payload.answer
+
+
+LANE_OFFLINE = "offline"
+LANE_REAL_OPENAI = "real_openai"
+
+_LANE_ALIASES = {
+    "offline": LANE_OFFLINE,
+    "fake": LANE_OFFLINE,
+    "fake_offline": LANE_OFFLINE,
+    "openai": LANE_REAL_OPENAI,
+    "real_openai": LANE_REAL_OPENAI,
+}
+
+DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
+
+
+def normalize_lane(value: str) -> str:
+    lane = _LANE_ALIASES.get((value or "").strip().lower())
+    if lane is None:
+        raise ValueError(f"unknown lane: {value!r} (expected one of {sorted(_LANE_ALIASES)})")
+    return lane
+
+
+def require_openai_key() -> None:
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError(
+            "OPENAI_API_KEY required for real lane (offline lane runs without credentials)"
+        )
+
+
+def embedding_model_name(lane: str) -> str:
+    if lane == LANE_OFFLINE:
+        return "lexical-hash-v1"
+    return os.environ.get("RFP_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+
+
+def build_embeddings(lane: str):
+    if lane == LANE_OFFLINE:
+        return LexicalHashEmbeddings()
+    require_openai_key()
+    from langchain_openai import OpenAIEmbeddings
+
+    return OpenAIEmbeddings(model=embedding_model_name(lane))
+
+
+def build_generator(lane: str) -> AnswerGenerator:
+    if lane == LANE_OFFLINE:
+        return TemplateAnswerGenerator()
+    require_openai_key()
+    return LLMAnswerGenerator()

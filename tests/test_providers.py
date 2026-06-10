@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from rfp_rag.index_store import SearchResult
 from rfp_rag.providers import (
+    LANE_OFFLINE,
+    LANE_REAL_OPENAI,
     LexicalHashEmbeddings,
     LLMAnswer,
     LLMAnswerGenerator,
     TemplateAnswerGenerator,
     build_answer_prompt,
+    build_embeddings,
+    normalize_lane,
 )
 
 
@@ -118,3 +124,26 @@ def test_llm_generator_signals_abstention_via_phrase() -> None:
     answer = gen.generate("화성 기지 예산은?", [_result()])
 
     assert "없는 정보" in answer
+
+
+def test_normalize_lane_accepts_aliases() -> None:
+    assert normalize_lane("offline") == LANE_OFFLINE
+    assert normalize_lane("fake") == LANE_OFFLINE
+    assert normalize_lane("fake_offline") == LANE_OFFLINE
+    assert normalize_lane("openai") == LANE_REAL_OPENAI
+    assert normalize_lane("real_openai") == LANE_REAL_OPENAI
+
+
+def test_normalize_lane_rejects_unknown() -> None:
+    with pytest.raises(ValueError, match="unknown lane"):
+        normalize_lane("cohere")
+
+
+def test_build_embeddings_offline_is_lexical_hash() -> None:
+    assert isinstance(build_embeddings(LANE_OFFLINE), LexicalHashEmbeddings)
+
+
+def test_build_embeddings_real_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY required"):
+        build_embeddings(LANE_REAL_OPENAI)
