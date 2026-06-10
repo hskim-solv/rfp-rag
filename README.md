@@ -28,13 +28,14 @@ Requires `OPENAI_API_KEY`. Models default to `text-embedding-3-small` /
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
   --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real \
-  --out artifacts/eval_real --provider real_openai --top-k 5
+  --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47
 ```
 
 - `rag_quality_complete` requires every threshold in `artifacts/eval_real/metrics.json`
   (`thresholds`) plus `evaluation_valid` (error rate <= 10%).
 - Calibrate `--min-score` per lane from `score_distribution` in `metrics.json`
-  (offline lane: 0.15). Record any recalibration rationale in the evaluation report.
+  (offline lane: 0.15, real lane: 0.47). Record any recalibration rationale in the
+  evaluation report.
 - Citation metrics compare retrieved chunks against expected docs (comparable across
   lanes); the LLM's self-reported citations (`last_cited_chunk_ids`) are diagnostic only.
 - Qdrant runs in embedded local mode: single-process only. Delete

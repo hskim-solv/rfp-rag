@@ -285,8 +285,10 @@ real-lane 사이클 전체 추정 비용: **$3–5**. RAGAS의 LLM 지표 2개(f
 set -a; source ./.env; set +a
 python3 -m rfp_rag.build_index \
   --data data/data_list.csv \
+  --files data/files \
   --out artifacts/index_real \
-  --embedding-provider real_openai
+  --chunk-size 500 --chunk-overlap 80 \
+  --embedding-provider openai
 
 # 2. Real lane 평가 (gate run)
 set -a; source ./.env; set +a
