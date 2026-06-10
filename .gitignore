@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+artifacts/
+.DS_Store
+data/
+node_modules/
+.omc/
+.omx/
+.ruff_cache/
+outputs/
+package.json
