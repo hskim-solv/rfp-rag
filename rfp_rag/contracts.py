@@ -71,3 +71,39 @@ def real_contract() -> dict[str, Any]:
             }
         },
     }
+
+
+AGENT_CONTRACT_VERSION = "rfp-agent-v1"
+
+AGENT_REQUIRED_COMMANDS = [
+    "python3 -m pytest",
+    "python3 -m rfp_rag.agent.evaluate_agent --data data/data_list.csv --files data/files --index artifacts/index --out artifacts/eval_agent --provider offline --top-k 5 --min-score 0.15",
+]
+
+AGENT_REQUIRED_EVAL_FILES = [
+    "scenarios.jsonl",
+    "predictions.jsonl",
+    "metrics.json",
+    "report.md",
+    "contract.json",
+]
+
+
+def agent_contract() -> dict[str, Any]:
+    return {
+        "contract_version": AGENT_CONTRACT_VERSION,
+        "required_eval_files": list(AGENT_REQUIRED_EVAL_FILES),
+        "required_commands": AGENT_REQUIRED_COMMANDS,
+        "gate_semantics": (
+            "agent_lane_complete is decided on the offline lane: graph topology, tools, "
+            "HITL and loop termination are deterministic. Real-lane router/rewriter quality "
+            "is covered by @pytest.mark.real smoke plus a small real evaluation recorded in REPORT.md."
+        ),
+        "quality_semantics": {
+            "agent_offline": {
+                "claims_semantic_quality": False,
+                "allowed_completion_claim": "agent_lane_complete",
+                "requires": ["thresholds_met", "evaluation_valid"],
+            }
+        },
+    }

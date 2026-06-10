@@ -306,3 +306,110 @@ python3 -m rfp_rag.evaluate \
 본 프로젝트는 RFP 100건에 대한 RAG baseline의 핵심 골격을 완성했다. 현재 산출물은 API 없이도 재현 가능한 offline scaffold이며, corpus 정합성·index 생성·cited QA·abstention·evaluation/report gate까지 end-to-end로 검증되었다.
 
 **추가:** real-lane 평가 (`feature/real-provider-quality-lane` branch)를 완료하여 `rag_quality_complete=true`를 달성했다. OpenAI embedding + generation 기반의 semantic RAG 품질이 RAGAS LLM judge를 포함한 9개 threshold 전체를 충족했으며, 특히 abstention·citation·retrieval에서 offline lane 대비 전반적인 향상이 확인됐다. answer_relevancy와 metadata_exact_match 두 지표는 gate run #1에서 미달이었으나, generation 프롬프트 개선(thresholds 변경 없음)으로 run #2에서 모두 통과했다.
+
+**추가 (agent lane):** LangGraph 기반 stateful multi-step agent 레인(§12,
+`feature/langgraph-agent-lane` branch)을 구축하여 `agent_lane_complete=true`를 달성했다 —
+라우팅/자가교정 검색 루프/도구 호출/HITL 승인을 명시적 그래프로 구성하고 65건 시나리오
+게이트로 검증했다.
+
+## 12. LangGraph Agent 레인 (rfp-agent-v1)
+
+### 12-1. 설계 요약
+
+기존 단발 RAG 체인을 LangGraph `StateGraph` 기반 stateful multi-step agent로 확장했다
+(설계: `docs/superpowers/specs/2026-06-10-langgraph-agent-lane-design.md`). 그래프 토폴로지는
+레인 공통이며, 노드 두뇌(Router/QueryRewriter)만 offline 규칙 기반 / real LLM 구현으로
+주입된다. 기존 `rag_chain`/`providers`/`vector_index`는 수정 없이 호출만 한다.
+
+```
+START → route ── metadata_query ──→ tool_exec(aggregate_metadata) ──→ generate
+            └─── rag_query ───────→ retrieve → grade ── sufficient ──→ generate
+                                       ▲          └─ insufficient → rewrite (≤2회) ─┐
+                                       └─────────────────────────────────────────────┘
+                                                  └─ retries exhausted → abstain → END
+generate → verify ── ok ──→ (save_requested? → save_report[interrupt]) → respond → END
+              └─ invalid → regenerate(1회) → verify → (재실패 시 abstain)
+```
+
+- **stateful**: `SqliteSaver` checkpointer로 thread_id 기반 영속 — CLI에서 별도 프로세스 간
+  interrupt → resume 동작을 실증했다 (`--thread-id demo-1` 실행 → `--approve` 재개).
+- **HITL**: `save_report` 노드가 `interrupt()`로 일시정지, 승인 시에만
+  `deliverables` 격리 디렉토리(`artifacts/.../reports/`) 하위에 저장. 승인/거부 모두
+  `audit.jsonl`에 기록 (`ts/thread_id/tool/args/outcome/approved`).
+- **tool calling**: `search_rfp`(읽기), `aggregate_metadata`(읽기 — 필터/정렬/건수/합계),
+  `save_report`(쓰기 — 승인 필수 + 경로 탈출 차단).
+
+### 12-2. 게이트 결과 (offline 판정, 2026-06-10)
+
+`agent_lane_complete` 게이트는 offline 레인에서 판정한다 — 그래프 토폴로지·도구·HITL·루프
+종료는 결정론적이므로 오프라인 판정이 유효하다 (계약 `rfp-agent-v1`의 gate_semantics).
+
+| 메트릭 | 실측 | 임계값 | 판정 |
+|---|---|---|---|
+| routing_accuracy | 1.000 (20/20) | ≥ 0.90 | PASS |
+| tool_accuracy | 1.000 (10/10) | ≥ 0.90 | PASS |
+| rewrite_recovery | 1.000 (5/5) | ≥ 0.60 | PASS |
+| loop_termination | 1.000 (65/65) | = 1.00 | PASS |
+| abstention_accuracy | 0.900 (9/10) | ≥ 0.90 | PASS |
+| citation_presence | 1.000 (20/20) | ≥ 0.95 | PASS |
+| citation_validity | 1.000 (20/20) | ≥ 0.90 | PASS |
+| metadata_exact_match | 0.900 (18/20) | ≥ 0.90 | PASS |
+
+**agent_lane_complete = true** (`artifacts/eval_agent/metrics.json`). 임계값 조정 없음.
+
+실패 케이스 분석:
+
+- `regression_015/016` (exact match 2건): "도시계획위원회 통합관리시스템 구축용역" 질의가
+  doc:066(해양자료**관리시스템 구축 용역**)을 1위로 검색하는 등, offline lexical n-gram
+  충돌로 인한 **기존 검색 레인의 알려진 한계**다 (agent 로직 무관 — 단발 체인도 동일).
+  real 임베딩 인덱스에서는 semantic 검색으로 해소된다.
+- `abstention_004` (양자통신): §10-8 7번에 문서화된 offline 레인 known-fail의 재현
+  (lexical 인접 어휘 충돌). real 레인은 LLM insufficient-context 방어로 거부한다.
+
+rewrite 시나리오는 생성 시점에 노이즈 질의의 실측 스코어가 min_score 미달인 변형만
+채택한다 (`noise_level` 1~4 반복 프리픽스) — rewrite 트리거가 운이 아니라 결정론으로
+보장되며, 5/5 전부 1회 재작성으로 회복했다.
+
+### 12-3. real 레인 보강 상태
+
+LLM Router/Rewriter 스모크(`tests/test_agent_real_smoke.py`, `@pytest.mark.real` 3건)는
+**OpenAI API quota 소진(`insufficient_quota`, 429)으로 이번 사이클에서 미실행**이다.
+기존 real 스모크(`test_real_smoke.py`)도 동일 사유로 차단됨을 확인했다 (키 자체는 유효,
+크레딧 부족). 충전 후 다음 명령으로 보강한다:
+
+```bash
+set -a; source ./.env; set +a
+python3 -m pytest tests/test_agent_real_smoke.py -m real -q
+```
+
+게이트 판정은 offline 레인 기반이므로 이 블로커가 `agent_lane_complete`에 영향을 주지
+않는다 — real 스모크는 LLM 두뇌의 품질 보강 증거로 REPORT에 추가 기록할 항목이다.
+
+### 12-4. 재현 명령어
+
+```bash
+python3 -m pytest                                     # offline 레인 전체 (API 키 불필요)
+python3 -m rfp_rag.agent.evaluate_agent \
+  --data data/data_list.csv --files data/files \
+  --index artifacts/index --out artifacts/eval_agent \
+  --provider offline --top-k 5 --min-score 0.15       # agent 게이트 런
+
+# HITL 데모 (interrupt → resume)
+python3 -m rfp_rag.agent.run_agent --index artifacts/index \
+  --data data/data_list.csv --files data/files \
+  --question "<사업명> 사업을 요약해서 보고서로 저장해줘" --thread-id demo-1 --min-score 0.15
+python3 -m rfp_rag.agent.run_agent --index artifacts/index \
+  --data data/data_list.csv --files data/files --thread-id demo-1 --approve
+```
+
+### 12-5. 이월 항목
+
+1. **real 스모크 실행**: OpenAI 크레딧 충전 후 `pytest -m real` (12-3).
+2. **LLM grader 노드**: grade가 현재 스코어 게이트 — 검색 결과 관련성의 LLM 판정은
+   다음 사이클 (judge 비용 고려).
+3. **real 레인 agent 평가**: routing/rewrite를 real 인덱스 + LLM 두뇌로 소규모 평가해
+   offline 판정과 비교 기록.
+4. **Observability (갭 3)**: Langfuse/LangSmith tracing — 노드별 latency/token 측정은
+   다음 사이클 1순위 후보.
+5. metadata 경로 답변 포맷터는 양 레인 공통 결정론 구현으로 단순화했다 (설계 §3 대비
+   변경, 결정론 채점·비용 관점 — 설계 문서에 반영됨).

@@ -48,6 +48,36 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
 - Assumption: the corpus is trusted public RFP documents; prompt-injection
   robustness against adversarial corpus content is out of scope for this cycle.
 
+## LangGraph agent lane (rfp-agent-v1)
+
+LangGraph `StateGraph` 기반 stateful multi-step agent: 질의 라우팅(rag/metadata) →
+검색 → 충분성 판정 → 질의 재작성 루프(≤2회) → 생성 → 인용 검증 → (저장 요청 시)
+human-in-the-loop 승인. 그래프 토폴로지는 레인 공통이며 Router/Rewriter 두뇌만
+offline 규칙 기반 / real LLM(`gpt-5.4-mini` structured output)으로 주입됩니다.
+
+```bash
+# agent 게이트 평가 (offline 판정 — API 키 불필요)
+python3 -m rfp_rag.agent.evaluate_agent --data data/data_list.csv --files data/files \
+  --index artifacts/index --out artifacts/eval_agent --provider offline --top-k 5 --min-score 0.15
+
+# 질문 1회 실행
+python3 -m rfp_rag.agent.run_agent --index artifacts/index --data data/data_list.csv \
+  --files data/files --question "사업 금액이 가장 큰 공고 3건은 뭐야?" --thread-id t1 --min-score 0.15
+
+# HITL: "...보고서로 저장해줘" 질문은 interrupt로 멈춤 → 같은 thread-id로 재개
+python3 -m rfp_rag.agent.run_agent --index artifacts/index --data data/data_list.csv \
+  --files data/files --thread-id t1 --approve   # 또는 --reject
+```
+
+- `agent_lane_complete`는 offline 레인에서 판정합니다 (그래프/도구/HITL/루프 종료는
+  결정론적). real 레인은 `pytest -m real` 스모크로 보강합니다.
+- 도구: `search_rfp`(읽기), `aggregate_metadata`(읽기 — 금액/마감일/발주기관
+  필터·정렬·건수·합계), `save_report`(쓰기 — 승인 필수, 경로 탈출 차단).
+- 모든 도구 호출은 `<artifacts>/audit.jsonl`에 기록됩니다
+  (`ts/thread_id/tool/args/outcome/approved`).
+- 상태는 `<artifacts>/checkpoints.sqlite`에 영속 — 프로세스를 종료해도 같은
+  `--thread-id`로 승인 대기를 재개할 수 있습니다.
+
 ## Generated artifacts
 
 - `artifacts/corpus_manifest.json`: row/file normalization inventory.
