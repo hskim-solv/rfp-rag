@@ -41,3 +41,42 @@ def test_embed_documents_matches_embed_query() -> None:
 
     assert len(docs) == 2
     assert docs[0] == emb.embed_query("입찰 공고")
+
+
+from rfp_rag.index_store import SearchResult
+from rfp_rag.providers import TemplateAnswerGenerator
+
+
+def _result(score: float = 0.8) -> SearchResult:
+    return SearchResult(
+        chunk_id="doc:000:chunk:0",
+        doc_id="doc:000",
+        csv_row_id="000",
+        score=score,
+        text="트랙운영 학사정보시스템 고도화 본문",
+        metadata={
+            "project_name": "한영대학교 트랙운영 학사정보시스템 고도화",
+            "issuer": "한영대학",
+            "summary": "학사정보시스템을 고도화한다.",
+            "budget_krw_int": 150000000,
+            "bid_end_at_iso": "2024-05-01T10:00:00",
+        },
+    )
+
+
+def test_template_generator_answers_budget_from_metadata() -> None:
+    gen = TemplateAnswerGenerator()
+
+    answer = gen.generate("한영대학교 사업 금액은 얼마야?", [_result()])
+
+    assert "150,000,000" in answer
+    assert "없는 정보" not in answer
+
+
+def test_template_generator_falls_back_to_context_answer() -> None:
+    gen = TemplateAnswerGenerator()
+
+    answer = gen.generate("이 사업의 추진 배경 알려줘", [_result()])
+
+    assert "한영대학교 트랙운영 학사정보시스템 고도화" in answer
+    assert "한영대학" in answer
