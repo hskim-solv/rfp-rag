@@ -9,7 +9,8 @@ import pytest
 from rfp_rag.build_index import build_index
 from rfp_rag.chunking import chunk_document
 from rfp_rag.corpus import CorpusDocument
-from rfp_rag.index_store import load_index, retrieve
+from rfp_rag.providers import build_embeddings
+from rfp_rag.vector_index import load_vector_store, search
 
 
 def test_chunk_document_uses_doc_and_chunk_ids() -> None:
@@ -40,24 +41,46 @@ def test_build_index_writes_manifest_and_retrieves_reference_doc(tmp_path: Path)
         out_dir=out,
         chunk_size=500,
         chunk_overlap=80,
-        embedding_provider="fake",
+        embedding_provider="fake",  # legacy alias, normalized to offline
     )
 
     saved = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert saved == manifest
-    assert manifest["embedding_provider"] == "fake"
-    assert manifest["vector_backend"] == "local_fake_lexical"
+    assert manifest["embedding_provider"] == "offline"
+    assert manifest["vector_backend"] == "qdrant_local"
     assert manifest["unique_docs"] == 100
     assert manifest["chunk_count"] > 0
     assert (out / "chunks.jsonl").exists()
+    assert (out / "qdrant").is_dir()
 
-    index = load_index(out)
-    results = retrieve(index, "한영대학교 트랙운영 학사정보시스템 고도화", top_k=3)
+    store = load_vector_store(out / "qdrant", build_embeddings("offline"), lane="offline")
+    results = search(store, "한영대학교 트랙운영 학사정보시스템 고도화", top_k=3)
 
     assert results
-    assert results[0].doc_id == "doc:000"
-    assert results[0].chunk_id.startswith("doc:000:chunk:")
-    assert results[0].score > 0
+    # Hash embeddings lack the legacy exact-substring bonus, so assert top-3 (deterministic).
+    reference = next((r for r in results if r.doc_id == "doc:000"), None)
+    assert reference is not None
+    assert reference.chunk_id.startswith("doc:000:chunk:")
+    assert reference.score > 0
+
+
+def test_build_index_creates_qdrant_collection_and_manifest(tmp_path: Path) -> None:
+    out = tmp_path / "index"
+    manifest = build_index(
+        data_path=Path("data/data_list.csv"),
+        files_path=Path("data/files"),
+        out_dir=out,
+        chunk_size=500,
+        chunk_overlap=80,
+        embedding_provider="fake",  # alias for offline
+    )
+
+    assert manifest["embedding_provider"] == "offline"
+    assert manifest["embedding_model"] == "lexical-hash-v1"
+    assert manifest["vector_backend"] == "qdrant_local"
+    assert (out / "qdrant").is_dir()
+    assert (out / "manifest.json").exists()
+    assert (out / "chunks.jsonl").exists()
 
 
 def test_build_index_rejects_malformed_corpus_before_indexing(tmp_path: Path) -> None:

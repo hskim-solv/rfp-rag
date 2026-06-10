@@ -9,6 +9,8 @@ from typing import Iterable, Any
 from .chunking import chunk_documents
 from .corpus import inspect_corpus, load_corpus, sha256_file
 from .index_store import save_index
+from .providers import build_embeddings, embedding_model_name, normalize_lane
+from .vector_index import build_vector_store
 
 
 
@@ -33,10 +35,9 @@ def build_index(
     out_dir: Path | str,
     chunk_size: int = 500,
     chunk_overlap: int = 80,
-    embedding_provider: str = "fake",
+    embedding_provider: str = "offline",
 ) -> dict[str, Any]:
-    if embedding_provider != "fake":
-        raise ValueError("G002 offline baseline supports only --embedding-provider fake")
+    lane = normalize_lane(embedding_provider)
     data_path = Path(data_path)
     files_path = Path(files_path)
     out_dir = Path(out_dir)
@@ -44,6 +45,10 @@ def build_index(
     _validate_corpus_manifest(corpus_manifest)
     docs = load_corpus(data_path, files_path)
     chunks = chunk_documents(docs, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
+    embeddings = build_embeddings(lane)
+    build_vector_store(chunks, embeddings, qdrant_path=out_dir / "qdrant", lane=lane)
+
     manifest: dict[str, Any] = {
         "data_path": str(data_path),
         "files_path": str(files_path),
@@ -51,9 +56,9 @@ def build_index(
         "corpus_row_count": corpus_manifest["row_count"],
         "chunk_size": chunk_size,
         "chunk_overlap": chunk_overlap,
-        "embedding_provider": embedding_provider,
-        "embedding_model": "fake-lexical-hash-v1",
-        "vector_backend": "local_fake_lexical",
+        "embedding_provider": lane,
+        "embedding_model": embedding_model_name(lane),
+        "vector_backend": "qdrant_local",
         "chunk_count": len(chunks),
         "unique_docs": len({chunk.doc_id for chunk in chunks}),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -63,13 +68,17 @@ def build_index(
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build a local fake lexical RFP index.")
+    parser = argparse.ArgumentParser(description="Build a Qdrant-backed RFP index.")
     parser.add_argument("--data", required=True, type=Path, help="Path to data_list.csv")
     parser.add_argument("--files", required=True, type=Path, help="Path to source file directory")
     parser.add_argument("--out", required=True, type=Path, help="Index output directory")
     parser.add_argument("--chunk-size", default=500, type=int)
     parser.add_argument("--chunk-overlap", default=80, type=int)
-    parser.add_argument("--embedding-provider", default="fake")
+    parser.add_argument(
+        "--embedding-provider",
+        default="offline",
+        help="offline | real_openai (legacy aliases accepted)",
+    )
     return parser
 
 
