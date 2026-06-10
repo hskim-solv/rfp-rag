@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from langchain_qdrant import QdrantVectorStore
 
 from .index_store import SearchResult
-from .providers import AnswerGenerator
-from .vector_index import search
+from .providers import AnswerGenerator, build_embeddings, build_generator, normalize_lane
+from .vector_index import load_vector_store, search
 
 ABSTAIN_ANSWER = "검색된 제안요청서 근거만으로는 답할 수 없는 정보입니다. 없는 정보"
+
+DEFAULT_MIN_SCORE = 0.05
 
 
 def _source_from_result(result: SearchResult) -> dict[str, Any]:
@@ -43,7 +47,7 @@ def answer_with_store(
     generator: AnswerGenerator,
     query: str,
     top_k: int = 5,
-    min_score: float = 0.05,
+    min_score: float = DEFAULT_MIN_SCORE,
 ) -> dict[str, Any]:
     results = search(store, query, top_k=top_k)
     if not results or results[0].score < min_score:
@@ -68,3 +72,31 @@ def answer_with_store(
         "retrieved_chunk_ids": [r.chunk_id for r in results],
         "scores": [r.score for r in results],
     }
+
+
+def _load_manifest(index_dir: Path) -> dict[str, Any]:
+    manifest_path = index_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"index manifest not found: {manifest_path}")
+    return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+def answer_query(
+    index_dir: Path | str,
+    query: str,
+    top_k: int = 5,
+    min_score: float = DEFAULT_MIN_SCORE,
+    provider: str | None = None,
+) -> dict[str, Any]:
+    index_dir = Path(index_dir)
+    manifest = _load_manifest(index_dir)
+    index_lane = normalize_lane(manifest.get("embedding_provider", "offline"))
+    lane = normalize_lane(provider) if provider else index_lane
+    if lane != index_lane:
+        raise ValueError(
+            f"provider lane {lane!r} does not match index embedding lane {index_lane!r}; rebuild the index"
+        )
+    embeddings = build_embeddings(lane)
+    store = load_vector_store(index_dir / "qdrant", embeddings, lane=lane)
+    generator = build_generator(lane)
+    return answer_with_store(store, generator, query, top_k=top_k, min_score=min_score)
