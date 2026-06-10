@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 from typing import Any
 
 from .providers import require_openai_key
 
+# Must stay in sync with the query_type values emitted by evaluate.py's eval-set generators.
+# Anything outside this set (today: abstention) is skipped, not judged.
 JUDGED_QUERY_TYPES = {"project_budget", "project_deadline", "issuer_lookup", "project_summary", "curated_text"}
 
 
@@ -46,7 +49,11 @@ async def _score_one(prediction: dict[str, Any], metrics: dict[str, Any]) -> dic
     sample = _sample(prediction)
     for name, metric in metrics.items():
         try:
-            judge[name] = float(await metric.single_turn_ascore(sample))
+            score = float(await metric.single_turn_ascore(sample))
+            if math.isnan(score):
+                judge["warnings"].append(f"judge_nan:{name}")
+            else:
+                judge[name] = score
         except Exception as exc:  # noqa: BLE001 - judge must not break the eval lane
             judge["warnings"].append(f"judge_error:{name}:{type(exc).__name__}")
     return judge

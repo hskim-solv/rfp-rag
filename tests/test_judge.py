@@ -55,3 +55,16 @@ def test_judge_failure_is_isolated_per_metric() -> None:
     assert judged[0]["judge"]["faithfulness"] is None
     assert judged[0]["judge"]["answer_relevancy"] == 0.7
     assert any(w.startswith("judge_error:faithfulness") for w in judged[0]["judge"]["warnings"])
+
+
+def test_judge_nan_score_degrades_to_none_with_warning() -> None:
+    metrics = {"answer_relevancy": _StubMetric("answer_relevancy", float("nan"))}
+
+    judged = judge_predictions([_prediction()], metrics=metrics)
+
+    assert judged[0]["judge"]["answer_relevancy"] is None
+    assert "judge_nan:answer_relevancy" in judged[0]["judge"]["warnings"]
+
+
+def test_judge_empty_predictions_returns_empty_list() -> None:
+    assert judge_predictions([], metrics={}) == []
