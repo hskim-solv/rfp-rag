@@ -26,7 +26,7 @@ def _chunks() -> list[Chunk]:
     ]
 
 
-def test_build_and_search_preserves_chunk_identity(tmp_path: Path) -> None:
+def test_build_and_search_preserves_chunk_identity() -> None:
     emb = LexicalHashEmbeddings(dim=512)
     store = build_vector_store(_chunks(), emb, qdrant_path=None, lane="offline")
 
@@ -44,7 +44,7 @@ def test_persist_and_reload_roundtrip(tmp_path: Path) -> None:
     emb = LexicalHashEmbeddings(dim=512)
     qdrant_path = tmp_path / "qdrant"
     store = build_vector_store(_chunks(), emb, qdrant_path=qdrant_path, lane="offline")
-    del store
+    del store  # drops the only ref; CPython refcounting closes the Qdrant lock immediately
 
     reloaded = load_vector_store(qdrant_path, emb, lane="offline")
     results = search(reloaded, "국립중앙도서관 자료보존", top_k=1)
@@ -52,7 +52,7 @@ def test_persist_and_reload_roundtrip(tmp_path: Path) -> None:
     assert results[0].chunk_id == "doc:001:chunk:0"
 
 
-def test_search_returns_at_most_top_k(tmp_path: Path) -> None:
+def test_search_returns_at_most_top_k() -> None:
     emb = LexicalHashEmbeddings(dim=512)
     store = build_vector_store(_chunks(), emb, qdrant_path=None, lane="offline")
 

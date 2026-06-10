@@ -90,7 +90,7 @@ def search(store: QdrantVectorStore, query: str, top_k: int = 5) -> list[SearchR
     pairs = store.similarity_search_with_score(query, k=top_k)
     results: list[SearchResult] = []
     for document, score in pairs:
-        md = dict(document.metadata)
+        md = {k: v for k, v in document.metadata.items() if not k.startswith("_")}
         results.append(
             SearchResult(
                 chunk_id=md.pop("chunk_id"),
