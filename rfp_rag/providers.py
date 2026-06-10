@@ -44,7 +44,11 @@ class LexicalHashEmbeddings(Embeddings):
 
 
 class AnswerGenerator(Protocol):
-    """Generates the answer string for a query given retrieved chunks."""
+    """Generates the answer string for a query given retrieved chunks.
+
+    Contract: ``results`` MUST be non-empty. Callers gate empty/low-score
+    retrieval before calling (see ``rag_chain.answer_with_store``).
+    """
 
     def generate(self, query: str, results: list[SearchResult]) -> str: ...
 
