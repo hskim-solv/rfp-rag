@@ -5,10 +5,15 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
-from .contracts import offline_contract
+from .contracts import REAL_CONTRACT_VERSION, offline_contract
 
 
 def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
+    """Validate offline-contract (rfp-rag-offline-v1) evidence only.
+
+    Real-lane (rfp-rag-real-v1) eval dirs are out of scope and are flagged as
+    real_lane_eval_dir_not_supported rather than as contract tampering.
+    """
     eval_dir = Path(eval_dir)
     readme = Path(readme)
     canonical_contract = offline_contract()
@@ -17,7 +22,12 @@ def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
     required_files = list(canonical_contract.get("required_eval_files", []))
     missing_files = [name for name in required_files if not (eval_dir / name).exists()]
     readme_text = readme.read_text(encoding="utf-8") if readme.exists() else ""
-    required_readme = list(canonical_contract.get("required_commands", [])) + list(canonical_contract.get("readme_markers", []))
+    # README must also document the real provider quality lane section (rfp-rag-real-v1).
+    required_readme = (
+        list(canonical_contract.get("required_commands", []))
+        + list(canonical_contract.get("readme_markers", []))
+        + [REAL_CONTRACT_VERSION]
+    )
     missing_readme_snippets = [snippet for snippet in required_readme if snippet not in readme_text]
     metrics: dict[str, Any] = {}
     metrics_path = eval_dir / "metrics.json"
@@ -25,11 +35,18 @@ def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
         metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     metric_warnings: list[str] = []
     if contract.get("contract_version") != canonical_contract.get("contract_version"):
-        metric_warnings.append("contract_version_mismatch")
-    if metrics.get("provider_lane") == "fake_offline" and metrics.get("rag_quality_complete") is True:
-        metric_warnings.append("fake_offline_must_not_claim_rag_quality_complete")
-    if metrics.get("provider_lane") == "fake_offline" and metrics.get("thresholds_applied") is True:
-        metric_warnings.append("fake_offline_must_not_apply_real_quality_thresholds")
+        if contract.get("contract_version") == REAL_CONTRACT_VERSION:
+            # Not tampering: this checker validates offline evidence only.
+            metric_warnings.append("real_lane_eval_dir_not_supported")
+        else:
+            metric_warnings.append("contract_version_mismatch")
+    # evaluate.py writes the normalized lane ("offline"); accept the legacy
+    # "fake_offline" alias too so old artifacts still trip the drift guards.
+    offline_lane = metrics.get("provider_lane") in ("offline", "fake_offline")
+    if offline_lane and metrics.get("rag_quality_complete") is True:
+        metric_warnings.append("offline_must_not_claim_rag_quality_complete")
+    if offline_lane and metrics.get("thresholds_applied") is True:
+        metric_warnings.append("offline_must_not_apply_real_quality_thresholds")
     ok = not missing_files and not missing_readme_snippets and not metric_warnings
     return {
         "ok": ok,

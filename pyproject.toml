@@ -1,9 +1,19 @@
 [project]
 name = "rfp-rag"
-version = "0.1.0"
-description = "CSV-first RFP RAG baseline"
+version = "0.2.0"
+description = "CSV-first RFP RAG baseline with LangChain real provider quality lane"
 requires-python = ">=3.11"
+dependencies = [
+    "langchain-core>=1.3",
+    "langchain-openai",
+    "langchain-qdrant",
+    "qdrant-client>=1.18",
+    "ragas",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "real: requires OPENAI_API_KEY and network access (deselect with '-m \"not real\"')",
+]

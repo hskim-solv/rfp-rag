@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import re
 import unicodedata
 from collections import Counter
@@ -28,14 +27,3 @@ def lexical_features(text: str) -> Counter[str]:
                     for i in range(0, len(token) - n + 1):
                         features[token[i : i + n]] += 1
     return features
-
-
-def cosine_score(query: Counter[str], document: Counter[str]) -> float:
-    if not query or not document:
-        return 0.0
-    dot = sum(weight * document.get(feature, 0) for feature, weight in query.items())
-    if dot <= 0:
-        return 0.0
-    q_norm = math.sqrt(sum(v * v for v in query.values()))
-    d_norm = math.sqrt(sum(v * v for v in document.values()))
-    return dot / (q_norm * d_norm) if q_norm and d_norm else 0.0
