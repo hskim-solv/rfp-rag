@@ -9,6 +9,8 @@ dependencies = [
     "langchain-qdrant",
     "qdrant-client>=1.18",
     "ragas",
+    "langgraph>=1.0",
+    "langgraph-checkpoint-sqlite",
 ]
 
 [tool.pytest.ini_options]
