@@ -40,13 +40,16 @@ def decide_gates(lane: str, aggregate: dict[str, Any], evaluation_valid: bool) -
     if lane != "real_openai":
         return {
             "thresholds_applied": False,
+            "thresholds_met": False,
             "offline_scaffold_complete": offline_scaffold_complete,
             "rag_quality_complete": False,
         }
     thresholds = REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS
     met = all(_meets(metric, minimum) for metric, minimum in thresholds.items())
     return {
+        # thresholds_applied means "checks were run"; thresholds_met means "checks passed".
         "thresholds_applied": True,
+        "thresholds_met": bool(met),
         "offline_scaffold_complete": offline_scaffold_complete,
         "rag_quality_complete": bool(met and evaluation_valid),
     }

@@ -32,7 +32,7 @@ README_MARKERS = [
 def offline_contract() -> dict[str, Any]:
     return {
         "contract_version": CONTRACT_VERSION,
-        "required_eval_files": REQUIRED_EVAL_FILES,
+        "required_eval_files": list(REQUIRED_EVAL_FILES),
         "required_commands": REQUIRED_COMMANDS,
         "readme_markers": README_MARKERS,
         "quality_semantics": {
@@ -56,7 +56,7 @@ REAL_REQUIRED_COMMANDS = [
 def real_contract() -> dict[str, Any]:
     return {
         "contract_version": REAL_CONTRACT_VERSION,
-        "required_eval_files": REQUIRED_EVAL_FILES,
+        "required_eval_files": list(REQUIRED_EVAL_FILES),
         "required_commands": REAL_REQUIRED_COMMANDS,
         "threshold_policy": (
             "Thresholds may be recalibrated only before a final run, and any change "
@@ -66,7 +66,8 @@ def real_contract() -> dict[str, Any]:
             "real_openai": {
                 "claims_semantic_quality": True,
                 "allowed_completion_claim": "rag_quality_complete",
-                "requires": ["thresholds_applied", "evaluation_valid"],
+                # rag_quality_complete in metrics.json is the authoritative gate computed by decide_gates.
+                "requires": ["thresholds_met", "evaluation_valid"],
             }
         },
     }

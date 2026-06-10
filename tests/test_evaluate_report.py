@@ -75,7 +75,7 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
         "contract.json",
     ]:
         (eval_dir / name).write_text("{}\n", encoding="utf-8")
-    (eval_dir / "metrics.json").write_text(json.dumps({"provider_lane": "fake_offline", "offline_scaffold_complete": True, "rag_quality_complete": False, "thresholds_applied": False}), encoding="utf-8")
+    (eval_dir / "metrics.json").write_text(json.dumps({"provider_lane": "offline", "offline_scaffold_complete": True, "rag_quality_complete": False, "thresholds_applied": False}), encoding="utf-8")
     (eval_dir / "contract.json").write_text(json.dumps({"contract_version": "rfp-rag-offline-v1", "required_commands": ["python3 -m pytest", "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json", "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline", "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.15", "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md"], "readme_markers": ["rfp-rag-offline-v1", "does not claim semantic quality"], "quality_semantics": {"offline": {"claims_semantic_quality": False}}}), encoding="utf-8")
     readme = tmp_path / "README.md"
     readme.write_text(
@@ -122,6 +122,22 @@ def test_report_check_rejects_tampered_contract_and_missing_artifacts(tmp_path: 
     assert "contract_version_mismatch" in result["metric_warnings"]
     assert "metrics.json" in result["missing_files"]
     assert "python3 -m pytest" in result["missing_readme_snippets"]
+
+
+def test_report_check_flags_real_lane_eval_dir_as_unsupported(tmp_path: Path) -> None:
+    eval_dir = tmp_path / "eval"
+    eval_dir.mkdir()
+    (eval_dir / "contract.json").write_text(
+        json.dumps({"contract_version": "rfp-rag-real-v1"}), encoding="utf-8"
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text("", encoding="utf-8")
+
+    result = check_report(eval_dir, readme)
+
+    assert result["ok"] is False
+    assert "real_lane_eval_dir_not_supported" in result["metric_warnings"]
+    assert "contract_version_mismatch" not in result["metric_warnings"]
 
 
 # "offline" is what evaluate.py writes today (normalized lane); "fake_offline"

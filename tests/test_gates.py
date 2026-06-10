@@ -21,6 +21,7 @@ def test_real_lane_passes_when_all_thresholds_met() -> None:
     gates = decide_gates("real_openai", _passing_aggregate(), evaluation_valid=True)
 
     assert gates["thresholds_applied"] is True
+    assert gates["thresholds_met"] is True
     assert gates["rag_quality_complete"] is True
 
 
@@ -29,12 +30,15 @@ def test_real_lane_fails_below_any_threshold() -> None:
 
     gates = decide_gates("real_openai", aggregate, evaluation_valid=True)
 
+    assert gates["thresholds_met"] is False
     assert gates["rag_quality_complete"] is False
 
 
 def test_real_lane_fails_when_evaluation_invalid() -> None:
     gates = decide_gates("real_openai", _passing_aggregate(), evaluation_valid=False)
 
+    # thresholds_met alone is not sufficient: evaluation_valid is also required.
+    assert gates["thresholds_met"] is True
     assert gates["rag_quality_complete"] is False
 
 
@@ -42,6 +46,7 @@ def test_offline_lane_never_claims_quality() -> None:
     gates = decide_gates("offline", _passing_aggregate(), evaluation_valid=True)
 
     assert gates["thresholds_applied"] is False
+    assert gates["thresholds_met"] is False
     assert gates["rag_quality_complete"] is False
     assert gates["offline_scaffold_complete"] is True
 
