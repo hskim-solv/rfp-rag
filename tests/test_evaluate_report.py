@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from rfp_rag.build_index import build_index
 from rfp_rag.evaluate import evaluate_index
 from rfp_rag.report_check import check_report
@@ -121,7 +123,10 @@ def test_report_check_rejects_tampered_contract_and_missing_artifacts(tmp_path: 
     assert "python3 -m pytest" in result["missing_readme_snippets"]
 
 
-def test_report_check_rejects_fake_offline_metric_drift(tmp_path: Path) -> None:
+# "offline" is what evaluate.py writes today (normalized lane); "fake_offline"
+# proves legacy artifacts still trip the drift guards.
+@pytest.mark.parametrize("lane", ["offline", "fake_offline"])
+def test_report_check_rejects_offline_metric_drift(tmp_path: Path, lane: str) -> None:
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()
     from rfp_rag.contracts import offline_contract
@@ -131,7 +136,7 @@ def test_report_check_rejects_fake_offline_metric_drift(tmp_path: Path) -> None:
     (eval_dir / "contract.json").write_text(json.dumps(contract), encoding="utf-8")
     (eval_dir / "metrics.json").write_text(
         json.dumps({
-            "provider_lane": "fake_offline",
+            "provider_lane": lane,
             "offline_scaffold_complete": True,
             "rag_quality_complete": True,
             "thresholds_applied": True,
@@ -144,5 +149,5 @@ def test_report_check_rejects_fake_offline_metric_drift(tmp_path: Path) -> None:
     result = check_report(eval_dir, readme)
 
     assert result["ok"] is False
-    assert "fake_offline_must_not_claim_rag_quality_complete" in result["metric_warnings"]
-    assert "fake_offline_must_not_apply_real_quality_thresholds" in result["metric_warnings"]
+    assert "offline_must_not_claim_rag_quality_complete" in result["metric_warnings"]
+    assert "offline_must_not_apply_real_quality_thresholds" in result["metric_warnings"]

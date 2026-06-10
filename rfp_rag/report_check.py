@@ -26,10 +26,13 @@ def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
     metric_warnings: list[str] = []
     if contract.get("contract_version") != canonical_contract.get("contract_version"):
         metric_warnings.append("contract_version_mismatch")
-    if metrics.get("provider_lane") == "fake_offline" and metrics.get("rag_quality_complete") is True:
-        metric_warnings.append("fake_offline_must_not_claim_rag_quality_complete")
-    if metrics.get("provider_lane") == "fake_offline" and metrics.get("thresholds_applied") is True:
-        metric_warnings.append("fake_offline_must_not_apply_real_quality_thresholds")
+    # evaluate.py writes the normalized lane ("offline"); accept the legacy
+    # "fake_offline" alias too so old artifacts still trip the drift guards.
+    offline_lane = metrics.get("provider_lane") in ("offline", "fake_offline")
+    if offline_lane and metrics.get("rag_quality_complete") is True:
+        metric_warnings.append("offline_must_not_claim_rag_quality_complete")
+    if offline_lane and metrics.get("thresholds_applied") is True:
+        metric_warnings.append("offline_must_not_apply_real_quality_thresholds")
     ok = not missing_files and not missing_readme_snippets and not metric_warnings
     return {
         "ok": ok,

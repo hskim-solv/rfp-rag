@@ -28,13 +28,14 @@ MAX_ERROR_RATE = 0.10
 
 
 def decide_gates(lane: str, aggregate: dict[str, Any], evaluation_valid: bool) -> dict[str, Any]:
-    offline_scaffold_complete = bool(
-        aggregate.get("citation_presence") is not None
-        and aggregate.get("citation_presence", 0) >= 0.95
-        and aggregate.get("citation_validity") is not None
-        and aggregate.get("citation_validity", 0) >= 0.90
-        and aggregate.get("abstention_pass") is not None
-        and aggregate.get("abstention_pass", 0) >= 0.90
+    def _meets(metric: str, minimum: float) -> bool:
+        value = aggregate.get(metric)
+        return value is not None and value >= minimum
+
+    offline_scaffold_complete = (
+        _meets("citation_presence", 0.95)
+        and _meets("citation_validity", 0.90)
+        and _meets("abstention_pass", 0.90)
     )
     if lane != "real_openai":
         return {
@@ -43,10 +44,7 @@ def decide_gates(lane: str, aggregate: dict[str, Any], evaluation_valid: bool) -
             "rag_quality_complete": False,
         }
     thresholds = REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS
-    met = all(
-        aggregate.get(metric) is not None and aggregate.get(metric, 0.0) >= minimum
-        for metric, minimum in thresholds.items()
-    )
+    met = all(_meets(metric, minimum) for metric, minimum in thresholds.items())
     return {
         "thresholds_applied": True,
         "offline_scaffold_complete": offline_scaffold_complete,
@@ -308,8 +306,13 @@ def _render_report(metrics: dict[str, Any], predictions: list[dict[str, Any]]) -
         "",
         "## Gate semantics",
         "",
-        "- `fake_offline` is an offline contract gate for corpus/index/retrieval schema, citations, and abstention.",
-        "- It does not claim semantic RAG answer quality. Real quality requires real providers and credentials.",
+        f"- {metrics['quality_note']}",
+        f"- provider_lane: {metrics['provider_lane']}",
+        f"- min_score: {metrics['min_score']}",
+        f"- error_rate: {metrics['error_rate']}",
+        f"- evaluation_valid: {metrics['evaluation_valid']}",
+        f"- offline_scaffold_complete: {metrics['offline_scaffold_complete']}",
+        f"- rag_quality_complete: {metrics['rag_quality_complete']}",
         "",
         "## Aggregate metrics",
         "",
@@ -349,6 +352,8 @@ def evaluate_index(
     provider: str = "fake_offline",
     top_k: int = 5,
     max_docs: int = 10,
+    # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
+    # pass min_score explicitly per lane (real lane calibrates in its own run).
     min_score: float = 0.05,
 ) -> dict[str, Any]:
     lane = normalize_lane(provider)
@@ -462,6 +467,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--provider", default="fake_offline")
     parser.add_argument("--top-k", default=5, type=int)
     parser.add_argument("--max-docs", default=10, type=int)
+    # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
+    # pass --min-score explicitly per lane.
     parser.add_argument("--min-score", default=0.05, type=float)
     return parser
 
