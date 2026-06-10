@@ -50,6 +50,9 @@ def answer_with_store(
         return abstention_response(query, results)
 
     answer = generator.generate(query, results)
+    # "없는 정보" is the abstention sentinel produced by generators (e.g.
+    # LLMAnswerGenerator on insufficient_context). A grounded answer merely
+    # quoting this phrase is a known, accepted false-abstain risk.
     if "없는 정보" in answer:
         return abstention_response(query, results)
 
