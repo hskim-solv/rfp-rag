@@ -7,7 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
-from .contracts import offline_contract
+from .contracts import offline_contract, real_contract
 from .corpus import CorpusDocument, load_corpus
 from .providers import normalize_lane
 from .rag_chain import answer_query
@@ -452,7 +452,7 @@ def evaluate_index(
     _write_jsonl(out_dir / "golden_metadata.jsonl", golden)
     _write_jsonl(out_dir / "curated_text_questions.jsonl", curated)
     _write_jsonl(out_dir / "abstention_questions.jsonl", abstentions)
-    _write_json(out_dir / "contract.json", offline_contract())
+    _write_json(out_dir / "contract.json", real_contract() if lane == "real_openai" else offline_contract())
     _write_json(out_dir / "metrics.json", metrics)
     _write_jsonl(out_dir / "predictions.jsonl", predictions)
     (out_dir / "report.md").write_text(_render_report(metrics, predictions), encoding="utf-8")

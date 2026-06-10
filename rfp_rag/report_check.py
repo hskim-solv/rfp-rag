@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
-from .contracts import offline_contract
+from .contracts import REAL_CONTRACT_VERSION, offline_contract
 
 
 def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
@@ -17,7 +17,12 @@ def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
     required_files = list(canonical_contract.get("required_eval_files", []))
     missing_files = [name for name in required_files if not (eval_dir / name).exists()]
     readme_text = readme.read_text(encoding="utf-8") if readme.exists() else ""
-    required_readme = list(canonical_contract.get("required_commands", [])) + list(canonical_contract.get("readme_markers", []))
+    # README must also document the real provider quality lane section (rfp-rag-real-v1).
+    required_readme = (
+        list(canonical_contract.get("required_commands", []))
+        + list(canonical_contract.get("readme_markers", []))
+        + [REAL_CONTRACT_VERSION]
+    )
     missing_readme_snippets = [snippet for snippet in required_readme if snippet not in readme_text]
     metrics: dict[str, Any] = {}
     metrics_path = eval_dir / "metrics.json"

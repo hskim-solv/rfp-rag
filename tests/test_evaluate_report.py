@@ -59,7 +59,7 @@ def test_evaluate_index_writes_offline_contract_artifacts(tmp_path: Path) -> Non
     contract = json.loads((eval_dir / "contract.json").read_text(encoding="utf-8"))
     assert saved_metrics == metrics
     assert contract["contract_version"] == "rfp-rag-offline-v1"
-    assert contract["quality_semantics"]["fake_offline"]["claims_semantic_quality"] is False
+    assert contract["quality_semantics"]["offline"]["claims_semantic_quality"] is False
 
 
 def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) -> None:
@@ -76,7 +76,7 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
     ]:
         (eval_dir / name).write_text("{}\n", encoding="utf-8")
     (eval_dir / "metrics.json").write_text(json.dumps({"provider_lane": "fake_offline", "offline_scaffold_complete": True, "rag_quality_complete": False, "thresholds_applied": False}), encoding="utf-8")
-    (eval_dir / "contract.json").write_text(json.dumps({"contract_version": "rfp-rag-offline-v1", "required_commands": ["python3 -m pytest", "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json", "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider fake", "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider fake_offline --top-k 5", "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md"], "readme_markers": ["rfp-rag-offline-v1", "does not claim semantic quality"], "quality_semantics": {"fake_offline": {"claims_semantic_quality": False}}}), encoding="utf-8")
+    (eval_dir / "contract.json").write_text(json.dumps({"contract_version": "rfp-rag-offline-v1", "required_commands": ["python3 -m pytest", "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json", "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline", "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.15", "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md"], "readme_markers": ["rfp-rag-offline-v1", "does not claim semantic quality"], "quality_semantics": {"offline": {"claims_semantic_quality": False}}}), encoding="utf-8")
     readme = tmp_path / "README.md"
     readme.write_text(
         "\n".join(
@@ -84,10 +84,11 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
                 "rfp-rag-offline-v1",
                 "python3 -m pytest",
                 "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json",
-                "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider fake",
-                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider fake_offline --top-k 5",
+                "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline",
+                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.15",
                 "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
-                "fake_offline is an offline contract gate and does not claim semantic quality.",
+                "The offline lane is an offline contract gate and does not claim semantic quality.",
+                "Real provider quality lane (rfp-rag-real-v1)",
             ]
         ),
         encoding="utf-8",
