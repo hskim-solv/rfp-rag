@@ -7,7 +7,13 @@ from typing import Any
 from langchain_qdrant import QdrantVectorStore
 
 from .index_store import SearchResult
-from .providers import AnswerGenerator, build_embeddings, build_generator, normalize_lane
+from .providers import (
+    AnswerGenerator,
+    build_embeddings,
+    build_generator,
+    chunk_context_block,
+    normalize_lane,
+)
 from .vector_index import load_vector_store, search
 
 ABSTAIN_ANSWER = "검색된 제안요청서 근거만으로는 답할 수 없는 정보입니다. 없는 정보"
@@ -65,7 +71,10 @@ def answer_with_store(
         "query": query,
         "answer": answer,
         "sources": [_source_from_result(r) for r in results],
-        "source_texts": [r.text for r in results],
+        # source_texts feed the RAGAS judge as retrieved_contexts and MUST match
+        # what build_answer_prompt showed the generator (metadata lines + body),
+        # otherwise metadata-grounded answers get judged unfaithful.
+        "source_texts": [chunk_context_block(r) for r in results],
         "warnings": [],
         "confidence": "high" if top_score >= 2 * min_score else "medium",
         "retrieved_doc_ids": [r.doc_id for r in results],

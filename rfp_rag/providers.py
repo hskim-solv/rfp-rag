@@ -102,7 +102,12 @@ SYSTEM_PROMPT = (
     "반드시 아래 제공된 근거 chunk 내용만 사용해 한국어로 답하세요. "
     "모든 답변은 근거가 된 chunk id를 cited_chunk_ids에 담으세요. "
     "근거가 부족하면 insufficient_context를 true로 하고 answer에 '없는 정보'를 포함하세요. "
-    "금액·날짜·기관명은 근거 원문 표기 그대로 인용하세요."
+    "금액·날짜·기관명은 근거 원문 표기 그대로 인용하세요. "
+    "각 chunk의 사업금액·입찰마감·발주기관·공고요약은 공고 등록 정보(메타데이터)로서 "
+    "금액·날짜·기관명·요약 질문의 공식 출처이며, 본문 표기와 다를 경우 "
+    "공고 등록 정보를 우선해 그대로 인용하세요. "
+    "요약을 요청받으면 해당 chunk의 공고요약 문구 전체를 줄바꿈까지 포함해 "
+    "한 글자도 바꾸지 말고 그대로 옮겨 적어 답하세요."
 )
 
 
@@ -112,11 +117,30 @@ class LLMAnswer(BaseModel):
     insufficient_context: bool = Field(default=False, description="근거 부족 여부")
 
 
+def chunk_context_block(result: SearchResult) -> str:
+    """Render one retrieved chunk as the context block shown to the LLM and the judge.
+
+    Includes the registry metadata (공고 등록 정보) because golden answers come from
+    CSV metadata that the document body may lack or contradict.
+    """
+    md = result.metadata
+    lines = [f"[{result.chunk_id}] 사업명: {md.get('project_name', '')}"]
+    if md.get("issuer"):
+        lines.append(f"발주기관: {md['issuer']}")
+    if md.get("budget_krw_int") is not None:
+        lines.append(f"사업금액: {md['budget_krw_int']:,}원")
+    deadline = md.get("bid_end_at_iso") or md.get("bid_end_at_raw")
+    if deadline:
+        lines.append(f"입찰마감: {deadline}")
+    summary = (md.get("summary") or "").strip()
+    if summary:
+        lines.append(f"공고요약: {summary}")
+    lines.append(f"본문: {result.text}")
+    return "\n".join(lines)
+
+
 def build_answer_prompt(query: str, results: list[SearchResult]) -> str:
-    blocks = []
-    for r in results:
-        blocks.append(f"[{r.chunk_id}] (사업명: {r.metadata.get('project_name', '')})\n{r.text}")
-    context = "\n\n".join(blocks)
+    context = "\n\n".join(chunk_context_block(r) for r in results)
     return f"근거 chunk 목록:\n\n{context}\n\n질문: {query}"
 
 

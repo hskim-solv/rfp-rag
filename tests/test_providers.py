@@ -15,6 +15,7 @@ from rfp_rag.providers import (
     build_answer_prompt,
     build_embeddings,
     build_generator,
+    chunk_context_block,
     normalize_lane,
 )
 
@@ -98,6 +99,44 @@ def test_build_answer_prompt_labels_chunks_and_includes_query() -> None:
     assert "[doc:000:chunk:0]" in prompt
     assert "발주 기관은 어디야?" in prompt
     assert "트랙운영 학사정보시스템 고도화 본문" in prompt
+    # 공고 등록 정보(메타데이터): 골든 답이 본문에 없어도 프롬프트에서 보여야 한다
+    assert "발주기관: 한영대학" in prompt
+    assert "150,000,000원" in prompt
+    assert "2024-05-01T10:00:00" in prompt
+    assert "학사정보시스템을 고도화한다." in prompt
+
+
+def test_chunk_context_block_renders_registry_metadata_lines() -> None:
+    block = chunk_context_block(_result())
+
+    assert block.splitlines() == [
+        "[doc:000:chunk:0] 사업명: 한영대학교 트랙운영 학사정보시스템 고도화",
+        "발주기관: 한영대학",
+        "사업금액: 150,000,000원",
+        "입찰마감: 2024-05-01T10:00:00",
+        "공고요약: 학사정보시스템을 고도화한다.",
+        "본문: 트랙운영 학사정보시스템 고도화 본문",
+    ]
+
+
+def test_build_answer_prompt_omits_absent_metadata_fields() -> None:
+    result = SearchResult(
+        chunk_id="doc:001:chunk:0",
+        doc_id="doc:001",
+        csv_row_id="001",
+        score=0.9,
+        text="메타데이터 없는 본문",
+        metadata={"project_name": "이름만 있는 사업"},
+    )
+
+    prompt = build_answer_prompt("질문", [result])
+
+    assert "사업명: 이름만 있는 사업" in prompt
+    assert "본문: 메타데이터 없는 본문" in prompt
+    assert "발주기관" not in prompt
+    assert "사업금액" not in prompt
+    assert "입찰마감" not in prompt
+    assert "공고요약" not in prompt
 
 
 def test_llm_generator_keeps_only_valid_citations() -> None:
