@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import Protocol
+import os
+from typing import Callable, Protocol
 
 from langchain_core.embeddings import Embeddings
+from pydantic import BaseModel, Field
 
 from .fake_provider import lexical_features
 from .index_store import SearchResult
@@ -93,3 +95,51 @@ class TemplateAnswerGenerator:
             return f"검색된 근거 기준으로 {project}는 {issuer}의 사업이며, 주요 내용은 다음과 같습니다. {summary}"
         snippet = " ".join((top.text or "").split())[:350]
         return f"검색된 근거 기준으로 {project}는 {issuer}의 사업입니다. 관련 본문: {snippet}"
+
+
+SYSTEM_PROMPT = (
+    "당신은 B2G 입찰지원 컨설팅 '입찰메이트'의 RFP 분석 어시스턴트입니다. "
+    "반드시 아래 제공된 근거 chunk 내용만 사용해 한국어로 답하세요. "
+    "모든 답변은 근거가 된 chunk id를 cited_chunk_ids에 담으세요. "
+    "근거가 부족하면 insufficient_context를 true로 하고 answer에 '없는 정보'를 포함하세요. "
+    "금액·날짜·기관명은 근거 원문 표기 그대로 인용하세요."
+)
+
+
+class LLMAnswer(BaseModel):
+    answer: str = Field(description="근거 기반 한국어 답변")
+    cited_chunk_ids: list[str] = Field(default_factory=list, description="답변 근거 chunk id 목록")
+    insufficient_context: bool = Field(default=False, description="근거 부족 여부")
+
+
+def build_answer_prompt(query: str, results: list[SearchResult]) -> str:
+    blocks = []
+    for r in results:
+        blocks.append(f"[{r.chunk_id}] (사업명: {r.metadata.get('project_name', '')})\n{r.text}")
+    context = "\n\n".join(blocks)
+    return f"근거 chunk 목록:\n\n{context}\n\n질문: {query}"
+
+
+def _default_invoke(prompt: str) -> LLMAnswer:
+    from langchain_openai import ChatOpenAI
+
+    model = os.environ.get("RFP_GENERATION_MODEL", "gpt-5.4-mini")
+    llm = ChatOpenAI(model=model).with_structured_output(LLMAnswer)
+    return llm.invoke([("system", SYSTEM_PROMPT), ("human", prompt)])
+
+
+class LLMAnswerGenerator:
+    """Real lane generator: ChatOpenAI structured output with citation validation."""
+
+    def __init__(self, invoke: Callable[[str], LLMAnswer] | None = None) -> None:
+        self._invoke = invoke or _default_invoke
+        self.last_cited_chunk_ids: list[str] = []
+
+    def generate(self, query: str, results: list[SearchResult]) -> str:
+        payload = self._invoke(build_answer_prompt(query, results))
+        retrieved_ids = {r.chunk_id for r in results}
+        self.last_cited_chunk_ids = [cid for cid in payload.cited_chunk_ids if cid in retrieved_ids]
+        if payload.insufficient_context:
+            answer = payload.answer or ""
+            return answer if "없는 정보" in answer else f"{answer} 없는 정보".strip()
+        return payload.answer

@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import math
 
-from rfp_rag.providers import LexicalHashEmbeddings
+from rfp_rag.index_store import SearchResult
+from rfp_rag.providers import (
+    LexicalHashEmbeddings,
+    LLMAnswer,
+    LLMAnswerGenerator,
+    TemplateAnswerGenerator,
+    build_answer_prompt,
+)
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -43,10 +50,6 @@ def test_embed_documents_matches_embed_query() -> None:
     assert docs[0] == emb.embed_query("입찰 공고")
 
 
-from rfp_rag.index_store import SearchResult
-from rfp_rag.providers import TemplateAnswerGenerator
-
-
 def _result(score: float = 0.8) -> SearchResult:
     return SearchResult(
         chunk_id="doc:000:chunk:0",
@@ -80,3 +83,38 @@ def test_template_generator_falls_back_to_context_answer() -> None:
 
     assert "한영대학교 트랙운영 학사정보시스템 고도화" in answer
     assert "한영대학" in answer
+
+
+def test_build_answer_prompt_labels_chunks_and_includes_query() -> None:
+    prompt = build_answer_prompt("발주 기관은 어디야?", [_result()])
+
+    assert "[doc:000:chunk:0]" in prompt
+    assert "발주 기관은 어디야?" in prompt
+    assert "트랙운영 학사정보시스템 고도화 본문" in prompt
+
+
+def test_llm_generator_keeps_only_valid_citations() -> None:
+    def fake_invoke(prompt: str) -> LLMAnswer:
+        return LLMAnswer(
+            answer="발주 기관은 한영대학입니다.",
+            cited_chunk_ids=["doc:000:chunk:0", "doc:999:chunk:9"],
+            insufficient_context=False,
+        )
+
+    gen = LLMAnswerGenerator(invoke=fake_invoke)
+
+    answer = gen.generate("발주 기관은 어디야?", [_result()])
+
+    assert answer == "발주 기관은 한영대학입니다."
+    assert gen.last_cited_chunk_ids == ["doc:000:chunk:0"]
+
+
+def test_llm_generator_signals_abstention_via_phrase() -> None:
+    def fake_invoke(prompt: str) -> LLMAnswer:
+        return LLMAnswer(answer="자료가 없습니다.", cited_chunk_ids=[], insufficient_context=True)
+
+    gen = LLMAnswerGenerator(invoke=fake_invoke)
+
+    answer = gen.generate("화성 기지 예산은?", [_result()])
+
+    assert "없는 정보" in answer
