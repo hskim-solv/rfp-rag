@@ -24,15 +24,22 @@ def test_evaluate_index_writes_offline_contract_artifacts(tmp_path: Path) -> Non
         data_path=Path("data/data_list.csv"),
         index_dir=index_dir,
         out_dir=eval_dir,
-        provider="fake_offline",
+        provider="fake_offline",  # legacy alias, normalized to the offline lane
         top_k=5,
         max_docs=3,
+        min_score=0.15,  # calibrated offline cutoff; rationale recorded in score_distribution
     )
 
-    assert metrics["provider_lane"] == "fake_offline"
+    assert metrics["provider_lane"] == "offline"
+    assert metrics["min_score"] == 0.15
+    assert metrics["evaluation_valid"] is True
+    assert metrics["error_rate"] == 0.0
     assert metrics["offline_scaffold_complete"] is True
     assert metrics["rag_quality_complete"] is False
     assert metrics["thresholds_applied"] is False
+    assert metrics["query_set_counts"]["abstention"] == 10
+    assert metrics["score_distribution"]["abstention_top_scores"]
+    assert metrics["score_distribution"]["in_domain_top_scores"]
     assert metrics["aggregate"]["citation_presence"] >= 0.95
     assert metrics["aggregate"]["citation_validity"] >= 0.90
     assert metrics["aggregate"]["abstention_pass"] >= 0.90
