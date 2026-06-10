@@ -56,7 +56,10 @@ def decide_gates(lane: str, aggregate: dict[str, Any], evaluation_valid: bool) -
 
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _write_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:

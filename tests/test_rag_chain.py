@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import pytest
+
 from rfp_rag.chunking import Chunk
 from rfp_rag.index_store import SearchResult
 from rfp_rag.providers import LexicalHashEmbeddings, TemplateAnswerGenerator
-from rfp_rag.rag_chain import answer_with_store
+from rfp_rag.rag_chain import answer_query, answer_with_store
 from rfp_rag.vector_index import build_vector_store
 
 
@@ -77,3 +82,17 @@ def test_unrelated_question_abstains() -> None:
     assert response["confidence"] == "low"
     assert response["sources"] == []
     assert response["source_texts"] == []
+
+
+def test_answer_query_rejects_lane_mismatch(tmp_path: Path) -> None:
+    d = tmp_path / "idx"
+    d.mkdir()
+    (d / "manifest.json").write_text(json.dumps({"embedding_provider": "real_openai"}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="rebuild the index"):
+        answer_query(d, "질문", provider="offline")
+
+
+def test_answer_query_requires_manifest(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="manifest not found"):
+        answer_query(tmp_path / "empty", "질문")
