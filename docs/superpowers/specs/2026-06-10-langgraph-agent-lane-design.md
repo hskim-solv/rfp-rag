@@ -48,9 +48,10 @@ generate → verify ── citations ok ──→ (save_requested? → save_repo
   확정 후 `save_requested=true`면 `save_report` 노드를 경유한다.
 - `save_report` 노드는 도구 내부에서 `interrupt()`로 일시정지 → 승인 시 저장 +
   audit log, 거부 시 취소를 audit log에 기록하고 답변만 반환한다.
-- metadata 경로의 `generate`: 집계 결과(rows/합계)를 답변으로 포맷한다. offline은
-  결정론적 표/문장 포맷터, real은 LLM에 집계 결과를 컨텍스트로 전달. 인용(`sources`)은
-  집계에 사용된 CSV row의 doc_id 목록으로 구성해 기존 응답 스키마를 유지한다.
+- metadata 경로의 `generate`: 집계 결과(rows/합계)를 답변으로 포맷한다. **양 레인 공통
+  결정론 포맷터**를 사용한다 (구현 중 단순화 결정 — LLM 포맷팅은 결정론 채점을 깨고
+  비용만 늘린다). 인용(`sources`)은 집계에 사용된 CSV row의 doc_id 목록으로 구성해
+  기존 응답 스키마를 유지한다.
 
 ### 노드 책임 (메모리 갭 1 노드 목록 대응)
 
