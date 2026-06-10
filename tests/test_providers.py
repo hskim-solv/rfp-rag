@@ -14,6 +14,7 @@ from rfp_rag.providers import (
     TemplateAnswerGenerator,
     build_answer_prompt,
     build_embeddings,
+    build_generator,
     normalize_lane,
 )
 
@@ -147,3 +148,11 @@ def test_build_embeddings_real_requires_api_key(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY required"):
         build_embeddings(LANE_REAL_OPENAI)
+
+
+def test_build_embeddings_normalizes_raw_alias() -> None:
+    assert isinstance(build_embeddings("fake"), LexicalHashEmbeddings)
+
+
+def test_build_generator_offline_is_template() -> None:
+    assert isinstance(build_generator(LANE_OFFLINE), TemplateAnswerGenerator)

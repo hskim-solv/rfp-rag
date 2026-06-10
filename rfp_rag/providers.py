@@ -174,12 +174,14 @@ def require_openai_key() -> None:
 
 
 def embedding_model_name(lane: str) -> str:
+    lane = normalize_lane(lane)
     if lane == LANE_OFFLINE:
         return "lexical-hash-v1"
     return os.environ.get("RFP_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
 
 
-def build_embeddings(lane: str):
+def build_embeddings(lane: str) -> Embeddings:
+    lane = normalize_lane(lane)
     if lane == LANE_OFFLINE:
         return LexicalHashEmbeddings()
     require_openai_key()
@@ -189,6 +191,7 @@ def build_embeddings(lane: str):
 
 
 def build_generator(lane: str) -> AnswerGenerator:
+    lane = normalize_lane(lane)
     if lane == LANE_OFFLINE:
         return TemplateAnswerGenerator()
     require_openai_key()
