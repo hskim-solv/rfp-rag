@@ -143,6 +143,39 @@ def test_reaggregate_fails_gate_when_coverage_low(tmp_path: Path) -> None:
     assert metrics["rag_quality_complete"] is False
 
 
+def test_reaggregate_defaults_to_previous_lane(tmp_path: Path) -> None:
+    # --provider 미지정 시 fake_offline 기본값이 들어가면 real 증거가 offline 계약으로
+    # 덮어써진다 (PR #7 Codex P2) — 이전 run의 lane을 보존해야 한다
+    eval_dir = _write_eval_dir(tmp_path, [_prediction("q0")])
+
+    metrics = reaggregate_metrics(eval_dir)
+
+    assert metrics["provider_lane"] == "real_openai"
+    assert "judge_coverage_faithfulness" in metrics["aggregate"]
+    contract = json.loads((eval_dir / "contract.json").read_text(encoding="utf-8"))
+    assert contract["contract_version"] == REAL_CONTRACT_VERSION
+
+
+def test_reaggregate_rejects_lane_mismatch(tmp_path: Path) -> None:
+    # lane을 바꿔 재집계하면 증거 파괴 — 명시 오버라이드도 차단한다
+    eval_dir = _write_eval_dir(tmp_path, [_prediction("q0")])
+
+    with pytest.raises(ValueError, match="lane"):
+        reaggregate_metrics(eval_dir, provider="offline")
+
+
+def test_cli_reaggregate_without_provider_preserves_lane(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    eval_dir = _write_eval_dir(tmp_path, [_prediction("q0")])
+
+    exit_code = main(["--reaggregate", "--out", str(eval_dir)])
+
+    assert exit_code == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["provider_lane"] == "real_openai"
+
+
 def test_cli_reaggregate_runs_without_data_and_index(
     tmp_path: Path, capsys: pytest.CaptureFixture
 ) -> None:

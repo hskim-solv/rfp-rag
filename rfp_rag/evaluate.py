@@ -567,15 +567,17 @@ def evaluate_index(
 
 
 def reaggregate_metrics(
-    out_dir: Path | str, provider: str = "real_openai"
+    out_dir: Path | str, provider: str | None = None
 ) -> dict[str, Any]:
     """기존 predictions.jsonl에서 metrics/contract/report만 재계산한다 — API 호출 없음.
 
     게이트 시맨틱(contract) 변경 시 보존된 judge 산출물로 게이트 증거를 재생성하는
     경로. RAG 답변과 채점은 다시 실행하지 않으므로 비용이 들지 않고, 산출물에는
     reaggregated_from_predictions=True로 출처를 남긴다.
+
+    lane은 이전 run의 provider_lane을 보존한다 — provider를 명시하더라도 lane이
+    바뀌면 거부한다 (real 증거를 offline 계약으로 덮어쓰는 사고 차단, PR #7 리뷰).
     """
-    lane = normalize_lane(provider)
     out_dir = Path(out_dir)
     predictions = [
         json.loads(line)
@@ -584,6 +586,12 @@ def reaggregate_metrics(
         .splitlines()
     ]
     previous = json.loads((out_dir / "metrics.json").read_text(encoding="utf-8"))
+    lane = normalize_lane(previous.get("provider_lane", ""))
+    if provider is not None and normalize_lane(provider) != lane:
+        raise ValueError(
+            f"--provider lane {normalize_lane(provider)!r} does not match the "
+            f"preserved run's lane {lane!r}; reaggregation must not switch lanes"
+        )
     error_count = sum(
         1
         for p in predictions
@@ -627,7 +635,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data", type=Path)
     parser.add_argument("--index", type=Path)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--provider", default="fake_offline")
+    # None 기본값: --reaggregate는 이전 run의 lane을 보존해야 하므로 (실수로
+    # fake_offline이 들어가 real 증거를 덮어쓰는 사고 방지) 여기서 기본을 정하지 않는다.
+    parser.add_argument("--provider", default=None)
     parser.add_argument("--top-k", default=5, type=int)
     parser.add_argument("--max-docs", default=10, type=int)
     # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
@@ -655,7 +665,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             args.data,
             args.index,
             args.out,
-            provider=args.provider,
+            provider=args.provider or "fake_offline",
             top_k=args.top_k,
             max_docs=args.max_docs,
             min_score=args.min_score,
