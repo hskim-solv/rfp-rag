@@ -333,6 +333,28 @@ python3 -m rfp_rag.evaluate \
   644+ → ~18콜(3케이스×2메트릭×3시도)로 줄어든다. (c) 병렬화는 비용·rate-limit
   트레이드오프 결정이 필요해 이월.
 
+### 10-11. Judge 모델 A/B 결과 — Hybrid 전략 정량 검증 (2026-06-11)
+
+billing 복구 후 §10-10의 동일 명령으로 재실행, 60건 전부 정상 완료 (`judge_error` 0건,
+`judge_aborted` 0건, abstention 10건은 설계대로 스킵). 직전에 머지한 judge fail-fast +
+retry 상한(§10-10 개선 (a)(b), PR #4)이 적용된 첫 real 실행이기도 하다.
+Langfuse 실측: 150 GENERATION 콜, ERROR 0건, **비용 $0.32** (mini judge — §10-5의
+"반복은 mini" 전략이 주장하는 비용 절감의 실측 근거).
+
+| 메트릭 | baseline (gpt-5.4) | mini (gpt-5.4-mini) | mean \|Δ\| | \|Δ\|≥0.1 케이스 |
+|--------|--------------------|---------------------|-----------|------------------|
+| faithfulness | 0.9973 | 0.9917 | 0.0077 | 1/50 |
+| answer_relevancy | 0.9254 | 0.8973 | 0.0304 | 5/46 |
+
+- **게이트 판정 일치**: 두 judge 모두 RAGAS 임계(faithfulness 0.80 / relevancy 0.70)를
+  여유 있게 통과 — judge를 mini로 바꿔도 게이트 결론이 달라지지 않는다.
+- **케이스 레벨**: faithfulness는 사실상 합치(이탈 1건 — curated_scope_004 1.0→0.667).
+  relevancy 이탈 5건은 전부 metadata_summary 계열에서 mini가 **박하게** 채점한 방향
+  (최대 Δ 0.353) — 게이트를 보수적으로 만드는 방향이라 거짓 통과 위험은 없다.
+- **결론 — §10-5 Hybrid 전략 유지·정량 근거 확보**: 반복 개발은 mini로 충분
+  (판정 동일, 비용 절감). 공식 게이트 런은 gpt-5.4 유지 — faithfulness 상향 이탈
+  1건처럼 케이스 디버깅 시 교차 확인이 필요한 사례가 존재한다.
+
 ## 11. 결론
 
 본 프로젝트는 RFP 100건에 대한 RAG baseline의 핵심 골격을 완성했다. 현재 산출물은 API 없이도 재현 가능한 offline scaffold이며, corpus 정합성·index 생성·cited QA·abstention·evaluation/report gate까지 end-to-end로 검증되었다.
