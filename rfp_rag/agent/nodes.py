@@ -21,7 +21,7 @@ from .state import (
     dict_to_result,
     result_to_dict,
 )
-from .tools import AuditLogger, aggregate_metadata, save_report_file
+from .tools import AuditLogger, aggregate_metadata, report_filename, save_report_file
 
 
 @dataclass
@@ -90,7 +90,12 @@ class AgentRuntime:
             result = {"error": str(exc)}
             outcome = f"error: {exc}"
         call = {"tool": "aggregate_metadata", "args": args, "outcome": outcome}
-        self.audit.record(thread_id=self.thread_id, tool="aggregate_metadata", args=args, outcome=outcome)
+        self.audit.record(
+            thread_id=self.thread_id,
+            tool="aggregate_metadata",
+            args=args,
+            outcome=outcome,
+        )
         return {"tool_result": result, "tool_calls": [call]}
 
     def generate_node(self, state: AgentState) -> dict[str, Any]:
@@ -133,7 +138,7 @@ class AgentRuntime:
         }
 
     def save_report_node(self, state: AgentState) -> dict[str, Any]:
-        filename = f"agent_report_{self.thread_id}.md"
+        filename = report_filename(self.thread_id)
         content = self._render_report(state)
         decision = interrupt(
             {
@@ -143,26 +148,40 @@ class AgentRuntime:
                 "message": "보고서를 저장할까요? --approve 또는 --reject로 재개하세요.",
             }
         )
-        approved = decision == "approve" or (isinstance(decision, dict) and decision.get("action") == "approve")
+        approved = decision == "approve" or (
+            isinstance(decision, dict) and decision.get("action") == "approve"
+        )
         args = {"filename": filename}
         if approved:
             path = save_report_file(self.reports_dir, filename, content)
             self.audit.record(
-                thread_id=self.thread_id, tool="save_report", args=args, outcome=str(path), approved=True
+                thread_id=self.thread_id,
+                tool="save_report",
+                args=args,
+                outcome=str(path),
+                approved=True,
             )
             answer = dict(state["answer"] or {})
             answer["report_path"] = str(path)
             return {
                 "answer": answer,
                 "outcome": OUTCOME_ANSWERED,
-                "tool_calls": [{"tool": "save_report", "args": args, "outcome": str(path)}],
+                "tool_calls": [
+                    {"tool": "save_report", "args": args, "outcome": str(path)}
+                ],
             }
         self.audit.record(
-            thread_id=self.thread_id, tool="save_report", args=args, outcome="rejected", approved=False
+            thread_id=self.thread_id,
+            tool="save_report",
+            args=args,
+            outcome="rejected",
+            approved=False,
         )
         return {
             "outcome": OUTCOME_REJECTED,
-            "tool_calls": [{"tool": "save_report", "args": args, "outcome": "rejected"}],
+            "tool_calls": [
+                {"tool": "save_report", "args": args, "outcome": "rejected"}
+            ],
         }
 
     def respond_node(self, state: AgentState) -> dict[str, Any]:
@@ -172,7 +191,9 @@ class AgentRuntime:
 
     # --- helpers -----------------------------------------------------------
 
-    def _rag_answer(self, state: AgentState, text: str, results: list[SearchResult]) -> dict[str, Any]:
+    def _rag_answer(
+        self, state: AgentState, text: str, results: list[SearchResult]
+    ) -> dict[str, Any]:
         top_score = results[0].score
         return {
             "query": state["original_question"],

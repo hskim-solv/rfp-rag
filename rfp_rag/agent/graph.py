@@ -14,11 +14,31 @@ RECURSION_LIMIT = 25
 
 
 def initial_state(question: str) -> AgentState:
-    return {"question": question, "rewrite_count": 0, "tool_calls": []}
+    # checkpointer가 있는 thread 재사용 시 입력에 없는 키는 이전 checkpoint 값이
+    # 살아남는다 — per-run 필드를 전부 명시 리셋해 이전 실행 누출을 차단한다.
+    # (tool_calls는 operator.add 리듀서라 []가 no-op — thread 누적 감사 용도로 의도적 유지)
+    return {
+        "question": question,
+        "original_question": question,
+        "rewrite_count": 0,
+        "tool_calls": [],
+        "save_requested": False,
+        "tool_args": {},
+        "results": [],
+        "grade": "",
+        "regenerated": False,
+        "verify_ok": False,
+        "tool_result": None,
+        "answer": None,
+        "outcome": "",
+    }
 
 
 def run_config(thread_id: str) -> dict[str, Any]:
-    return {"configurable": {"thread_id": thread_id}, "recursion_limit": RECURSION_LIMIT}
+    return {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": RECURSION_LIMIT,
+    }
 
 
 def sqlite_checkpointer(path: Path) -> BaseCheckpointSaver:
@@ -28,7 +48,9 @@ def sqlite_checkpointer(path: Path) -> BaseCheckpointSaver:
     return SqliteSaver(sqlite3.connect(str(path), check_same_thread=False))
 
 
-def build_agent_graph(runtime: AgentRuntime, checkpointer: BaseCheckpointSaver | None = None):
+def build_agent_graph(
+    runtime: AgentRuntime, checkpointer: BaseCheckpointSaver | None = None
+):
     g = StateGraph(AgentState)
     g.add_node("route", runtime.route_node)
     g.add_node("retrieve", runtime.retrieve_node)
@@ -50,7 +72,9 @@ def build_agent_graph(runtime: AgentRuntime, checkpointer: BaseCheckpointSaver |
     )
     g.add_edge("retrieve", "grade")
     g.add_conditional_edges(
-        "grade", runtime.grade_branch, {"generate": "generate", "rewrite": "rewrite", "abstain": "abstain"}
+        "grade",
+        runtime.grade_branch,
+        {"generate": "generate", "rewrite": "rewrite", "abstain": "abstain"},
     )
     g.add_edge("rewrite", "retrieve")
     g.add_edge("tool_exec", "generate")
@@ -58,7 +82,12 @@ def build_agent_graph(runtime: AgentRuntime, checkpointer: BaseCheckpointSaver |
     g.add_conditional_edges(
         "verify",
         runtime.verify_branch,
-        {"respond": "respond", "save_report": "save_report", "regenerate": "regenerate", "abstain": "abstain"},
+        {
+            "respond": "respond",
+            "save_report": "save_report",
+            "regenerate": "regenerate",
+            "abstain": "abstain",
+        },
     )
     g.add_edge("regenerate", "generate")
     g.add_edge("save_report", "respond")

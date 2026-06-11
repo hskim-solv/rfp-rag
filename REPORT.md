@@ -437,3 +437,28 @@ python3 -m rfp_rag.agent.run_agent --index artifacts/index \
    다음 사이클 1순위 후보.
 5. metadata 경로 답변 포맷터는 양 레인 공통 결정론 구현으로 단순화했다 (설계 §3 대비
    변경, 결정론 채점·비용 관점 — 설계 문서에 반영됨).
+
+### 12-6. PR #2 Codex 리뷰 후속 수정 (2026-06-11)
+
+머지된 PR #2에 남아 있던 Codex 인라인 리뷰 2건을 코드 대조로 검증, 둘 다 실제 결함으로
+확인하고 TDD로 수정했다.
+
+1. **P1 — thread 재사용 시 per-run state 누출**: checkpointer가 있는 그래프를 같은
+   `--thread-id`로 재호출하면 입력에 없는 키는 이전 checkpoint 값이 살아남는다.
+   `original_question`(rewrite/abstain/보고서가 옛 질문 사용), `outcome`(`respond_node`가
+   기존 값 보존 → 이전 run의 `abstained`가 새 답변에도 잔존), `regenerated`가 누출됐다.
+   `initial_state()`가 per-run 필드를 전부 명시 리셋하도록 수정 — 모든 invoke 진입점
+   (`run_agent`/`evaluate_agent`/테스트)이 이 함수를 거치므로 단일 지점 수정이다.
+   `tool_calls`는 `operator.add` 리듀서라 빈 리스트가 no-op — thread 누적 감사 용도로
+   의도적으로 유지하고 주석으로 명시했다. (회귀 테스트:
+   `test_thread_reuse_resets_per_run_state`)
+2. **P2 — 비정상 thread_id로 보고서 저장 크래시**: `--thread-id`는 CLI 무제약인데
+   `agent_report_{thread_id}.md`가 `save_report_file`의 파일명 검증을 통과해야 해서
+   `user/123` 같은 값이면 **사용자 승인 후** `ValueError`로 크래시했다.
+   `report_filename()` 헬퍼를 추가해 비허용 문자를 `_` 치환하고, 변형이 발생한 경우에만
+   SHA-1 8자 접미를 붙여 서로 다른 id의 파일명 충돌을 막았다 (안전한 id는 기존 파일명
+   유지 — 하위호환). (회귀 테스트: `test_hitl_approve_with_unsafe_thread_id_still_saves`,
+   `test_report_filename_*` 3건)
+
+수정 후 offline 전체 101 passed, 3개 게이트(`offline_scaffold_complete` /
+`rag_quality_complete` / `agent_lane_complete`) 모두 재통과 (`gate.failed = []`).
