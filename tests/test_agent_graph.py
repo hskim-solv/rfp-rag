@@ -22,7 +22,9 @@ NOISY_PREFIX = (
 )
 
 
-def _runtime(tmp_path: Path, min_score: float = 0.05, thread_id: str = "t-graph") -> AgentRuntime:
+def _runtime(
+    tmp_path: Path, min_score: float = 0.05, thread_id: str = "t-graph"
+) -> AgentRuntime:
     chunks = [
         Chunk(
             chunk_id="doc:000:chunk:0",
@@ -39,7 +41,9 @@ def _runtime(tmp_path: Path, min_score: float = 0.05, thread_id: str = "t-graph"
             },
         )
     ]
-    store = build_vector_store(chunks, LexicalHashEmbeddings(dim=512), qdrant_path=None, lane="offline")
+    store = build_vector_store(
+        chunks, LexicalHashEmbeddings(dim=512), qdrant_path=None, lane="offline"
+    )
     docs = [
         CorpusDocument(
             csv_row_id="000",
@@ -94,7 +98,9 @@ def test_rewrite_recovers_noisy_question(tmp_path: Path) -> None:
 def test_exhausted_rewrites_abstain(tmp_path: Path) -> None:
     rt = _runtime(tmp_path, min_score=0.05)
     graph = build_agent_graph(rt)
-    out = graph.invoke(initial_state("화성 이주선 산소탱크 발사일은 언제야?"), run_config("t3"))
+    out = graph.invoke(
+        initial_state("화성 이주선 산소탱크 발사일은 언제야?"), run_config("t3")
+    )
     assert out["outcome"] == "abstained"
     assert out["rewrite_count"] == 2  # 루프 종료 보장
     assert "없는 정보" in out["answer"]["answer"]
@@ -104,11 +110,26 @@ def test_exhausted_rewrites_abstain(tmp_path: Path) -> None:
 def test_metadata_route_end_to_end(tmp_path: Path) -> None:
     rt = _runtime(tmp_path)
     graph = build_agent_graph(rt)
-    out = graph.invoke(initial_state("사업 금액이 가장 큰 공고 1건은?"), run_config("t4"))
+    out = graph.invoke(
+        initial_state("사업 금액이 가장 큰 공고 1건은?"), run_config("t4")
+    )
     assert out["outcome"] == "answered"
     assert out["route"] == "metadata_query"
     assert out["tool_result"]["doc_ids"] == ["doc:000"]
     assert PROJECT in out["answer"]["answer"]
+
+
+def test_thread_reuse_resets_per_run_state(tmp_path: Path) -> None:
+    # 같은 thread로 새 질문을 시작하면 이전 실행의 original_question/outcome이 누출되면 안 된다
+    rt = _runtime(tmp_path, thread_id="t7")
+    graph = build_agent_graph(rt, checkpointer=MemorySaver())
+    config = run_config("t7")
+    first = graph.invoke(initial_state("화성 이주선 산소탱크 발사일은 언제야?"), config)
+    assert first["outcome"] == "abstained"  # 전제: 첫 실행은 abstain으로 종료
+    q2 = f"{PROJECT} 사업 예산 알려줘"
+    second = graph.invoke(initial_state(q2), config)
+    assert second["outcome"] == "answered"
+    assert second["answer"]["query"] == q2
 
 
 def test_hitl_approve_saves_report_and_audits(tmp_path: Path) -> None:
@@ -123,9 +144,25 @@ def test_hitl_approve_saves_report_and_audits(tmp_path: Path) -> None:
     assert resumed["outcome"] == "answered"
     report = Path(resumed["answer"]["report_path"])
     assert report.exists() and report.parent == (tmp_path / "reports").resolve()
-    audit = [json.loads(l) for l in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()]
+    audit = [
+        json.loads(l)
+        for l in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     save_entries = [e for e in audit if e["tool"] == "save_report"]
     assert save_entries and save_entries[-1]["approved"] is True
+
+
+def test_hitl_approve_with_unsafe_thread_id_still_saves(tmp_path: Path) -> None:
+    # --thread-id는 CLI 무제약 — 경로 구분자 등이 있어도 승인 후 저장이 실패하면 안 된다
+    rt = _runtime(tmp_path, thread_id="user/123")
+    graph = build_agent_graph(rt, checkpointer=MemorySaver())
+    q = f"{PROJECT} 사업을 요약해서 보고서로 저장해줘"
+    first = graph.invoke(initial_state(q), run_config("user/123"))
+    assert "__interrupt__" in first
+    resumed = graph.invoke(Command(resume="approve"), run_config("user/123"))
+    assert resumed["outcome"] == "answered"
+    report = Path(resumed["answer"]["report_path"])
+    assert report.exists() and report.parent == (tmp_path / "reports").resolve()
 
 
 def test_hitl_reject_skips_save_and_audits(tmp_path: Path) -> None:
@@ -136,7 +173,12 @@ def test_hitl_reject_skips_save_and_audits(tmp_path: Path) -> None:
     assert "__interrupt__" in first
     resumed = graph.invoke(Command(resume="reject"), run_config("t6"))
     assert resumed["outcome"] == "rejected"
-    assert not (tmp_path / "reports").exists() or not list((tmp_path / "reports").iterdir())
-    audit = [json.loads(l) for l in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert not (tmp_path / "reports").exists() or not list(
+        (tmp_path / "reports").iterdir()
+    )
+    audit = [
+        json.loads(l)
+        for l in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     save_entries = [e for e in audit if e["tool"] == "save_report"]
     assert save_entries and save_entries[-1]["approved"] is False

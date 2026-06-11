@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -66,7 +67,14 @@ def aggregate_metadata(
         if field not in ALLOWED_FIELDS:
             raise ValueError(f"unsupported sort_by: {field!r}")
         total = sum(d.metadata.get(field) or 0 for d in selected)
-        return {"agg": "sum", "agg_field": field, "sum": total, "count": count, "rows": [], "doc_ids": []}
+        return {
+            "agg": "sum",
+            "agg_field": field,
+            "sum": total,
+            "count": count,
+            "rows": [],
+            "doc_ids": [],
+        }
 
     if sort_by is not None:
         # None 값은 정렬 방향과 무관하게 항상 뒤로 보낸다.
@@ -75,19 +83,50 @@ def aggregate_metadata(
         with_value.sort(key=lambda d: d.metadata[sort_by], reverse=descending)
         selected = with_value + without
     rows = [
-        {"doc_id": d.doc_id, "csv_row_id": d.csv_row_id, **{k: d.metadata.get(k) for k in ROW_FIELDS}}
+        {
+            "doc_id": d.doc_id,
+            "csv_row_id": d.csv_row_id,
+            **{k: d.metadata.get(k) for k in ROW_FIELDS},
+        }
         for d in selected[: max(int(top_n), 0)]
     ]
-    return {"agg": "list", "count": count, "rows": rows, "doc_ids": [r["doc_id"] for r in rows]}
+    return {
+        "agg": "list",
+        "count": count,
+        "rows": rows,
+        "doc_ids": [r["doc_id"] for r in rows],
+    }
 
 
 _FILENAME_RE = re.compile(r"^[0-9A-Za-z가-힣._-]+\.md$")
+# 접두("agent_report_") + 해시 접미("-xxxxxxxx") + ".md"를 더해도 255바이트 안에 들어가는 예산
+_MAX_SAFE_ID_BYTES = 100
+
+
+def report_filename(thread_id: str) -> str:
+    """thread_id 기반 보고서 파일명. CLI --thread-id는 무제약이라 sanitize 필수.
+
+    안전한 id는 그대로 쓰고, 변형이 발생한 경우에만 해시 접미를 붙여
+    서로 다른 id가 같은 파일명으로 수렴하는 충돌을 막는다.
+    """
+    safe = re.sub(r"[^0-9A-Za-z가-힣._-]", "_", thread_id)
+    safe = re.sub(r"\.{2,}", "_", safe)  # '..' 잔존 시 save_report_file이 거부한다
+    while len(safe.encode("utf-8")) > _MAX_SAFE_ID_BYTES:  # 파일명 255바이트 한계 대비
+        safe = safe[:-1]
+    safe = safe.rstrip(".")  # 단일 trailing dot도 '.md' 결합부에서 '..'가 된다
+    if not safe:
+        safe = "thread"
+    if safe != thread_id:
+        safe = f"{safe}-{hashlib.sha1(thread_id.encode('utf-8')).hexdigest()[:8]}"
+    return f"agent_report_{safe}.md"
 
 
 def save_report_file(reports_dir: Path, filename: str, content: str) -> Path:
     """reports_dir 하위에만 .md 저장. 경로 구분자/탈출 차단."""
     if not _FILENAME_RE.match(filename or "") or ".." in filename:
-        raise ValueError(f"invalid report filename: {filename!r} (expected <name>.md, no path separators)")
+        raise ValueError(
+            f"invalid report filename: {filename!r} (expected <name>.md, no path separators)"
+        )
     reports_dir = reports_dir.resolve()
     reports_dir.mkdir(parents=True, exist_ok=True)
     target = (reports_dir / filename).resolve()

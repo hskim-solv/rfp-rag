@@ -8,6 +8,7 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, Field
 
 from ..providers import LANE_OFFLINE, normalize_lane, require_openai_key
+from ..tracing import tracing_callbacks
 from .state import RouteKind
 
 
@@ -48,11 +49,19 @@ def _extract_tool_args(q: str) -> dict[str, Any] | None:
         filters.append({"field": "issuer", "op": "contains", "value": m.group(1)})
     m = _EOK_GTE_RE.search(q)
     if m:
-        filters.append({"field": "budget_krw_int", "op": "gte", "value": int(m.group(1)) * 100_000_000})
+        filters.append(
+            {
+                "field": "budget_krw_int",
+                "op": "gte",
+                "value": int(m.group(1)) * 100_000_000,
+            }
+        )
 
     is_count = any(k in q for k in _COUNT_MARKERS)
     is_sum = any(k in q for k in _SUM_MARKERS) and any(k in q for k in _BUDGET_MARKERS)
-    sort_desc_budget = any(k in q for k in _DESC_MARKERS) and any(k in q for k in _BUDGET_MARKERS)
+    sort_desc_budget = any(k in q for k in _DESC_MARKERS) and any(
+        k in q for k in _BUDGET_MARKERS
+    )
     sort_asc_deadline = any(k in q for k in _DEADLINE_ASC_MARKERS)
 
     if not (is_count or is_sum or sort_desc_budget or sort_asc_deadline):
@@ -91,9 +100,31 @@ class RuleRouter:
 
 
 _STOPWORDS = {
-    "안녕하세요", "혹시", "궁금한데요", "궁금한데", "궁금해요", "그게", "다른", "말고",
-    "알려줘", "알려주세요", "있을까요", "대해", "대해서", "관련해서", "관련", "좀",
-    "그리고", "그러면", "근데", "그런데", "혹은", "아니면", "뭐야", "뭔가요", "무엇인가요",
+    "안녕하세요",
+    "혹시",
+    "궁금한데요",
+    "궁금한데",
+    "궁금해요",
+    "그게",
+    "다른",
+    "말고",
+    "알려줘",
+    "알려주세요",
+    "있을까요",
+    "대해",
+    "대해서",
+    "관련해서",
+    "관련",
+    "좀",
+    "그리고",
+    "그러면",
+    "근데",
+    "그런데",
+    "혹은",
+    "아니면",
+    "뭐야",
+    "뭔가요",
+    "무엇인가요",
 }
 
 
@@ -109,7 +140,9 @@ class RuleQueryRewriter:
 
 
 class _MetadataFilterPayload(BaseModel):
-    field: Literal["issuer", "budget_krw_int", "bid_end_at_iso", "project_name", "notice_number"]
+    field: Literal[
+        "issuer", "budget_krw_int", "bid_end_at_iso", "project_name", "notice_number"
+    ]
     op: Literal["eq", "contains", "gte", "lte"]
     value: str | int
 
@@ -118,7 +151,9 @@ class RoutePayload(BaseModel):
     route: Literal["rag_query", "metadata_query"] = Field(description="질문 유형")
     save_requested: bool = Field(default=False, description="보고서 저장 요청 여부")
     filters: list[_MetadataFilterPayload] = Field(default_factory=list)
-    sort_by: Literal["budget_krw_int", "bid_end_at_iso", "published_at_iso"] | None = None
+    sort_by: Literal["budget_krw_int", "bid_end_at_iso", "published_at_iso"] | None = (
+        None
+    )
     descending: bool = True
     top_n: int = 5
     agg: Literal["list", "count", "sum"] = "list"
@@ -145,7 +180,9 @@ class LLMRouter:
         from langchain_openai import ChatOpenAI
 
         model = os.environ.get("RFP_GENERATION_MODEL", "gpt-5.4-mini")
-        llm = ChatOpenAI(model=model).with_structured_output(RoutePayload)
+        llm = ChatOpenAI(
+            model=model, callbacks=tracing_callbacks()
+        ).with_structured_output(RoutePayload)
         return llm.invoke([("system", _ROUTER_SYSTEM_PROMPT), ("human", question)])
 
     def route(self, question: str) -> RouteDecision:
@@ -185,7 +222,9 @@ class LLMQueryRewriter:
         from langchain_openai import ChatOpenAI
 
         model = os.environ.get("RFP_GENERATION_MODEL", "gpt-5.4-mini")
-        llm = ChatOpenAI(model=model).with_structured_output(_RewritePayload)
+        llm = ChatOpenAI(
+            model=model, callbacks=tracing_callbacks()
+        ).with_structured_output(_RewritePayload)
         return llm.invoke([("system", _REWRITER_SYSTEM_PROMPT), ("human", question)])
 
     def rewrite(self, question: str, attempt: int) -> str:

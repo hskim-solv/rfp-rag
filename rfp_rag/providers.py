@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from .fake_provider import lexical_features
 from .index_store import SearchResult
+from .tracing import tracing_callbacks
 
 
 class LexicalHashEmbeddings(Embeddings):
@@ -120,7 +121,9 @@ SYSTEM_PROMPT = (
 
 class LLMAnswer(BaseModel):
     answer: str = Field(description="근거 기반 한국어 답변")
-    cited_chunk_ids: list[str] = Field(default_factory=list, description="답변 근거 chunk id 목록")
+    cited_chunk_ids: list[str] = Field(
+        default_factory=list, description="답변 근거 chunk id 목록"
+    )
     insufficient_context: bool = Field(default=False, description="근거 부족 여부")
 
 
@@ -155,7 +158,9 @@ def _default_invoke(prompt: str) -> LLMAnswer:
     from langchain_openai import ChatOpenAI
 
     model = os.environ.get("RFP_GENERATION_MODEL", "gpt-5.4-mini")
-    llm = ChatOpenAI(model=model).with_structured_output(LLMAnswer)
+    llm = ChatOpenAI(model=model, callbacks=tracing_callbacks()).with_structured_output(
+        LLMAnswer
+    )
     return llm.invoke([("system", SYSTEM_PROMPT), ("human", prompt)])
 
 
@@ -169,7 +174,9 @@ class LLMAnswerGenerator:
     def generate(self, query: str, results: list[SearchResult]) -> str:
         payload = self._invoke(build_answer_prompt(query, results))
         retrieved_ids = {r.chunk_id for r in results}
-        self.last_cited_chunk_ids = [cid for cid in payload.cited_chunk_ids if cid in retrieved_ids]
+        self.last_cited_chunk_ids = [
+            cid for cid in payload.cited_chunk_ids if cid in retrieved_ids
+        ]
         if payload.insufficient_context:
             answer = payload.answer or ""
             return answer if "없는 정보" in answer else f"{answer} 없는 정보".strip()
@@ -193,7 +200,9 @@ DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 def normalize_lane(value: str) -> str:
     lane = _LANE_ALIASES.get((value or "").strip().lower())
     if lane is None:
-        raise ValueError(f"unknown lane: {value!r} (expected one of {sorted(_LANE_ALIASES)})")
+        raise ValueError(
+            f"unknown lane: {value!r} (expected one of {sorted(_LANE_ALIASES)})"
+        )
     return lane
 
 

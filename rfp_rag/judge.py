@@ -6,10 +6,17 @@ import os
 from typing import Any
 
 from .providers import require_openai_key
+from .tracing import tracing_callbacks
 
 # Must stay in sync with the query_type values emitted by evaluate.py's eval-set generators.
 # Anything outside this set (today: abstention) is skipped, not judged.
-JUDGED_QUERY_TYPES = {"project_budget", "project_deadline", "issuer_lookup", "project_summary", "curated_text"}
+JUDGED_QUERY_TYPES = {
+    "project_budget",
+    "project_deadline",
+    "issuer_lookup",
+    "project_summary",
+    "curated_text",
+}
 
 
 def _build_metrics() -> dict[str, Any]:
@@ -22,7 +29,9 @@ def _build_metrics() -> dict[str, Any]:
 
     judge_model = os.environ.get("RFP_JUDGE_MODEL", "gpt-5.4")
     embedding_model = os.environ.get("RFP_EMBEDDING_MODEL", "text-embedding-3-small")
-    llm = LangchainLLMWrapper(ChatOpenAI(model=judge_model))
+    llm = LangchainLLMWrapper(
+        ChatOpenAI(model=judge_model, callbacks=tracing_callbacks())
+    )
     embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model=embedding_model))
     return {
         "faithfulness": Faithfulness(llm=llm),
@@ -40,7 +49,9 @@ def _sample(prediction: dict[str, Any]):
     )
 
 
-async def _score_one(prediction: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
+async def _score_one(
+    prediction: dict[str, Any], metrics: dict[str, Any]
+) -> dict[str, Any]:
     judge: dict[str, Any] = {name: None for name in metrics}
     judge["warnings"] = []
     if prediction.get("query_type") not in JUDGED_QUERY_TYPES:

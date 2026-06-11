@@ -301,6 +301,30 @@ python3 -m rfp_rag.evaluate \
   --min-score 0.47
 ```
 
+### 10-10. Judge 모델 A/B 시도 — quota 차단으로 미완 (2026-06-11)
+
+§10-5 Hybrid Judge 전략(반복=mini, 공식 게이트=gpt-5.4)의 점수 합치도를 정량화하기 위해,
+저장된 `artifacts/eval_real/predictions.jsonl`(60건, gpt-5.4 judge 점수 보존)에 judge만
+재실행하는 A/B를 설계했다 (`scripts/judge_ab.py` — generation 미재실행으로 judge 모델
+차이만 분리, 원본 아티팩트 불변).
+
+**결과: 채점 0건 — OpenAI quota 차단.** Langfuse 트레이스(ADR-0001로 이번 사이클 도입)
+기준 644개 호출 전부 `429 You exceeded your current quota`로 실패했다 (statement 분해
+322 + relevancy 322, faithfulness NLI 단계 도달 0건, 실측 비용 $0.00). ragas 내부
+재시도가 2시간 20분 공회전한 뒤 수동 중단했다.
+
+- `judge.py`의 메트릭별 exception 격리(`judge_error:*` 경고 후 진행)는 의도대로 동작 —
+  프로세스는 죽지 않았다. 그러나 영구 실패(quota 소진)와 일시 실패(rate limit)를
+  구분하지 못해 조기 중단 기회를 놓쳤다.
+- 진단은 전적으로 트레이싱으로 수행됐다: 호출 전수·에러 코드·재시도 횟수·비용($0)을
+  사후 1분 내 확정. "트레이스 수 증가 = 진행"이라는 가정이 깨진 사례이기도 하다
+  (늘어난 트레이스가 전부 에러 콜).
+- 재실행 조건: OpenAI billing/quota 복구 확인 후 동일 명령 —
+  `RFP_JUDGE_MODEL=gpt-5.4-mini PYTHONPATH=. python3 scripts/judge_ab.py
+  --predictions artifacts/eval_real/predictions.jsonl --out artifacts/judge_ab`
+- 개선 후보 (§10-8 #5 확장): judge.py에 (a) retry/backoff 상한, (b) 연속 전건
+  `judge_error` 시 fail-fast 중단, (c) 케이스 병렬화 (현재 직렬).
+
 ## 11. 결론
 
 본 프로젝트는 RFP 100건에 대한 RAG baseline의 핵심 골격을 완성했다. 현재 산출물은 API 없이도 재현 가능한 offline scaffold이며, corpus 정합성·index 생성·cited QA·abstention·evaluation/report gate까지 end-to-end로 검증되었다.
@@ -413,3 +437,44 @@ python3 -m rfp_rag.agent.run_agent --index artifacts/index \
    다음 사이클 1순위 후보.
 5. metadata 경로 답변 포맷터는 양 레인 공통 결정론 구현으로 단순화했다 (설계 §3 대비
    변경, 결정론 채점·비용 관점 — 설계 문서에 반영됨).
+
+### 12-6. PR #2 Codex 리뷰 후속 수정 (2026-06-11)
+
+머지된 PR #2에 남아 있던 Codex 인라인 리뷰 2건을 코드 대조로 검증, 둘 다 실제 결함으로
+확인하고 TDD로 수정했다.
+
+1. **P1 — thread 재사용 시 per-run state 누출**: checkpointer가 있는 그래프를 같은
+   `--thread-id`로 재호출하면 입력에 없는 키는 이전 checkpoint 값이 살아남는다.
+   `original_question`(rewrite/abstain/보고서가 옛 질문 사용), `outcome`(`respond_node`가
+   기존 값 보존 → 이전 run의 `abstained`가 새 답변에도 잔존), `regenerated`가 누출됐다.
+   `initial_state()`가 per-run 필드를 전부 명시 리셋하도록 수정 — 모든 invoke 진입점
+   (`run_agent`/`evaluate_agent`/테스트)이 이 함수를 거치므로 단일 지점 수정이다.
+   `tool_calls`는 `operator.add` 리듀서라 빈 리스트가 no-op — thread 누적 감사 용도로
+   의도적으로 유지하고 주석으로 명시했다. (회귀 테스트:
+   `test_thread_reuse_resets_per_run_state`)
+2. **P2 — 비정상 thread_id로 보고서 저장 크래시**: `--thread-id`는 CLI 무제약인데
+   `agent_report_{thread_id}.md`가 `save_report_file`의 파일명 검증을 통과해야 해서
+   `user/123` 같은 값이면 **사용자 승인 후** `ValueError`로 크래시했다.
+   `report_filename()` 헬퍼를 추가해 비허용 문자를 `_` 치환하고, 변형이 발생한 경우에만
+   SHA-1 8자 접미를 붙여 서로 다른 id의 파일명 충돌을 막았다 (안전한 id는 기존 파일명
+   유지 — 하위호환). (회귀 테스트: `test_hitl_approve_with_unsafe_thread_id_still_saves`,
+   `test_report_filename_*` 3건)
+
+수정 후 offline 전체 101 passed, 3개 게이트(`offline_scaffold_complete` /
+`rag_quality_complete` / `agent_lane_complete`) 모두 재통과 (`gate.failed = []`).
+
+수정 커밋에 대한 멀티에이전트 적대 검증 리뷰(11 agents, 발견 7건 → 반박 3건 기각 →
+확정 2건)에서 `report_filename()` 자체의 잔존 결함이 추가로 발견되어 같은 사이클에서
+수정했다:
+
+- **trailing 단일 점**: `v1.` 같은 id는 전부 허용 문자라 무변형 통과(해시 접미 없음)
+  → `.md` 결합부에서 `agent_report_v1..md`가 되어 `..` 검사에 걸림 — P2와 동일한
+  승인 후 크래시 재발. 점 접기 후 `rstrip(".")` 추가 (rstrip 변형도 `safe != thread_id`
+  분기에 잡혀 해시 접미가 붙으므로 `v1.` vs `v1` 충돌도 자동 방지).
+- **길이 무제한**: 허용 문자로만 된 긴 id(ASCII 240자+)는 파일명 255바이트/문자 한계로
+  승인 후 `OSError`(ENAMETOOLONG). UTF-8 100바이트 예산으로 절단하고 절단도 변형으로
+  간주해 해시 접미를 붙였다.
+
+교훈: sanitize 함수는 출력 검증자(`save_report_file`)와 같은 규칙으로 닫혀야 한다 —
+입력 문자 클래스만 거르면 결합부(`.md`)·길이처럼 검증자가 보는 최종 산출물 차원의
+결함이 남는다.

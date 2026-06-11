@@ -45,6 +45,10 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
   without `OPENAI_API_KEY`.
 - Full real cycle cost estimate: under $5 with default models (judge dominates;
   set `RFP_JUDGE_MODEL=gpt-5.4-mini` to cut cost to roughly $1).
+- Judge model A/B: 저장된 predictions에 judge만 재실행해 모델 간 점수 합치도를 비교
+  (generation 재실행 없음 — judge 비용만 발생):
+  `RFP_JUDGE_MODEL=gpt-5.4-mini PYTHONPATH=. python3 scripts/judge_ab.py
+  --predictions artifacts/eval_real/predictions.jsonl --out artifacts/judge_ab`
 - Assumption: the corpus is trusted public RFP documents; prompt-injection
   robustness against adversarial corpus content is out of scope for this cycle.
 
@@ -77,6 +81,18 @@ python3 -m rfp_rag.agent.run_agent --index artifacts/index --data data/data_list
   (`ts/thread_id/tool/args/outcome/approved`).
 - 상태는 `<artifacts>/checkpoints.sqlite`에 영속 — 프로세스를 종료해도 같은
   `--thread-id`로 승인 대기를 재개할 수 있습니다.
+
+## Observability (optional Langfuse tracing)
+
+`LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY`가 환경에 있으면 LangGraph 실행, LLM 생성,
+ragas judge 호출이 Langfuse로 트레이싱됩니다 (`rfp_rag/tracing.py`, 채택 근거는
+`docs/adr/0001-llm-observability-tool.md`). **키가 없으면 완전한 no-op** — offline lane의
+credential-free 불변식에 영향이 없습니다. 키 설정은 `.env.example` 참조.
+
+- `LANGFUSE_BASE_URL`은 선택값 (기본 Langfuse Cloud; self-host나 리전 인스턴스만 지정).
+- CLI(run_agent / evaluate / evaluate_agent)는 종료 전에 트레이스를 flush하므로
+  실행 직후 대시보드에서 확인할 수 있습니다 (예외로 중단돼도 flush됨).
+- real lane 평가를 트레이싱하면 judge 비용이 호출·토큰 단위로 분해되어 보입니다.
 
 ## Generated artifacts
 
