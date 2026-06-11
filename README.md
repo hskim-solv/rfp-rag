@@ -21,8 +21,8 @@ python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
 ## Real provider quality lane (rfp-rag-real-v2)
 
 Requires `OPENAI_API_KEY`. Models default to `text-embedding-3-small` /
-`gpt-5.4-mini` (generation) / `gpt-5.4` (judge); override via
-`RFP_EMBEDDING_MODEL`, `RFP_GENERATION_MODEL`, `RFP_JUDGE_MODEL`.
+`gpt-5.4-mini` (generation) / `gpt-5.4-mini` (judge — §10-11 A/B 검증, ADR-0005);
+override via `RFP_EMBEDDING_MODEL`, `RFP_GENERATION_MODEL`, `RFP_JUDGE_MODEL`.
 
 ```bash
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
@@ -47,14 +47,40 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
   is a Docker Qdrant server with the same client API.
 - Offline lane stays credential-free: `python3 -m pytest -m "not real"` must pass
   without `OPENAI_API_KEY`.
-- Full real cycle cost estimate: under $5 with default models (judge dominates;
-  set `RFP_JUDGE_MODEL=gpt-5.4-mini` to cut cost to roughly $1).
+- Full real cycle cost estimate: roughly $1 with default models (judge `gpt-5.4-mini`;
+  set `RFP_JUDGE_MODEL=gpt-5.4` for the pricier reference judge, ~$5).
 - Judge model A/B: 저장된 predictions에 judge만 재실행해 모델 간 점수 합치도를 비교
-  (generation 재실행 없음 — judge 비용만 발생):
+  (generation 재실행 없음 — judge 비용만 발생). `RFP_JUDGE_BASE_URL`/`RFP_JUDGE_API_KEY`로
+  OpenAI 호환 백엔드(DeepSeek 등) judge도 같은 스크립트로 검증:
   `RFP_JUDGE_MODEL=gpt-5.4-mini PYTHONPATH=. python3 scripts/judge_ab.py
   --predictions artifacts/eval_real/predictions.jsonl --out artifacts/judge_ab`
 - Assumption: the corpus is trusted public RFP documents; prompt-injection
   robustness against adversarial corpus content is out of scope for this cycle.
+
+## Open lane — 저비용 이터레이션 (rfp-rag-open-v1)
+
+오픈소스/저가 모델로 같은 평가 파이프라인을 돌리는 이터레이션 레인입니다
+(채택 근거·백엔드 비교는 `docs/adr/0005-open-lane-backend-and-judge-strategy.md`).
+**게이트 증거가 아닙니다** — judge 점수를 이터레이션 신호로만 쓰고,
+`rag_quality_complete`는 real lane에서만 판정합니다.
+
+- 생성 기본: DeepSeek `deepseek-v4-flash` (`DEEPSEEK_API_KEY` 필요, 60건 ~$0.05).
+  `RFP_OPEN_BASE_URL=http://localhost:11434/v1` + `RFP_OPEN_MODEL=qwen3:8b`로
+  로컬 Ollama 백업 전환 — OpenAI 호환 base_url 하나로 백엔드를 교체합니다.
+- 임베딩 기본: 로컬 Ollama `bge-m3` (키 불필요, `ollama pull bge-m3` 선행).
+
+```bash
+python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
+  --out artifacts/index_open --chunk-size 500 --chunk-overlap 80 --embedding-provider open
+python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open \
+  --out artifacts/eval_open --provider open --top-k 5
+```
+
+- `--min-score`는 bge-m3 점수 분포에 맞춰 첫 런의 `score_distribution`으로 보정 후
+  REPORT.md에 근거를 기록합니다 (offline 0.15 / real 0.47과 다른 값이 됩니다).
+- open lane 평가도 judge를 실행합니다 — 기본 judge는 OpenAI `gpt-5.4-mini`이므로
+  `OPENAI_API_KEY`가 필요하고, DeepSeek judge(A/B 검증 후)는 `RFP_JUDGE_BASE_URL`로
+  전환합니다.
 
 ## LangGraph agent lane (rfp-agent-v1)
 
