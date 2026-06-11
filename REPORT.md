@@ -369,6 +369,20 @@ relevancy NaN이 간헐 발생 (gpt-5.4·mini 모두 46/50 = 0.92 실측) — 0.
 허용하면서 abort 런(3/50 = 0.06)을 확실히 잡는다. 게이트 시맨틱 변경이므로 real contract를
 **rfp-rag-real-v2**로 bump했다 (README 마커·report_check·tests 동기화).
 
+### 10-13. v2 게이트 증거 재집계 — API 호출 없이 재생성 (2026-06-11)
+
+v2 bump 직후 `artifacts/eval_real`은 v1 계약으로 생성된 상태였다. 풀 재평가(~$3-5,
+judge 지배적) 대신 `evaluate.py --reaggregate`를 추가해 **보존된 predictions.jsonl에서
+metrics/contract/report만 재계산**했다 (API 호출 0건, $0). 정당성: v2의 추가분인
+coverage 게이트는 기존 judge 산출물의 순수 함수이고, RAG 답변·채점 자체는 변하지
+않았다. 산출물에는 `reaggregated_from_predictions: true`로 출처를 남긴다 (artifacts
+손편집 금지 원칙 준수 — 파이프라인 경로로만 갱신).
+
+재집계 결과 (v2 계약 기준): `judge_coverage_faithfulness 1.0` /
+`judge_coverage_answer_relevancy 0.92` ≥ 0.90 — **`rag_quality_complete: true` 유지**.
+나머지 메트릭은 10-9 런과 동일 (faithfulness 0.997, relevancy 0.925 등). 다음 real
+풀 평가 시 v2 계약으로 처음부터 재생성한다.
+
 ## 11. 결론
 
 본 프로젝트는 RFP 100건에 대한 RAG baseline의 핵심 골격을 완성했다. 현재 산출물은 API 없이도 재현 가능한 offline scaffold이며, corpus 정합성·index 생성·cited QA·abstention·evaluation/report gate까지 end-to-end로 검증되었다.
