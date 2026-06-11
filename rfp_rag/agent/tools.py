@@ -99,6 +99,8 @@ def aggregate_metadata(
 
 
 _FILENAME_RE = re.compile(r"^[0-9A-Za-z가-힣._-]+\.md$")
+# 접두("agent_report_") + 해시 접미("-xxxxxxxx") + ".md"를 더해도 255바이트 안에 들어가는 예산
+_MAX_SAFE_ID_BYTES = 100
 
 
 def report_filename(thread_id: str) -> str:
@@ -109,6 +111,9 @@ def report_filename(thread_id: str) -> str:
     """
     safe = re.sub(r"[^0-9A-Za-z가-힣._-]", "_", thread_id)
     safe = re.sub(r"\.{2,}", "_", safe)  # '..' 잔존 시 save_report_file이 거부한다
+    while len(safe.encode("utf-8")) > _MAX_SAFE_ID_BYTES:  # 파일명 255바이트 한계 대비
+        safe = safe[:-1]
+    safe = safe.rstrip(".")  # 단일 trailing dot도 '.md' 결합부에서 '..'가 된다
     if not safe:
         safe = "thread"
     if safe != thread_id:

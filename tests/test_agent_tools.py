@@ -108,7 +108,18 @@ def test_report_filename_safe_id_passthrough() -> None:
 
 
 def test_report_filename_sanitized_result_is_saveable(tmp_path: Path) -> None:
-    for thread_id in ("user/123", "a b@c", "..", "ns:sess/7"):
+    # trailing 단일 점은 '.md' 결합부에서 '..'를 만들고, 긴 id는 파일명 길이 한계를 넘긴다
+    for thread_id in (
+        "user/123",
+        "a b@c",
+        "..",
+        "ns:sess/7",
+        "run1.",
+        "v1.",
+        ".",
+        "x" * 300,
+        "가" * 120,
+    ):
         name = report_filename(thread_id)
         target = save_report_file(tmp_path / "reports", name, "x")
         assert target.parent == (tmp_path / "reports").resolve()
@@ -118,6 +129,8 @@ def test_report_filename_distinct_ids_do_not_collide() -> None:
     # sanitize가 같은 문자열로 수렴해도 (user/123 vs user:123) 해시 접미로 구분된다
     names = {report_filename(t) for t in ("user/123", "user:123", "user_123")}
     assert len(names) == 3
+    # trailing dot 제거가 기존 id와 충돌하지 않는다 (v1. vs v1)
+    assert report_filename("v1.") != report_filename("v1")
 
 
 def test_audit_logger_appends_jsonl(tmp_path: Path) -> None:

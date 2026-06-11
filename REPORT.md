@@ -462,3 +462,19 @@ python3 -m rfp_rag.agent.run_agent --index artifacts/index \
 
 수정 후 offline 전체 101 passed, 3개 게이트(`offline_scaffold_complete` /
 `rag_quality_complete` / `agent_lane_complete`) 모두 재통과 (`gate.failed = []`).
+
+수정 커밋에 대한 멀티에이전트 적대 검증 리뷰(11 agents, 발견 7건 → 반박 3건 기각 →
+확정 2건)에서 `report_filename()` 자체의 잔존 결함이 추가로 발견되어 같은 사이클에서
+수정했다:
+
+- **trailing 단일 점**: `v1.` 같은 id는 전부 허용 문자라 무변형 통과(해시 접미 없음)
+  → `.md` 결합부에서 `agent_report_v1..md`가 되어 `..` 검사에 걸림 — P2와 동일한
+  승인 후 크래시 재발. 점 접기 후 `rstrip(".")` 추가 (rstrip 변형도 `safe != thread_id`
+  분기에 잡혀 해시 접미가 붙으므로 `v1.` vs `v1` 충돌도 자동 방지).
+- **길이 무제한**: 허용 문자로만 된 긴 id(ASCII 240자+)는 파일명 255바이트/문자 한계로
+  승인 후 `OSError`(ENAMETOOLONG). UTF-8 100바이트 예산으로 절단하고 절단도 변형으로
+  간주해 해시 접미를 붙였다.
+
+교훈: sanitize 함수는 출력 검증자(`save_report_file`)와 같은 규칙으로 닫혀야 한다 —
+입력 문자 클래스만 거르면 결합부(`.md`)·길이처럼 검증자가 보는 최종 산출물 차원의
+결함이 남는다.
