@@ -4,6 +4,7 @@ import hashlib
 import math
 import os
 from typing import Callable, Protocol
+from urllib.parse import urlparse
 
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel, Field
@@ -164,6 +165,21 @@ def _default_invoke(prompt: str) -> LLMAnswer:
     return llm.invoke([("system", SYSTEM_PROMPT), ("human", prompt)])
 
 
+def _open_invoke(prompt: str) -> LLMAnswer:
+    import langchain_openai
+
+    base_url = os.environ.get("RFP_OPEN_BASE_URL", DEFAULT_OPEN_BASE_URL)
+    llm = langchain_openai.ChatOpenAI(
+        model=os.environ.get("RFP_OPEN_MODEL", DEFAULT_OPEN_MODEL),
+        base_url=base_url,
+        api_key=_open_api_key(base_url),
+        callbacks=tracing_callbacks(),
+        # OpenAI 호환 백엔드(DeepSeek 등)는 response_format=json_schema를 지원하지
+        # 않는 경우가 많다 — tool call 기반 구조화 출력을 강제한다
+    ).with_structured_output(LLMAnswer, method="function_calling")
+    return llm.invoke([("system", SYSTEM_PROMPT), ("human", prompt)])
+
+
 class LLMAnswerGenerator:
     """Real lane generator: ChatOpenAI structured output with citation validation."""
 
@@ -185,6 +201,7 @@ class LLMAnswerGenerator:
 
 LANE_OFFLINE = "offline"
 LANE_REAL_OPENAI = "real_openai"
+LANE_OPEN = "open"
 
 _LANE_ALIASES = {
     "offline": LANE_OFFLINE,
@@ -192,9 +209,17 @@ _LANE_ALIASES = {
     "fake_offline": LANE_OFFLINE,
     "openai": LANE_REAL_OPENAI,
     "real_openai": LANE_REAL_OPENAI,
+    "open": LANE_OPEN,
 }
 
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
+
+# open lane: OpenAI 호환 base_url 오버라이드 — 생성은 DeepSeek 기본, 임베딩은 로컬
+# Ollama(bge-m3) 기본. base_url만 바꾸면 Ollama/OpenRouter 등으로 교체 가능 (ADR-0005).
+DEFAULT_OPEN_BASE_URL = "https://api.deepseek.com"
+DEFAULT_OPEN_MODEL = "deepseek-v4-flash"
+DEFAULT_OPEN_EMBEDDING_BASE_URL = "http://localhost:11434/v1"
+DEFAULT_OPEN_EMBEDDING_MODEL = "bge-m3"
 
 
 def normalize_lane(value: str) -> str:
@@ -213,10 +238,31 @@ def require_openai_key() -> None:
         )
 
 
+def _is_local_url(url: str) -> bool:
+    host = urlparse(url).hostname or ""
+    return host in ("localhost", "127.0.0.1", "::1")
+
+
+def _open_api_key(base_url: str) -> str:
+    key = os.environ.get("RFP_OPEN_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
+    if key:
+        return key
+    if _is_local_url(base_url):
+        return (
+            "ollama"  # 로컬 서버는 키를 검사하지 않지만 클라이언트가 빈 값을 거부한다
+        )
+    raise RuntimeError(
+        "RFP_OPEN_API_KEY or DEEPSEEK_API_KEY required for the open lane remote "
+        f"backend ({base_url}); local backends (e.g. Ollama) run without credentials"
+    )
+
+
 def embedding_model_name(lane: str) -> str:
     lane = normalize_lane(lane)
     if lane == LANE_OFFLINE:
         return "lexical-hash-v1"
+    if lane == LANE_OPEN:
+        return os.environ.get("RFP_OPEN_EMBEDDING_MODEL", DEFAULT_OPEN_EMBEDDING_MODEL)
     return os.environ.get("RFP_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
 
 
@@ -224,9 +270,20 @@ def build_embeddings(lane: str) -> Embeddings:
     lane = normalize_lane(lane)
     if lane == LANE_OFFLINE:
         return LexicalHashEmbeddings()
-    require_openai_key()
     from langchain_openai import OpenAIEmbeddings
 
+    if lane == LANE_OPEN:
+        base_url = os.environ.get(
+            "RFP_OPEN_EMBEDDING_BASE_URL", DEFAULT_OPEN_EMBEDDING_BASE_URL
+        )
+        return OpenAIEmbeddings(
+            model=embedding_model_name(lane),
+            base_url=base_url,
+            api_key=_open_api_key(base_url),
+            # 비OpenAI 서버는 tiktoken 토큰 배열 입력을 디코드하지 못한다 — 문자열로 전송
+            check_embedding_ctx_length=False,
+        )
+    require_openai_key()
     return OpenAIEmbeddings(model=embedding_model_name(lane))
 
 
@@ -234,5 +291,9 @@ def build_generator(lane: str) -> AnswerGenerator:
     lane = normalize_lane(lane)
     if lane == LANE_OFFLINE:
         return TemplateAnswerGenerator()
+    if lane == LANE_OPEN:
+        # fail fast: 평가 루프에 들어가기 전에 자격증명 부재를 드러낸다
+        _open_api_key(os.environ.get("RFP_OPEN_BASE_URL", DEFAULT_OPEN_BASE_URL))
+        return LLMAnswerGenerator(invoke=_open_invoke)
     require_openai_key()
     return LLMAnswerGenerator()

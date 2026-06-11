@@ -7,7 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
-from .contracts import offline_contract, real_contract
+from .contracts import offline_contract, open_contract, real_contract
 from .corpus import CorpusDocument, load_corpus
 from .providers import normalize_lane
 from .rag_chain import answer_query
@@ -327,9 +327,14 @@ def _judge_coverage(predictions: list[dict[str, Any]]) -> dict[str, float | None
     return coverage
 
 
+# judge(ragas)를 실행하고 그 점수를 aggregate에 싣는 lane들.
+# real은 게이트 판정용, open은 저비용 이터레이션 신호용 (게이트는 주장하지 않음).
+JUDGED_LANES = {"real_openai", "open"}
+
+
 def _lane_aggregate(lane: str, predictions: list[dict[str, Any]]) -> dict[str, Any]:
     aggregate = _aggregate(predictions)
-    if lane == "real_openai":
+    if lane in JUDGED_LANES:
         aggregate["faithfulness"] = _mean(
             p.get("judge", {}).get("faithfulness") for p in predictions
         )
@@ -371,11 +376,22 @@ def _score_distribution(predictions: list[dict[str, Any]]) -> dict[str, list[flo
 
 
 def _quality_note(lane: str) -> str:
-    return (
-        "real_openai lane applies thresholds for rag_quality_complete."
-        if lane == "real_openai"
-        else "offline lane validates deterministic contract only; it does not claim semantic RAG quality."
-    )
+    if lane == "real_openai":
+        return "real_openai lane applies thresholds for rag_quality_complete."
+    if lane == "open":
+        return (
+            "open lane runs judge scores as a low-cost iteration signal only; "
+            "it does not claim rag_quality_complete (final gate stays on real_openai)."
+        )
+    return "offline lane validates deterministic contract only; it does not claim semantic RAG quality."
+
+
+def _contract_for(lane: str) -> dict[str, Any]:
+    if lane == "real_openai":
+        return real_contract()
+    if lane == "open":
+        return open_contract()
+    return offline_contract()
 
 
 def _mean(values: Iterable[float | None]) -> float | None:
@@ -523,7 +539,7 @@ def evaluate_index(
     error_rate = error_count / len(queries) if queries else 0.0
     evaluation_valid = error_rate <= MAX_ERROR_RATE
 
-    if lane == "real_openai":
+    if lane in JUDGED_LANES:
         from .judge import judge_predictions
 
         predictions = judge_predictions(predictions)
@@ -554,10 +570,7 @@ def evaluate_index(
     _write_jsonl(out_dir / "golden_metadata.jsonl", golden)
     _write_jsonl(out_dir / "curated_text_questions.jsonl", curated)
     _write_jsonl(out_dir / "abstention_questions.jsonl", abstentions)
-    _write_json(
-        out_dir / "contract.json",
-        real_contract() if lane == "real_openai" else offline_contract(),
-    )
+    _write_json(out_dir / "contract.json", _contract_for(lane))
     _write_json(out_dir / "metrics.json", metrics)
     _write_jsonl(out_dir / "predictions.jsonl", predictions)
     (out_dir / "report.md").write_text(
@@ -617,10 +630,7 @@ def reaggregate_metrics(
         "reaggregated_from_predictions": True,
         "quality_note": _quality_note(lane),
     }
-    _write_json(
-        out_dir / "contract.json",
-        real_contract() if lane == "real_openai" else offline_contract(),
-    )
+    _write_json(out_dir / "contract.json", _contract_for(lane))
     _write_json(out_dir / "metrics.json", metrics)
     (out_dir / "report.md").write_text(
         _render_report(metrics, predictions), encoding="utf-8"

@@ -7,6 +7,7 @@ import pytest
 from rfp_rag.index_store import SearchResult
 from rfp_rag.providers import (
     LANE_OFFLINE,
+    LANE_OPEN,
     LANE_REAL_OPENAI,
     LexicalHashEmbeddings,
     LLMAnswer,
@@ -16,6 +17,7 @@ from rfp_rag.providers import (
     build_embeddings,
     build_generator,
     chunk_context_block,
+    embedding_model_name,
     normalize_lane,
 )
 
@@ -157,7 +159,9 @@ def test_llm_generator_keeps_only_valid_citations() -> None:
 
 def test_llm_generator_signals_abstention_via_phrase() -> None:
     def fake_invoke(prompt: str) -> LLMAnswer:
-        return LLMAnswer(answer="자료가 없습니다.", cited_chunk_ids=[], insufficient_context=True)
+        return LLMAnswer(
+            answer="자료가 없습니다.", cited_chunk_ids=[], insufficient_context=True
+        )
 
     gen = LLMAnswerGenerator(invoke=fake_invoke)
 
@@ -183,7 +187,9 @@ def test_build_embeddings_offline_is_lexical_hash() -> None:
     assert isinstance(build_embeddings(LANE_OFFLINE), LexicalHashEmbeddings)
 
 
-def test_build_embeddings_real_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_embeddings_real_requires_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY required"):
         build_embeddings(LANE_REAL_OPENAI)
@@ -195,3 +201,108 @@ def test_build_embeddings_normalizes_raw_alias() -> None:
 
 def test_build_generator_offline_is_template() -> None:
     assert isinstance(build_generator(LANE_OFFLINE), TemplateAnswerGenerator)
+
+
+# --- open lane: OpenAI 호환 base_url 오버라이드 (DeepSeek 기본 / Ollama 백업) ---
+
+
+def _clear_open_lane_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for var in (
+        "OPENAI_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "RFP_OPEN_API_KEY",
+        "RFP_OPEN_BASE_URL",
+        "RFP_OPEN_MODEL",
+        "RFP_OPEN_EMBEDDING_BASE_URL",
+        "RFP_OPEN_EMBEDDING_MODEL",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_normalize_lane_accepts_open() -> None:
+    assert normalize_lane("open") == LANE_OPEN
+
+
+def test_embedding_model_name_open_defaults_to_bge_m3(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_open_lane_env(monkeypatch)
+
+    assert embedding_model_name(LANE_OPEN) == "bge-m3"
+
+
+def test_build_embeddings_open_targets_local_ollama_without_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 임베딩 기본 백엔드는 로컬 Ollama — OPENAI/DEEPSEEK 키 없이 생성돼야 한다
+    _clear_open_lane_env(monkeypatch)
+
+    emb = build_embeddings(LANE_OPEN)
+
+    assert emb.openai_api_base == "http://localhost:11434/v1"
+    assert emb.model == "bge-m3"
+    # 비OpenAI 서버는 tiktoken 토큰 배열 입력을 못 받는다 — 문자열 그대로 보내야 함
+    assert emb.check_embedding_ctx_length is False
+
+
+def test_build_generator_open_requires_key_for_remote_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 기본 백엔드(DeepSeek)는 원격 — 키 없으면 호출 전에 즉시 실패해야 한다
+    _clear_open_lane_env(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="DEEPSEEK_API_KEY"):
+        build_generator(LANE_OPEN)
+
+
+def test_build_generator_open_accepts_deepseek_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_open_lane_env(monkeypatch)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+
+    assert isinstance(build_generator(LANE_OPEN), LLMAnswerGenerator)
+
+
+def test_build_generator_open_local_backend_needs_no_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Ollama 백업 경로: base_url이 로컬이면 자격증명 없이 동작해야 한다
+    _clear_open_lane_env(monkeypatch)
+    monkeypatch.setenv("RFP_OPEN_BASE_URL", "http://localhost:11434/v1")
+
+    assert isinstance(build_generator(LANE_OPEN), LLMAnswerGenerator)
+
+
+def test_open_invoke_targets_configured_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # env → ChatOpenAI 파라미터 매핑 검증 (네트워크 호출 없음)
+    import langchain_openai
+
+    from rfp_rag.providers import _open_invoke
+
+    _clear_open_lane_env(monkeypatch)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    captured: dict = {}
+
+    class _FakeChat:
+        def __init__(self, **kwargs) -> None:
+            captured.update(kwargs)
+
+        def with_structured_output(self, schema, **kwargs):
+            captured["structured_kwargs"] = kwargs
+            return self
+
+        def invoke(self, messages):
+            return LLMAnswer(answer="ok")
+
+    monkeypatch.setattr(langchain_openai, "ChatOpenAI", _FakeChat)
+
+    result = _open_invoke("질문")
+
+    assert result.answer == "ok"
+    assert captured["model"] == "deepseek-v4-flash"
+    assert captured["base_url"] == "https://api.deepseek.com"
+    # DeepSeek은 json_schema 미지원 — tool call 기반 구조화 출력을 강제한다
+    assert captured["structured_kwargs"].get("method") == "function_calling"
