@@ -100,6 +100,36 @@ def test_evaluate_agent_main_flushes_on_exception(monkeypatch):
     assert calls
 
 
+def test_llm_brains_pass_tracing_callbacks(monkeypatch):
+    # real lane Router/Rewriter도 generator/judge처럼 callbacks를 명시 주입해야
+    # 결정 단계(route/rewrite)가 트레이스에서 빠지지 않는다 (PR #3 Codex 리뷰)
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
+    captured: list[dict] = []
+
+    class _FakeLLM:
+        def __init__(self, **kwargs):
+            captured.append(kwargs)
+
+        def with_structured_output(self, schema):
+            return self
+
+        def invoke(self, messages):
+            raise RuntimeError("stop after construction")
+
+    import langchain_openai
+
+    from rfp_rag.agent.brains import LLMQueryRewriter, LLMRouter
+
+    monkeypatch.setattr(langchain_openai, "ChatOpenAI", _FakeLLM)
+    with pytest.raises(RuntimeError):
+        LLMRouter().route("예산이 가장 큰 공고는?")
+    with pytest.raises(RuntimeError):
+        LLMQueryRewriter().rewrite("예산이 가장 큰 공고는?", 1)
+    assert len(captured) == 2
+    assert all(len(kw.get("callbacks") or []) == 1 for kw in captured)
+
+
 def test_flush_tracing_without_keys_is_noop(monkeypatch):
     _clear_keys(monkeypatch)
     flush_tracing()  # 예외 없이 조용히 반환해야 한다
