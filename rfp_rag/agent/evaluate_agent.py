@@ -16,6 +16,7 @@ from ..evaluate import (
 )
 from ..rag_chain import DEFAULT_MIN_SCORE
 from ..vector_index import search
+from ..tracing import flush_tracing, traced_config
 from .graph import build_agent_graph, initial_state, run_config
 from .nodes import AgentRuntime
 from .run_agent import build_runtime
@@ -39,7 +40,9 @@ MAX_NOISE_LEVEL = 4
 _SINGLE_TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]+")
 
 
-def decide_agent_gate(metrics: dict[str, Any], evaluation_valid: bool) -> dict[str, Any]:
+def decide_agent_gate(
+    metrics: dict[str, Any], evaluation_valid: bool
+) -> dict[str, Any]:
     failed = [
         name
         for name, minimum in AGENT_THRESHOLDS.items()
@@ -175,22 +178,51 @@ def _tool_scenarios(docs: list[CorpusDocument]) -> list[dict[str, Any]]:
     issuer = _single_token_issuer(docs)
     issuer_count = sum(1 for d in docs if issuer in (d.metadata.get("issuer") or ""))
     cases = [
-        {"question": "사업 금액이 가장 큰 공고 3건은 뭐야?", "expect": {"doc_ids": top_budget[:3]}},
-        {"question": "사업 금액이 가장 큰 공고 5건 알려줘", "expect": {"doc_ids": top_budget[:5]}},
-        {"question": "사업 금액이 가장 높은 공고 1건은?", "expect": {"doc_ids": top_budget[:1]}},
-        {"question": "입찰 마감이 가장 빠른 공고 5건 알려줘", "expect": {"doc_ids": [i for i, _ in with_deadline[:5]]}},
-        {"question": "입찰 마감이 가장 빠른 공고 3건은?", "expect": {"doc_ids": [i for i, _ in with_deadline[:3]]}},
-        {"question": "사업 금액이 10억 이상인 공고는 몇 건이야?", "expect": {"count": len(gte_10e8)}},
+        {
+            "question": "사업 금액이 가장 큰 공고 3건은 뭐야?",
+            "expect": {"doc_ids": top_budget[:3]},
+        },
+        {
+            "question": "사업 금액이 가장 큰 공고 5건 알려줘",
+            "expect": {"doc_ids": top_budget[:5]},
+        },
+        {
+            "question": "사업 금액이 가장 높은 공고 1건은?",
+            "expect": {"doc_ids": top_budget[:1]},
+        },
+        {
+            "question": "입찰 마감이 가장 빠른 공고 5건 알려줘",
+            "expect": {"doc_ids": [i for i, _ in with_deadline[:5]]},
+        },
+        {
+            "question": "입찰 마감이 가장 빠른 공고 3건은?",
+            "expect": {"doc_ids": [i for i, _ in with_deadline[:3]]},
+        },
+        {
+            "question": "사업 금액이 10억 이상인 공고는 몇 건이야?",
+            "expect": {"count": len(gte_10e8)},
+        },
         {"question": "전체 공고는 몇 건이야?", "expect": {"count": len(docs)}},
-        {"question": f"{issuer}이 발주한 공고는 몇 건이야?", "expect": {"count": issuer_count}},
-        {"question": "사업 금액이 10억 이상인 공고들의 금액 합계는 얼마야?", "expect": {"sum": sum_10e8}},
+        {
+            "question": f"{issuer}이 발주한 공고는 몇 건이야?",
+            "expect": {"count": issuer_count},
+        },
+        {
+            "question": "사업 금액이 10억 이상인 공고들의 금액 합계는 얼마야?",
+            "expect": {"sum": sum_10e8},
+        },
         {
             "question": "사업 금액이 5억 이상인 공고는 몇 건이야?",
             "expect": {"count": sum(1 for _, b in with_budget if b >= 500_000_000)},
         },
     ]
     return [
-        {"id": f"tool_{i:03d}", "type": "tool", "question": c["question"], "expect": c["expect"]}
+        {
+            "id": f"tool_{i:03d}",
+            "type": "tool",
+            "question": c["question"],
+            "expect": c["expect"],
+        }
         for i, c in enumerate(cases)
     ]
 
@@ -257,7 +289,10 @@ def _aggregate(scored: list[dict[str, Any]]) -> dict[str, Any]:
         "citation_presence": _mean([s["citation_present"] for s in reg]),
         "citation_validity": _mean([s["citation_valid"] for s in reg]),
         "metadata_exact_match": _mean([s["exact_match"] for s in reg]),
-        "counts": {t: len(by(t)) for t in ("routing", "regression", "rewrite", "abstention", "tool")},
+        "counts": {
+            t: len(by(t))
+            for t in ("routing", "regression", "rewrite", "abstention", "tool")
+        },
     }
 
 
@@ -289,8 +324,14 @@ def evaluate_agent(
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     runtime = build_runtime(
-        index_dir, data, files, provider, top_k, min_score,
-        artifacts=out_dir / "agent_artifacts", thread_id="eval",
+        index_dir,
+        data,
+        files,
+        provider,
+        top_k,
+        min_score,
+        artifacts=out_dir / "agent_artifacts",
+        thread_id="eval",
     )
     docs = runtime.docs
     scenarios = (
@@ -305,14 +346,22 @@ def evaluate_agent(
     errors = 0
     for i, case in enumerate(scenarios):
         try:
-            result = graph.invoke(initial_state(case["question"]), run_config(f"eval-{i}"))
+            result = graph.invoke(
+                initial_state(case["question"]), traced_config(run_config(f"eval-{i}"))
+            )
         except Exception as exc:  # 개별 실패는 기록하고 진행 (기존 evaluate 정책)
             errors += 1
             scored.append(
-                {"id": case["id"], "type": case["type"], "error": str(exc), "loop_terminated": True}
+                {
+                    "id": case["id"],
+                    "type": case["type"],
+                    "error": str(exc),
+                    "loop_terminated": True,
+                }
             )
             continue
         scored.append(_score_case(case, result))
+    flush_tracing()
     evaluation_valid = (errors / max(len(scenarios), 1)) <= MAX_ERROR_RATE
     metrics = _aggregate([s for s in scored if "error" not in s])
     gate = decide_agent_gate(metrics, evaluation_valid=evaluation_valid)
@@ -327,20 +376,24 @@ def evaluate_agent(
         "agent_lane_complete": gate["agent_lane_complete"],
     }
     (out_dir / "scenarios.jsonl").write_text(
-        "\n".join(json.dumps(s, ensure_ascii=False, sort_keys=True) for s in scenarios) + "\n",
+        "\n".join(json.dumps(s, ensure_ascii=False, sort_keys=True) for s in scenarios)
+        + "\n",
         encoding="utf-8",
     )
     (out_dir / "predictions.jsonl").write_text(
-        "\n".join(json.dumps(s, ensure_ascii=False, sort_keys=True) for s in scored) + "\n",
+        "\n".join(json.dumps(s, ensure_ascii=False, sort_keys=True) for s in scored)
+        + "\n",
         encoding="utf-8",
     )
     (out_dir / "metrics.json").write_text(
-        json.dumps(metrics_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        json.dumps(metrics_payload, ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
     (out_dir / "report.md").write_text(_render_report(metrics, gate), encoding="utf-8")
     (out_dir / "contract.json").write_text(
-        json.dumps(agent_contract(), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        json.dumps(agent_contract(), ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
     return metrics_payload
@@ -352,7 +405,9 @@ def runtime_lane(index_dir: Path, provider: str | None) -> str:
 
     if provider:
         return normalize_lane(provider)
-    return normalize_lane(_load_manifest(index_dir).get("embedding_provider", "offline"))
+    return normalize_lane(
+        _load_manifest(index_dir).get("embedding_provider", "offline")
+    )
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -370,11 +425,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(list(argv) if argv is not None else None)
     payload = evaluate_agent(
-        args.data, args.files, args.index, args.out, args.provider, args.top_k, args.min_score
+        args.data,
+        args.files,
+        args.index,
+        args.out,
+        args.provider,
+        args.top_k,
+        args.min_score,
     )
     print(
         json.dumps(
-            {"agent_lane_complete": payload["agent_lane_complete"], "out": str(args.out)},
+            {
+                "agent_lane_complete": payload["agent_lane_complete"],
+                "out": str(args.out),
+            },
             ensure_ascii=False,
         )
     )

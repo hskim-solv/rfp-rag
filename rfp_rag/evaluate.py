@@ -11,6 +11,7 @@ from .contracts import offline_contract, real_contract
 from .corpus import CorpusDocument, load_corpus
 from .providers import normalize_lane
 from .rag_chain import answer_query
+from .tracing import flush_tracing
 
 REAL_QUALITY_THRESHOLDS = {
     "recall@3": 0.85,
@@ -27,7 +28,9 @@ RAGAS_THRESHOLDS = {
 MAX_ERROR_RATE = 0.10
 
 
-def decide_gates(lane: str, aggregate: dict[str, Any], evaluation_valid: bool) -> dict[str, Any]:
+def decide_gates(
+    lane: str, aggregate: dict[str, Any], evaluation_valid: bool
+) -> dict[str, Any]:
     def _meets(metric: str, minimum: float) -> bool:
         value = aggregate.get(metric)
         return value is not None and value >= minimum
@@ -58,7 +61,10 @@ def decide_gates(lane: str, aggregate: dict[str, Any], evaluation_valid: bool) -
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        json.dumps(
+            payload, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -112,7 +118,9 @@ def _metric_record(
     }
 
 
-def generate_golden_metadata(docs: list[CorpusDocument], max_docs: int = 10) -> list[dict[str, Any]]:
+def generate_golden_metadata(
+    docs: list[CorpusDocument], max_docs: int = 10
+) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for doc in docs[:max_docs]:
         md = doc.metadata
@@ -165,7 +173,9 @@ def generate_golden_metadata(docs: list[CorpusDocument], max_docs: int = 10) -> 
     return records
 
 
-def generate_curated_text_questions(docs: list[CorpusDocument], max_docs: int = 10) -> list[dict[str, Any]]:
+def generate_curated_text_questions(
+    docs: list[CorpusDocument], max_docs: int = 10
+) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for doc in docs[:max_docs]:
         md = doc.metadata
@@ -230,7 +240,9 @@ def _mrr(retrieved: list[str], expected: list[str]) -> float:
     return 0.0
 
 
-def _score_prediction(record: dict[str, Any], response: dict[str, Any], top_k: int) -> dict[str, Any]:
+def _score_prediction(
+    record: dict[str, Any], response: dict[str, Any], top_k: int
+) -> dict[str, Any]:
     expected_docs = list(record.get("expected_doc_ids") or [])
     retrieved_docs = list(response.get("retrieved_doc_ids") or [])
     retrieved_chunks = set(response.get("retrieved_chunk_ids") or [])
@@ -240,30 +252,49 @@ def _score_prediction(record: dict[str, Any], response: dict[str, Any], top_k: i
     source_chunk_ids = {source.get("chunk_id") for source in sources}
     source_doc_ids = {source.get("doc_id") for source in sources}
 
-    recall3 = _recall_at(retrieved_docs, expected_docs, min(3, top_k)) if expected_docs else None
-    recall5 = _recall_at(retrieved_docs, expected_docs, min(5, top_k)) if expected_docs else None
+    recall3 = (
+        _recall_at(retrieved_docs, expected_docs, min(3, top_k))
+        if expected_docs
+        else None
+    )
+    recall5 = (
+        _recall_at(retrieved_docs, expected_docs, min(5, top_k))
+        if expected_docs
+        else None
+    )
     mrr = _mrr(retrieved_docs, expected_docs) if expected_docs else None
     citation_presence = None if is_abstention else (1.0 if sources else 0.0)
     citation_validity = None
     if not is_abstention:
         chunks_valid = source_chunk_ids.issubset(retrieved_chunks)
-        expected_cited = bool(not expected_docs or source_doc_ids.intersection(expected_docs))
+        expected_cited = bool(
+            not expected_docs or source_doc_ids.intersection(expected_docs)
+        )
         citation_validity = 1.0 if sources and chunks_valid and expected_cited else 0.0
     metadata_exact = None
     if record.get("label_source") == "csv_metadata" and record.get("expected_field"):
-        metadata_exact = 1.0 if _answer_exact_match(
-            response.get("answer", ""),
-            str(record.get("expected_field")),
-            record.get("expected_value_normalized"),
-        ) else 0.0
+        metadata_exact = (
+            1.0
+            if _answer_exact_match(
+                response.get("answer", ""),
+                str(record.get("expected_field")),
+                record.get("expected_value_normalized"),
+            )
+            else 0.0
+        )
     abstention_pass = None
     if is_abstention:
-        abstention_pass = 1.0 if (
-            record.get("required_phrase", "없는 정보") in response.get("answer", "")
-            and record.get("required_warning", "insufficient_context") in response.get("warnings", [])
-            and response.get("confidence") == "low"
-            and not sources
-        ) else 0.0
+        abstention_pass = (
+            1.0
+            if (
+                record.get("required_phrase", "없는 정보") in response.get("answer", "")
+                and record.get("required_warning", "insufficient_context")
+                in response.get("warnings", [])
+                and response.get("confidence") == "low"
+                and not sources
+            )
+            else 0.0
+        )
 
     return {
         "recall@3": recall3,
@@ -300,7 +331,10 @@ def _by_type(predictions: list[dict[str, Any]]) -> dict[str, Any]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for pred in predictions:
         grouped[pred["query_type"]].append(pred)
-    return {key: _aggregate(items) | {"count": len(items)} for key, items in sorted(grouped.items())}
+    return {
+        key: _aggregate(items) | {"count": len(items)}
+        for key, items in sorted(grouped.items())
+    }
 
 
 def _render_report(metrics: dict[str, Any], predictions: list[dict[str, Any]]) -> str:
@@ -330,10 +364,20 @@ def _render_report(metrics: dict[str, Any], predictions: list[dict[str, Any]]) -
         lines.append(f"### {pred['query_id']}")
         lines.append(f"- Query: {pred['query']}")
         lines.append(f"- Retrieved docs: {', '.join(pred['retrieved_doc_ids'])}")
-        lines.append(f"- Sources: {', '.join(source['chunk_id'] for source in pred['sources']) or '(none)'}")
+        lines.append(
+            f"- Sources: {', '.join(source['chunk_id'] for source in pred['sources']) or '(none)'}"
+        )
         lines.append(f"- Answer: {pred['answer'][:500]}")
         lines.append("")
-    lines.extend(["## Next steps", "", "- Run the real-provider quality gate when `OPENAI_API_KEY` is available.", "- Add hybrid/BM25/query-rewrite comparisons as MVP+ experiments.", ""])
+    lines.extend(
+        [
+            "## Next steps",
+            "",
+            "- Run the real-provider quality gate when `OPENAI_API_KEY` is available.",
+            "- Add hybrid/BM25/query-rewrite comparisons as MVP+ experiments.",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -373,7 +417,9 @@ def evaluate_index(
     error_count = 0
     for record in queries:
         try:
-            response = answer_query(index_dir, record["query"], top_k=top_k, min_score=min_score)
+            response = answer_query(
+                index_dir, record["query"], top_k=top_k, min_score=min_score
+            )
         except Exception as exc:  # noqa: BLE001 - isolate per-question API failures
             error_count += 1
             response = {
@@ -413,18 +459,38 @@ def evaluate_index(
 
     aggregate = _aggregate(predictions)
     if lane == "real_openai":
-        aggregate["faithfulness"] = _mean(p.get("judge", {}).get("faithfulness") for p in predictions)
-        aggregate["answer_relevancy"] = _mean(p.get("judge", {}).get("answer_relevancy") for p in predictions)
+        aggregate["faithfulness"] = _mean(
+            p.get("judge", {}).get("faithfulness") for p in predictions
+        )
+        aggregate["answer_relevancy"] = _mean(
+            p.get("judge", {}).get("answer_relevancy") for p in predictions
+        )
 
     def _top_score(p: dict[str, Any]) -> float | None:
         return p["scores"][0] if p.get("scores") else None
 
     score_distribution = {
         "in_domain_top_scores": sorted(
-            (s for s in (_top_score(p) for p in predictions if p["query_type"] != "abstention") if s is not None)
+            (
+                s
+                for s in (
+                    _top_score(p)
+                    for p in predictions
+                    if p["query_type"] != "abstention"
+                )
+                if s is not None
+            )
         ),
         "abstention_top_scores": sorted(
-            (s for s in (_top_score(p) for p in predictions if p["query_type"] == "abstention") if s is not None)
+            (
+                s
+                for s in (
+                    _top_score(p)
+                    for p in predictions
+                    if p["query_type"] == "abstention"
+                )
+                if s is not None
+            )
         ),
     }
     gates = decide_gates(lane, aggregate, evaluation_valid)
@@ -455,15 +521,22 @@ def evaluate_index(
     _write_jsonl(out_dir / "golden_metadata.jsonl", golden)
     _write_jsonl(out_dir / "curated_text_questions.jsonl", curated)
     _write_jsonl(out_dir / "abstention_questions.jsonl", abstentions)
-    _write_json(out_dir / "contract.json", real_contract() if lane == "real_openai" else offline_contract())
+    _write_json(
+        out_dir / "contract.json",
+        real_contract() if lane == "real_openai" else offline_contract(),
+    )
     _write_json(out_dir / "metrics.json", metrics)
     _write_jsonl(out_dir / "predictions.jsonl", predictions)
-    (out_dir / "report.md").write_text(_render_report(metrics, predictions), encoding="utf-8")
+    (out_dir / "report.md").write_text(
+        _render_report(metrics, predictions), encoding="utf-8"
+    )
     return metrics
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Evaluate the local RFP RAG offline contract.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate the local RFP RAG offline contract."
+    )
     parser.add_argument("--data", required=True, type=Path)
     parser.add_argument("--index", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
@@ -488,6 +561,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         max_docs=args.max_docs,
         min_score=args.min_score,
     )
+    flush_tracing()
     print(json.dumps(metrics, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 
