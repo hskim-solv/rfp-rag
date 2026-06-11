@@ -18,7 +18,7 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --
 python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
 ```
 
-## Real provider quality lane (rfp-rag-real-v1)
+## Real provider quality lane (rfp-rag-real-v2)
 
 Requires `OPENAI_API_KEY`. Models default to `text-embedding-3-small` /
 `gpt-5.4-mini` (generation) / `gpt-5.4` (judge); override via

@@ -24,6 +24,11 @@ REAL_QUALITY_THRESHOLDS = {
 RAGAS_THRESHOLDS = {
     "faithfulness": 0.80,
     "answer_relevancy": 0.70,
+    # 채점 커버리지 — judge_error/judge_aborted/NaN 케이스는 점수가 None이라 _mean에서
+    # 빠지므로, 커버리지 게이트 없이는 소수 고득점 케이스만으로 거짓 통과가 가능하다.
+    # 0.9 근거: 정상 통과 런에서도 relevancy NaN이 간헐 발생 (실측 46/50 = 0.92, REPORT §10-11).
+    "judge_coverage_faithfulness": 0.90,
+    "judge_coverage_answer_relevancy": 0.90,
 }
 MAX_ERROR_RATE = 0.10
 
@@ -307,6 +312,21 @@ def _score_prediction(
     }
 
 
+def _judge_coverage(predictions: list[dict[str, Any]]) -> dict[str, float | None]:
+    """채점 대상(JUDGED_QUERY_TYPES) 중 실제 점수를 받은 비율 — 메트릭별."""
+    from .judge import JUDGED_QUERY_TYPES
+
+    judged = [p for p in predictions if p.get("query_type") in JUDGED_QUERY_TYPES]
+    coverage: dict[str, float | None] = {}
+    for metric in ("faithfulness", "answer_relevancy"):
+        if not judged:
+            coverage[f"judge_coverage_{metric}"] = None
+            continue
+        scored = [p for p in judged if (p.get("judge") or {}).get(metric) is not None]
+        coverage[f"judge_coverage_{metric}"] = len(scored) / len(judged)
+    return coverage
+
+
 def _mean(values: Iterable[float | None]) -> float | None:
     materialized = [float(v) for v in values if v is not None]
     if not materialized:
@@ -465,6 +485,7 @@ def evaluate_index(
         aggregate["answer_relevancy"] = _mean(
             p.get("judge", {}).get("answer_relevancy") for p in predictions
         )
+        aggregate |= _judge_coverage(predictions)
 
     def _top_score(p: dict[str, Any]) -> float | None:
         return p["scores"][0] if p.get("scores") else None

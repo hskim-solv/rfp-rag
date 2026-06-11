@@ -45,7 +45,7 @@ def offline_contract() -> dict[str, Any]:
     }
 
 
-REAL_CONTRACT_VERSION = "rfp-rag-real-v1"
+REAL_CONTRACT_VERSION = "rfp-rag-real-v2"
 
 REAL_REQUIRED_COMMANDS = [
     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai",

@@ -88,7 +88,7 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
                 "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.15",
                 "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
                 "The offline lane is an offline contract gate and does not claim semantic quality.",
-                "Real provider quality lane (rfp-rag-real-v1)",
+                "Real provider quality lane (rfp-rag-real-v2)",
             ]
         ),
         encoding="utf-8",
@@ -128,7 +128,7 @@ def test_report_check_flags_real_lane_eval_dir_as_unsupported(tmp_path: Path) ->
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()
     (eval_dir / "contract.json").write_text(
-        json.dumps({"contract_version": "rfp-rag-real-v1"}), encoding="utf-8"
+        json.dumps({"contract_version": "rfp-rag-real-v2"}), encoding="utf-8"
     )
     readme = tmp_path / "README.md"
     readme.write_text("", encoding="utf-8")
