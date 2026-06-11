@@ -324,6 +324,14 @@ python3 -m rfp_rag.evaluate \
   --predictions artifacts/eval_real/predictions.jsonl --out artifacts/judge_ab`
 - 개선 후보 (§10-8 #5 확장): judge.py에 (a) retry/backoff 상한, (b) 연속 전건
   `judge_error` 시 fail-fast 중단, (c) 케이스 병렬화 (현재 직렬).
+- **(a)(b) 구현 완료 (2026-06-11, TDD)**: (b) 연속 `JUDGE_ABORT_AFTER`(=3)건이 전 메트릭
+  `judge_error`면 잔여 케이스를 호출 없이 `judge_aborted` 경고로 스킵 — 예외를 던지지
+  않아 "judge must not break the eval lane" 원칙 유지 (abstention 스킵 케이스는 카운터
+  무영향, 부분 성공 시 리셋). (a) ragas `RunConfig` 기본값 `max_retries=10/max_wait=60`이
+  폭주 원인임을 확인하고 `metric.init(RunConfig(max_retries=2, max_wait=15))` +
+  embeddings `set_run_config`로 상한 — 이번 사건 조건을 재구성하면 콜 상한이
+  644+ → ~18콜(3케이스×2메트릭×3시도)로 줄어든다. (c) 병렬화는 비용·rate-limit
+  트레이드오프 결정이 필요해 이월.
 
 ## 11. 결론
 

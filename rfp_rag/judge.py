@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 import os
+import sys
 from typing import Any
 
 from .providers import require_openai_key
@@ -26,6 +27,7 @@ def _build_metrics() -> dict[str, Any]:
     from ragas.embeddings import LangchainEmbeddingsWrapper
     from ragas.llms import LangchainLLMWrapper
     from ragas.metrics import Faithfulness, ResponseRelevancy
+    from ragas.run_config import RunConfig
 
     judge_model = os.environ.get("RFP_JUDGE_MODEL", "gpt-5.4")
     embedding_model = os.environ.get("RFP_EMBEDDING_MODEL", "text-embedding-3-small")
@@ -33,10 +35,20 @@ def _build_metrics() -> dict[str, Any]:
         ChatOpenAI(model=judge_model, callbacks=tracing_callbacks())
     )
     embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model=embedding_model))
-    return {
+    metrics: dict[str, Any] = {
         "faithfulness": Faithfulness(llm=llm),
         "answer_relevancy": ResponseRelevancy(llm=llm, embeddings=embeddings),
     }
+    # ragas 기본 max_retries=10/max_wait=60 — 영구 실패(quota 429)에서 재시도 폭주의
+    # 원인 (REPORT §10-10). 일시 장애 회복은 fail-fast(JUDGE_ABORT_AFTER)가 케이스
+    # 레벨에서 방어하므로 메트릭 내부 재시도는 짧게 제한한다.
+    run_config = RunConfig(max_retries=2, max_wait=15)
+    for metric in metrics.values():
+        metric.init(run_config)  # llm에 적용 — embeddings는 init이 건드리지 않는다
+        metric_embeddings = getattr(metric, "embeddings", None)
+        if metric_embeddings is not None:
+            metric_embeddings.set_run_config(run_config)
+    return metrics
 
 
 def _sample(prediction: dict[str, Any]):
@@ -70,6 +82,16 @@ async def _score_one(
     return judge
 
 
+# 연속 전건(judge_error) 실패 케이스가 이 수에 도달하면 잔여 케이스를 호출 없이 스킵.
+# quota 소진 같은 영구 실패에서 재시도 콜 폭주를 차단한다 (REPORT §10-10: 644콜 전부 429).
+JUDGE_ABORT_AFTER = 3
+
+
+def _is_total_failure(judge: dict[str, Any], metrics: dict[str, Any]) -> bool:
+    errors = [w for w in judge["warnings"] if w.startswith("judge_error:")]
+    return bool(metrics) and len(errors) >= len(metrics)
+
+
 def judge_predictions(
     predictions: list[dict[str, Any]],
     metrics: dict[str, Any] | None = None,
@@ -78,7 +100,32 @@ def judge_predictions(
     metrics = metrics if metrics is not None else _build_metrics()
 
     async def _run() -> list[dict[str, Any]]:
-        return [await _score_one(p, metrics) for p in predictions]
+        out: list[dict[str, Any]] = []
+        consecutive = 0
+        aborted = False
+        for p in predictions:
+            if aborted:
+                skipped: dict[str, Any] = {name: None for name in metrics}
+                skipped["warnings"] = ["judge_aborted"]
+                out.append(skipped)
+                continue
+            judge = await _score_one(p, metrics)
+            out.append(judge)
+            if "judge_skipped_abstention" in judge["warnings"]:
+                continue  # 채점 미시도 — 연속 실패 카운터에 무영향
+            if _is_total_failure(judge, metrics):
+                consecutive += 1
+                if consecutive >= JUDGE_ABORT_AFTER:
+                    aborted = True
+                    remaining = len(predictions) - len(out)
+                    print(
+                        f"warning: judge aborted after {consecutive} consecutive total "
+                        f"failures — skipping {remaining} remaining case(s)",
+                        file=sys.stderr,
+                    )
+            else:
+                consecutive = 0
+        return out
 
     judges = asyncio.run(_run())
     return [dict(p) | {"judge": j} for p, j in zip(predictions, judges)]
