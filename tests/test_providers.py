@@ -306,3 +306,6 @@ def test_open_invoke_targets_configured_backend(
     assert captured["base_url"] == "https://api.deepseek.com"
     # DeepSeek은 json_schema 미지원 — tool call 기반 구조화 출력을 강제한다
     assert captured["structured_kwargs"].get("method") == "function_calling"
+    # DeepSeek v4는 thinking이 기본인데 thinking 모드는 tool_choice 강제와 충돌
+    # (400 "Thinking mode does not support this tool_choice") — 명시적으로 끈다
+    assert captured["extra_body"] == {"thinking": {"type": "disabled"}}

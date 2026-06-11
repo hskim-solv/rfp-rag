@@ -174,6 +174,10 @@ def _open_invoke(prompt: str) -> LLMAnswer:
         base_url=base_url,
         api_key=_open_api_key(base_url),
         callbacks=tracing_callbacks(),
+        # DeepSeek v4는 thinking이 기본인데 thinking 모드는 tool_choice 강제와
+        # 충돌한다 (400 "Thinking mode does not support this tool_choice").
+        # 미지원 백엔드(Ollama 등)는 이 필드를 무시한다.
+        extra_body={"thinking": {"type": "disabled"}},
         # OpenAI 호환 백엔드(DeepSeek 등)는 response_format=json_schema를 지원하지
         # 않는 경우가 많다 — tool call 기반 구조화 출력을 강제한다
     ).with_structured_output(LLMAnswer, method="function_calling")
