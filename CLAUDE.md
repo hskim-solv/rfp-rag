@@ -13,6 +13,7 @@
 ## Architecture
 
 - `rfp_rag/`: corpus → chunking → vector_index(embedded Qdrant) → rag_chain → evaluate/judge → report_check. 외부 호출은 전부 `providers.py` 추상화 뒤에 두고, offline lane은 `fake_provider.py`로 대체한다.
+- `rfp_rag/tracing.py`: LANGFUSE_* 키 존재 시에만 Langfuse CallbackHandler 주입 (키 없으면 no-op — credential-free 불변식 유지). 핸들러는 프로세스당 1개 캐시, CLI 종료 경로는 try/finally로 flush.
 - `rfp_rag/agent/`: LangGraph StateGraph — route → retrieve → grade → rewrite(≤2회) → generate → verify → (저장 요청 시) HITL interrupt. 그래프 토폴로지는 lane 공통, `brains.py`의 Router/Rewriter만 lane별 주입.
 - contracts: `rfp-rag-offline-v1` / `rfp-rag-real-v1` / `rfp-agent-v1`. 계약 필드를 바꾸면 contract 버전 bump + `tests/test_gates.py` 동기화가 필수다.
 - agent 부산물: tool 호출은 `<artifacts>/audit.jsonl`에 기록, 상태는 `<artifacts>/checkpoints.sqlite`에 영속 (같은 `--thread-id`로 HITL 승인 대기 재개).

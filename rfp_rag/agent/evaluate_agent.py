@@ -424,15 +424,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(list(argv) if argv is not None else None)
-    payload = evaluate_agent(
-        args.data,
-        args.files,
-        args.index,
-        args.out,
-        args.provider,
-        args.top_k,
-        args.min_score,
-    )
+    try:
+        payload = evaluate_agent(
+            args.data,
+            args.files,
+            args.index,
+            args.out,
+            args.provider,
+            args.top_k,
+            args.min_score,
+        )
+    finally:
+        flush_tracing()  # 예외 경로 포함 — 단명 CLI에서 배치 전송 보장
     print(
         json.dumps(
             {

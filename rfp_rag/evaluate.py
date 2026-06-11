@@ -552,16 +552,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    metrics = evaluate_index(
-        args.data,
-        args.index,
-        args.out,
-        provider=args.provider,
-        top_k=args.top_k,
-        max_docs=args.max_docs,
-        min_score=args.min_score,
-    )
-    flush_tracing()
+    try:
+        metrics = evaluate_index(
+            args.data,
+            args.index,
+            args.out,
+            provider=args.provider,
+            top_k=args.top_k,
+            max_docs=args.max_docs,
+            min_score=args.min_score,
+        )
+    finally:
+        flush_tracing()  # 예외 경로 포함 — 단명 CLI에서 배치 전송 보장
     print(json.dumps(metrics, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

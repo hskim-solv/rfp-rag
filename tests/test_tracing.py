@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from rfp_rag.tracing import flush_tracing, traced_config, tracing_callbacks
 
+# LANGFUSE_BASE_URL은 선택값 (self-host/리전 지정용) — 활성화 판정은 PUBLIC/SECRET 두 키만 본다
 _KEYS = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL")
 
 
@@ -47,6 +50,54 @@ def test_tracing_callbacks_with_keys_returns_handler(monkeypatch):
 
     assert len(callbacks) == 1
     assert isinstance(callbacks[0], CallbackHandler)
+
+
+def test_tracing_callbacks_reuses_cached_handler(monkeypatch):
+    # 호출마다 새 핸들러를 만들지 않는다 (eval 루프 50회 호출 대비)
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
+    first = tracing_callbacks()
+    second = tracing_callbacks()
+    assert first[0] is second[0]
+
+
+def _boom(*args, **kwargs):
+    raise RuntimeError("boom")
+
+
+def test_evaluate_main_flushes_on_exception(monkeypatch):
+    from rfp_rag import evaluate
+
+    calls: list[bool] = []
+    monkeypatch.setattr(evaluate, "flush_tracing", lambda: calls.append(True))
+    monkeypatch.setattr(evaluate, "evaluate_index", _boom)
+    with pytest.raises(RuntimeError):
+        evaluate.main(["--data", "d.csv", "--index", "i", "--out", "o"])
+    assert calls
+
+
+def test_run_agent_main_flushes_on_exception(monkeypatch):
+    from rfp_rag.agent import run_agent
+
+    calls: list[bool] = []
+    monkeypatch.setattr(run_agent, "flush_tracing", lambda: calls.append(True))
+    monkeypatch.setattr(run_agent, "build_runtime", _boom)
+    with pytest.raises(RuntimeError):
+        run_agent.main(
+            ["--index", "i", "--data", "d.csv", "--files", "f", "--question", "q"]
+        )
+    assert calls
+
+
+def test_evaluate_agent_main_flushes_on_exception(monkeypatch):
+    from rfp_rag.agent import evaluate_agent as ea
+
+    calls: list[bool] = []
+    monkeypatch.setattr(ea, "flush_tracing", lambda: calls.append(True))
+    monkeypatch.setattr(ea, "evaluate_agent", _boom)
+    with pytest.raises(RuntimeError):
+        ea.main(["--data", "d.csv", "--files", "f", "--index", "i", "--out", "o"])
+    assert calls
 
 
 def test_flush_tracing_without_keys_is_noop(monkeypatch):

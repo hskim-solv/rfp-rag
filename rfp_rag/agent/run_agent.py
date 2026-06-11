@@ -83,34 +83,36 @@ def main(argv: Iterable[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    runtime = build_runtime(
-        args.index,
-        args.data,
-        args.files,
-        args.provider,
-        args.top_k,
-        args.min_score,
-        args.artifacts,
-        args.thread_id,
-    )
-    checkpointer = sqlite_checkpointer(args.artifacts / "checkpoints.sqlite")
-    graph = build_agent_graph(runtime, checkpointer=checkpointer)
-    config = traced_config(run_config(args.thread_id))
-    if args.approve or args.reject:
-        snapshot = graph.get_state(config)
-        if not snapshot.next:  # 재개할 interrupt가 없다 (checkpoint 부재/이미 종료)
-            print(
-                f"error: thread {args.thread_id!r}에 재개할 승인 대기 상태가 없습니다 — "
-                "--question으로 새로 시작하세요",
-                file=sys.stderr,
-            )
-            return 2
-        result = graph.invoke(
-            Command(resume="approve" if args.approve else "reject"), config
+    try:
+        runtime = build_runtime(
+            args.index,
+            args.data,
+            args.files,
+            args.provider,
+            args.top_k,
+            args.min_score,
+            args.artifacts,
+            args.thread_id,
         )
-    else:
-        result = graph.invoke(initial_state(args.question), config)
-    flush_tracing()
+        checkpointer = sqlite_checkpointer(args.artifacts / "checkpoints.sqlite")
+        graph = build_agent_graph(runtime, checkpointer=checkpointer)
+        config = traced_config(run_config(args.thread_id))
+        if args.approve or args.reject:
+            snapshot = graph.get_state(config)
+            if not snapshot.next:  # 재개할 interrupt가 없다 (checkpoint 부재/이미 종료)
+                print(
+                    f"error: thread {args.thread_id!r}에 재개할 승인 대기 상태가 없습니다 — "
+                    "--question으로 새로 시작하세요",
+                    file=sys.stderr,
+                )
+                return 2
+            result = graph.invoke(
+                Command(resume="approve" if args.approve else "reject"), config
+            )
+        else:
+            result = graph.invoke(initial_state(args.question), config)
+    finally:
+        flush_tracing()  # 예외 경로 포함 — 단명 CLI에서 배치 전송 보장
     if "__interrupt__" in result:
         payload = result["__interrupt__"][0].value
         print(

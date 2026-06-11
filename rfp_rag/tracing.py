@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sys
+from functools import lru_cache
 from typing import Any
 
 _REQUIRED_KEYS = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY")
@@ -17,12 +18,22 @@ def tracing_enabled() -> bool:
     return all(os.environ.get(key) for key in _REQUIRED_KEYS)
 
 
+@lru_cache(maxsize=1)
+def _cached_handler() -> Any:
+    from langfuse.langchain import CallbackHandler
+
+    return CallbackHandler()
+
+
 def tracing_callbacks() -> list[Any]:
-    """활성화 시 [CallbackHandler], 아니면 [] — LLM 생성자나 invoke config에 그대로 붙인다."""
+    """활성화 시 [CallbackHandler], 아니면 [] — LLM 생성자나 invoke config에 그대로 붙인다.
+
+    핸들러는 프로세스당 1개를 재사용한다 (eval 루프가 호출마다 새로 만들지 않도록).
+    """
     if not tracing_enabled():
         return []
     try:
-        from langfuse.langchain import CallbackHandler
+        handler = _cached_handler()
     except ImportError:
         print(
             "warning: LANGFUSE_* 키가 설정되어 있지만 langfuse 패키지가 없어 트레이싱을 건너뜁니다"
@@ -30,7 +41,7 @@ def tracing_callbacks() -> list[Any]:
             file=sys.stderr,
         )
         return []
-    return [CallbackHandler()]
+    return [handler]
 
 
 def traced_config(config: dict[str, Any]) -> dict[str, Any]:
