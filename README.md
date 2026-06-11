@@ -33,6 +33,10 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
 
 - `rag_quality_complete` requires every threshold in `artifacts/eval_real/metrics.json`
   (`thresholds`) plus `evaluation_valid` (error rate <= 10%).
+- After a gate-semantics (contract) change, regenerate evidence without API calls:
+  `python3 -m rfp_rag.evaluate --reaggregate --out artifacts/eval_real --provider real_openai`
+  recomputes metrics/contract/report from the preserved `predictions.jsonl` and marks
+  the output with `reaggregated_from_predictions: true`.
 - Calibrate `--min-score` per lane from `score_distribution` in `metrics.json`
   (offline lane: 0.15, real lane: 0.47). Record any recalibration rationale in the
   evaluation report.

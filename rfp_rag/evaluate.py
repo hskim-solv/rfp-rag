@@ -327,6 +327,57 @@ def _judge_coverage(predictions: list[dict[str, Any]]) -> dict[str, float | None
     return coverage
 
 
+def _lane_aggregate(lane: str, predictions: list[dict[str, Any]]) -> dict[str, Any]:
+    aggregate = _aggregate(predictions)
+    if lane == "real_openai":
+        aggregate["faithfulness"] = _mean(
+            p.get("judge", {}).get("faithfulness") for p in predictions
+        )
+        aggregate["answer_relevancy"] = _mean(
+            p.get("judge", {}).get("answer_relevancy") for p in predictions
+        )
+        aggregate |= _judge_coverage(predictions)
+    return aggregate
+
+
+def _score_distribution(predictions: list[dict[str, Any]]) -> dict[str, list[float]]:
+    def _top_score(p: dict[str, Any]) -> float | None:
+        return p["scores"][0] if p.get("scores") else None
+
+    return {
+        "in_domain_top_scores": sorted(
+            (
+                s
+                for s in (
+                    _top_score(p)
+                    for p in predictions
+                    if p["query_type"] != "abstention"
+                )
+                if s is not None
+            )
+        ),
+        "abstention_top_scores": sorted(
+            (
+                s
+                for s in (
+                    _top_score(p)
+                    for p in predictions
+                    if p["query_type"] == "abstention"
+                )
+                if s is not None
+            )
+        ),
+    }
+
+
+def _quality_note(lane: str) -> str:
+    return (
+        "real_openai lane applies thresholds for rag_quality_complete."
+        if lane == "real_openai"
+        else "offline lane validates deterministic contract only; it does not claim semantic RAG quality."
+    )
+
+
 def _mean(values: Iterable[float | None]) -> float | None:
     materialized = [float(v) for v in values if v is not None]
     if not materialized:
@@ -477,43 +528,8 @@ def evaluate_index(
 
         predictions = judge_predictions(predictions)
 
-    aggregate = _aggregate(predictions)
-    if lane == "real_openai":
-        aggregate["faithfulness"] = _mean(
-            p.get("judge", {}).get("faithfulness") for p in predictions
-        )
-        aggregate["answer_relevancy"] = _mean(
-            p.get("judge", {}).get("answer_relevancy") for p in predictions
-        )
-        aggregate |= _judge_coverage(predictions)
-
-    def _top_score(p: dict[str, Any]) -> float | None:
-        return p["scores"][0] if p.get("scores") else None
-
-    score_distribution = {
-        "in_domain_top_scores": sorted(
-            (
-                s
-                for s in (
-                    _top_score(p)
-                    for p in predictions
-                    if p["query_type"] != "abstention"
-                )
-                if s is not None
-            )
-        ),
-        "abstention_top_scores": sorted(
-            (
-                s
-                for s in (
-                    _top_score(p)
-                    for p in predictions
-                    if p["query_type"] == "abstention"
-                )
-                if s is not None
-            )
-        ),
-    }
+    aggregate = _lane_aggregate(lane, predictions)
+    score_distribution = _score_distribution(predictions)
     gates = decide_gates(lane, aggregate, evaluation_valid)
     metrics: dict[str, Any] = {
         "provider_lane": lane,
@@ -532,11 +548,7 @@ def evaluate_index(
         "per_type": _by_type(predictions),
         "thresholds": REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS,
         **gates,
-        "quality_note": (
-            "real_openai lane applies thresholds for rag_quality_complete."
-            if lane == "real_openai"
-            else "offline lane validates deterministic contract only; it does not claim semantic RAG quality."
-        ),
+        "quality_note": _quality_note(lane),
     }
 
     _write_jsonl(out_dir / "golden_metadata.jsonl", golden)
@@ -554,12 +566,66 @@ def evaluate_index(
     return metrics
 
 
+def reaggregate_metrics(
+    out_dir: Path | str, provider: str = "real_openai"
+) -> dict[str, Any]:
+    """기존 predictions.jsonl에서 metrics/contract/report만 재계산한다 — API 호출 없음.
+
+    게이트 시맨틱(contract) 변경 시 보존된 judge 산출물로 게이트 증거를 재생성하는
+    경로. RAG 답변과 채점은 다시 실행하지 않으므로 비용이 들지 않고, 산출물에는
+    reaggregated_from_predictions=True로 출처를 남긴다.
+    """
+    lane = normalize_lane(provider)
+    out_dir = Path(out_dir)
+    predictions = [
+        json.loads(line)
+        for line in (out_dir / "predictions.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    previous = json.loads((out_dir / "metrics.json").read_text(encoding="utf-8"))
+    error_count = sum(
+        1
+        for p in predictions
+        if any(str(w).startswith("answer_error:") for w in p.get("warnings", []))
+    )
+    error_rate = error_count / len(predictions) if predictions else 0.0
+    evaluation_valid = error_rate <= MAX_ERROR_RATE
+    aggregate = _lane_aggregate(lane, predictions)
+    gates = decide_gates(lane, aggregate, evaluation_valid)
+    metrics: dict[str, Any] = {
+        "provider_lane": lane,
+        # 실행 파라미터는 predictions에서 도출할 수 없으므로 이전 run 값을 보존한다.
+        "top_k": previous.get("top_k"),
+        "min_score": previous.get("min_score"),
+        "error_rate": error_rate,
+        "evaluation_valid": evaluation_valid,
+        "score_distribution": _score_distribution(predictions),
+        "query_set_counts": previous.get("query_set_counts", {}),
+        "aggregate": aggregate,
+        "per_type": _by_type(predictions),
+        "thresholds": REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS,
+        **gates,
+        "reaggregated_from_predictions": True,
+        "quality_note": _quality_note(lane),
+    }
+    _write_json(
+        out_dir / "contract.json",
+        real_contract() if lane == "real_openai" else offline_contract(),
+    )
+    _write_json(out_dir / "metrics.json", metrics)
+    (out_dir / "report.md").write_text(
+        _render_report(metrics, predictions), encoding="utf-8"
+    )
+    return metrics
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Evaluate the local RFP RAG offline contract."
     )
-    parser.add_argument("--data", required=True, type=Path)
-    parser.add_argument("--index", required=True, type=Path)
+    parser.add_argument("--data", type=Path)
+    parser.add_argument("--index", type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--provider", default="fake_offline")
     parser.add_argument("--top-k", default=5, type=int)
@@ -567,12 +633,23 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
     # pass --min-score explicitly per lane.
     parser.add_argument("--min-score", default=0.05, type=float)
+    parser.add_argument(
+        "--reaggregate",
+        action="store_true",
+        help="recompute metrics/contract/report from existing predictions.jsonl in --out (no API calls)",
+    )
     return parser
 
 
 def main(argv: Iterable[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.reaggregate:
+        metrics = reaggregate_metrics(args.out, provider=args.provider)
+        print(json.dumps(metrics, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+    if args.data is None or args.index is None:
+        parser.error("--data and --index are required unless --reaggregate is set")
     try:
         metrics = evaluate_index(
             args.data,
