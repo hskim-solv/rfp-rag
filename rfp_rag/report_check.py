@@ -11,7 +11,7 @@ from .contracts import REAL_CONTRACT_VERSION, offline_contract
 def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
     """Validate offline-contract (rfp-rag-offline-v1) evidence only.
 
-    Real-lane (rfp-rag-real-v1) eval dirs are out of scope and are flagged as
+    Real-lane (rfp-rag-real-v2) eval dirs are out of scope and are flagged as
     real_lane_eval_dir_not_supported rather than as contract tampering.
     """
     eval_dir = Path(eval_dir)
@@ -22,7 +22,7 @@ def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
     required_files = list(canonical_contract.get("required_eval_files", []))
     missing_files = [name for name in required_files if not (eval_dir / name).exists()]
     readme_text = readme.read_text(encoding="utf-8") if readme.exists() else ""
-    # README must also document the real provider quality lane section (rfp-rag-real-v1).
+    # README must also document the real provider quality lane section (rfp-rag-real-v2).
     required_readme = (
         list(canonical_contract.get("required_commands", []))
         + list(canonical_contract.get("readme_markers", []))

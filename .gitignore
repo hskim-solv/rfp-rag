@@ -11,3 +11,6 @@ node_modules/
 .ruff_cache/
 outputs/
 package.json
+
+# plugin local cache
+.serena/
