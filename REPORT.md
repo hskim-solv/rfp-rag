@@ -301,6 +301,30 @@ python3 -m rfp_rag.evaluate \
   --min-score 0.47
 ```
 
+### 10-10. Judge 모델 A/B 시도 — quota 차단으로 미완 (2026-06-11)
+
+§10-5 Hybrid Judge 전략(반복=mini, 공식 게이트=gpt-5.4)의 점수 합치도를 정량화하기 위해,
+저장된 `artifacts/eval_real/predictions.jsonl`(60건, gpt-5.4 judge 점수 보존)에 judge만
+재실행하는 A/B를 설계했다 (`scripts/judge_ab.py` — generation 미재실행으로 judge 모델
+차이만 분리, 원본 아티팩트 불변).
+
+**결과: 채점 0건 — OpenAI quota 차단.** Langfuse 트레이스(ADR-0001로 이번 사이클 도입)
+기준 644개 호출 전부 `429 You exceeded your current quota`로 실패했다 (statement 분해
+322 + relevancy 322, faithfulness NLI 단계 도달 0건, 실측 비용 $0.00). ragas 내부
+재시도가 2시간 20분 공회전한 뒤 수동 중단했다.
+
+- `judge.py`의 메트릭별 exception 격리(`judge_error:*` 경고 후 진행)는 의도대로 동작 —
+  프로세스는 죽지 않았다. 그러나 영구 실패(quota 소진)와 일시 실패(rate limit)를
+  구분하지 못해 조기 중단 기회를 놓쳤다.
+- 진단은 전적으로 트레이싱으로 수행됐다: 호출 전수·에러 코드·재시도 횟수·비용($0)을
+  사후 1분 내 확정. "트레이스 수 증가 = 진행"이라는 가정이 깨진 사례이기도 하다
+  (늘어난 트레이스가 전부 에러 콜).
+- 재실행 조건: OpenAI billing/quota 복구 확인 후 동일 명령 —
+  `RFP_JUDGE_MODEL=gpt-5.4-mini PYTHONPATH=. python3 scripts/judge_ab.py
+  --predictions artifacts/eval_real/predictions.jsonl --out artifacts/judge_ab`
+- 개선 후보 (§10-8 #5 확장): judge.py에 (a) retry/backoff 상한, (b) 연속 전건
+  `judge_error` 시 fail-fast 중단, (c) 케이스 병렬화 (현재 직렬).
+
 ## 11. 결론
 
 본 프로젝트는 RFP 100건에 대한 RAG baseline의 핵심 골격을 완성했다. 현재 산출물은 API 없이도 재현 가능한 offline scaffold이며, corpus 정합성·index 생성·cited QA·abstention·evaluation/report gate까지 end-to-end로 검증되었다.
