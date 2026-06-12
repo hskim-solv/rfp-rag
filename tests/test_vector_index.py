@@ -85,6 +85,13 @@ def test_hybrid_search_requires_index_dir() -> None:
         search(store, "사업", top_k=1, retrieval_mode=RETRIEVAL_HYBRID)
 
 
+def test_hybrid_search_top_k_zero_returns_empty_without_index_dir() -> None:
+    emb = LexicalHashEmbeddings(dim=512)
+    store = build_vector_store(_chunks(), emb, qdrant_path=None, lane="offline")
+
+    assert search(store, "사업", top_k=0, retrieval_mode=RETRIEVAL_HYBRID) == []
+
+
 def test_hybrid_search_promotes_keyword_candidate(tmp_path: Path) -> None:
     chunks = [
         Chunk(
@@ -117,3 +124,24 @@ def test_hybrid_search_promotes_keyword_candidate(tmp_path: Path) -> None:
 
     assert results[0].chunk_id == "doc:001:chunk:0"
     assert results[0].score > 0
+
+
+def test_hybrid_search_without_bm25_match_preserves_vector_scores(tmp_path: Path) -> None:
+    chunks = _chunks()
+    emb = LexicalHashEmbeddings(dim=512)
+    index_dir = tmp_path / "index"
+    save_index(index_dir, {"embedding_provider": "offline"}, chunks)
+    store = build_vector_store(chunks, emb, qdrant_path=None, lane="offline")
+
+    vector_results = search(store, "우주정거장", top_k=2, retrieval_mode=RETRIEVAL_VECTOR)
+    hybrid_results = search(
+        store,
+        "우주정거장",
+        top_k=2,
+        retrieval_mode=RETRIEVAL_HYBRID,
+        index_dir=index_dir,
+    )
+
+    assert [(r.chunk_id, r.score) for r in hybrid_results] == [
+        (r.chunk_id, r.score) for r in vector_results
+    ]

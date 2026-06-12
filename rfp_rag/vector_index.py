@@ -11,7 +11,6 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
 
 from .chunking import Chunk
-from .hybrid_retrieval import BM25Index, fuse_ranked_results
 from .index_store import SearchResult
 
 _COLLECTION_PREFIX = "rfp_chunks"
@@ -120,12 +119,18 @@ def search(
 ) -> list[SearchResult]:
     if retrieval_mode not in RETRIEVAL_MODES:
         raise ValueError(f"unknown retrieval_mode: {retrieval_mode}")
+    if top_k <= 0:
+        return []
     if retrieval_mode == RETRIEVAL_VECTOR:
         return _vector_search(store, query, top_k=top_k)
     if index_dir is None:
         raise ValueError("index_dir is required for hybrid retrieval")
 
+    from .hybrid_retrieval import BM25Index, fuse_ranked_results
+
     candidate_k = max(top_k * 4, 20)
     vector_results = _vector_search(store, query, top_k=candidate_k)
     bm25_results = BM25Index.from_index_dir(index_dir).search(query, top_k=candidate_k)
+    if not bm25_results:
+        return vector_results[:top_k]
     return fuse_ranked_results(vector_results, bm25_results, top_k=top_k)
