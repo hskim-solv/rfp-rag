@@ -68,16 +68,18 @@ def test_load_chunk_results_reads_chunks_jsonl(tmp_path: Path) -> None:
 def test_bm25_scores_keyword_exact_chunk_first(tmp_path: Path) -> None:
     out = tmp_path / "index"
     chunks = [
-        _chunk("doc:000:chunk:0", "범용 시스템 유지보수", "일반 유지보수"),
+        _chunk("doc:000:chunk:0", "AI 범용 시스템 유지보수", "일반 유지보수"),
         _chunk("doc:001:chunk:0", "AI LMS 학습 분석 추천 엔진 구축", "AI LMS 고도화"),
+        _chunk("doc:002:chunk:0", "범용 시스템 유지보수", "일반 유지보수"),
     ]
     save_index(out, {"embedding_provider": "offline"}, chunks)
     index = BM25Index.from_index_dir(out)
 
-    results = index.search("AI LMS 추천 엔진", top_k=2)
+    results = index.search("AI LMS 추천 엔진", top_k=3)
 
-    assert results[0].chunk_id == "doc:001:chunk:0"
+    assert [result.chunk_id for result in results] == ["doc:001:chunk:0", "doc:000:chunk:0"]
     assert results[0].score > results[1].score
+    assert all(result.score > 0 for result in results)
 
 
 def test_bm25_empty_query_returns_no_results(tmp_path: Path) -> None:

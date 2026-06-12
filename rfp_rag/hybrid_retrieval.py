@@ -119,21 +119,6 @@ class BM25Index:
                 )
             )
         scored.sort(key=lambda item: (-item.score, item.doc_id, item.chunk_id))
-        if scored and len(scored) < top_k:
-            scored_ids = {result.chunk_id for result in scored}
-            tail = [stats.result for stats in self._stats if stats.result.chunk_id not in scored_ids]
-            tail.sort(key=lambda item: (item.doc_id, item.chunk_id))
-            scored.extend(
-                SearchResult(
-                    chunk_id=result.chunk_id,
-                    doc_id=result.doc_id,
-                    csv_row_id=result.csv_row_id,
-                    score=0.0,
-                    text=result.text,
-                    metadata=result.metadata,
-                )
-                for result in tail[: top_k - len(scored)]
-            )
         return scored[:top_k]
 
 
