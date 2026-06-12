@@ -18,6 +18,22 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --
 python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
 ```
 
+### Retrieval mode
+
+`--retrieval-mode vector` is the default. `--retrieval-mode hybrid` fuses Qdrant
+vector candidates with local BM25 candidates from `chunks.jsonl` using
+reciprocal-rank fusion.
+
+```bash
+python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index \
+  --out artifacts/eval_hybrid_offline --provider offline --top-k 5 \
+  --min-score 0.15 --retrieval-mode hybrid
+```
+
+Hybrid retrieval is an experiment lane. It improved offline retrieval metrics in
+the current run, but reduced abstention accuracy at the vector-calibrated
+`--min-score 0.15`; it does not replace the `real_openai` quality gate.
+
 ## Real provider quality lane (rfp-rag-real-v2)
 
 Requires `OPENAI_API_KEY`. Models default to `text-embedding-3-small` /

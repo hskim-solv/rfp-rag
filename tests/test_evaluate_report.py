@@ -10,9 +10,8 @@ from rfp_rag.evaluate import evaluate_index
 from rfp_rag.report_check import check_report
 
 
-def test_evaluate_index_writes_offline_contract_artifacts(tmp_path: Path) -> None:
+def _build_fake_index(tmp_path: Path) -> Path:
     index_dir = tmp_path / "index"
-    eval_dir = tmp_path / "eval"
     build_index(
         data_path=Path("data/data_list.csv"),
         files_path=Path("data/files"),
@@ -21,6 +20,12 @@ def test_evaluate_index_writes_offline_contract_artifacts(tmp_path: Path) -> Non
         chunk_overlap=80,
         embedding_provider="fake",
     )
+    return index_dir
+
+
+def test_evaluate_index_writes_offline_contract_artifacts(tmp_path: Path) -> None:
+    index_dir = _build_fake_index(tmp_path)
+    eval_dir = tmp_path / "eval"
 
     metrics = evaluate_index(
         data_path=Path("data/data_list.csv"),
@@ -32,6 +37,11 @@ def test_evaluate_index_writes_offline_contract_artifacts(tmp_path: Path) -> Non
         min_score=0.15,  # calibrated offline cutoff; rationale recorded in score_distribution
     )
 
+    assert metrics["retrieval_mode"] == "vector"
+    saved_metrics = json.loads((eval_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert saved_metrics["retrieval_mode"] == "vector"
+    report = (eval_dir / "report.md").read_text(encoding="utf-8")
+    assert "- retrieval_mode: vector" in report
     assert metrics["provider_lane"] == "offline"
     assert metrics["min_score"] == 0.15
     assert metrics["evaluation_valid"] is True
@@ -55,11 +65,54 @@ def test_evaluate_index_writes_offline_contract_artifacts(tmp_path: Path) -> Non
         "contract.json",
     ]:
         assert (eval_dir / name).exists(), name
-    saved_metrics = json.loads((eval_dir / "metrics.json").read_text(encoding="utf-8"))
     contract = json.loads((eval_dir / "contract.json").read_text(encoding="utf-8"))
     assert saved_metrics == metrics
     assert contract["contract_version"] == "rfp-rag-offline-v1"
     assert contract["quality_semantics"]["offline"]["claims_semantic_quality"] is False
+
+
+def test_evaluate_index_writes_hybrid_retrieval_mode_artifacts(tmp_path: Path) -> None:
+    index_dir = _build_fake_index(tmp_path)
+    eval_dir = tmp_path / "eval"
+
+    metrics = evaluate_index(
+        data_path=Path("data/data_list.csv"),
+        index_dir=index_dir,
+        out_dir=eval_dir,
+        provider="fake_offline",
+        top_k=5,
+        max_docs=3,
+        min_score=0.15,
+        retrieval_mode="hybrid",
+    )
+
+    assert metrics["retrieval_mode"] == "hybrid"
+    saved_metrics = json.loads((eval_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert saved_metrics["retrieval_mode"] == "hybrid"
+    assert saved_metrics == metrics
+    assert (eval_dir / "predictions.jsonl").exists()
+    assert (eval_dir / "report.md").exists()
+    assert "- retrieval_mode: hybrid" in (eval_dir / "report.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_evaluate_index_rejects_unknown_retrieval_mode_before_queries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    index_dir = _build_fake_index(tmp_path)
+
+    def fail_answer_query(*args: object, **kwargs: object) -> dict[str, object]:
+        raise AssertionError("answer_query should not run for invalid retrieval_mode")
+
+    monkeypatch.setattr("rfp_rag.evaluate.answer_query", fail_answer_query)
+    with pytest.raises(ValueError, match="unknown retrieval_mode"):
+        evaluate_index(
+            data_path=Path("data/data_list.csv"),
+            index_dir=index_dir,
+            out_dir=tmp_path / "eval",
+            retrieval_mode="magic",
+        )
 
 
 def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) -> None:
