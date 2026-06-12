@@ -77,7 +77,7 @@ OPEN_CONTRACT_VERSION = "rfp-rag-open-v1"
 
 OPEN_REQUIRED_COMMANDS = [
     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_open --chunk-size 500 --chunk-overlap 80 --embedding-provider open",
-    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open --out artifacts/eval_open --provider open --top-k 5",
+    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open --out artifacts/eval_open --provider open --top-k 5 --min-score 0.55",
 ]
 
 

@@ -73,10 +73,10 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
   --out artifacts/index_open --chunk-size 500 --chunk-overlap 80 --embedding-provider open
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open \
-  --out artifacts/eval_open --provider open --top-k 5
+  --out artifacts/eval_open --provider open --top-k 5 --min-score 0.55
 ```
 
-`--min-score`는 첫 성공 런의 `score_distribution`에서 in-domain top score와 abstention top score가 분리될 때만 고정합니다. 분리가 없거나 백엔드가 준비되지 않은 경우 open lane은 cutoff 미확정 상태로 남깁니다.
+`--min-score 0.55`는 첫 성공 런의 `score_distribution`에서 보정한 open lane 전용 cutoff입니다. abstention top score 최댓값은 `0.49755216`, in-domain top score 최솟값은 `0.60993228`이고, 두 분포 사이의 gap에 cutoff를 둡니다.
 - open lane 평가도 judge를 실행합니다 — 기본 judge는 OpenAI `gpt-5.4-mini`이므로
   `OPENAI_API_KEY`가 필요하고, DeepSeek judge(A/B 검증 후)는 `RFP_JUDGE_BASE_URL`로
   전환합니다.
