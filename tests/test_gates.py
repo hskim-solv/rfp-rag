@@ -53,6 +53,48 @@ def test_offline_lane_never_claims_quality() -> None:
     assert gates["offline_scaffold_complete"] is True
 
 
+def test_open_lane_never_claims_quality() -> None:
+    # open lane은 이터레이션 신호 전용 — 전 지표 통과여도 게이트를 주장하지 않는다
+    gates = decide_gates("open", _passing_aggregate(), evaluation_valid=True)
+
+    assert gates["thresholds_applied"] is False
+    assert gates["rag_quality_complete"] is False
+
+
+def test_open_lane_aggregate_includes_judge_scores() -> None:
+    # open lane의 존재 이유: judge 점수를 이터레이션 신호로 본다 — aggregate에 포함돼야 함
+    from rfp_rag.evaluate import _lane_aggregate
+
+    prediction = {
+        "query_type": "curated_text",
+        "pass_fail": {"recall@3": 1.0},
+        "judge": {"faithfulness": 0.9, "answer_relevancy": 0.8, "warnings": []},
+    }
+
+    aggregate = _lane_aggregate("open", [prediction])
+
+    assert aggregate["faithfulness"] == 0.9
+    assert aggregate["answer_relevancy"] == 0.8
+    assert aggregate["judge_coverage_faithfulness"] == 1.0
+
+
+def test_contract_for_lane_selects_matching_contract() -> None:
+    from rfp_rag.evaluate import _contract_for
+
+    assert _contract_for("offline")["contract_version"] == "rfp-rag-offline-v1"
+    assert _contract_for("real_openai")["contract_version"] == "rfp-rag-real-v2"
+    assert _contract_for("open")["contract_version"] == "rfp-rag-open-v1"
+
+
+def test_open_contract_does_not_claim_gates() -> None:
+    from rfp_rag.contracts import open_contract
+
+    semantics = open_contract()["quality_semantics"]["open"]
+
+    assert semantics["claims_semantic_quality"] is False
+    assert semantics["forbidden_completion_claim"] == "rag_quality_complete"
+
+
 def test_real_lane_fails_when_judge_coverage_low() -> None:
     # judge_aborted/judge_error로 빠진 케이스가 평균에서 조용히 제외되어
     # 소수 고득점 케이스만으로 거짓 통과하는 것을 차단한다 (PR #4 Codex 리뷰)

@@ -73,6 +73,31 @@ def real_contract() -> dict[str, Any]:
     }
 
 
+OPEN_CONTRACT_VERSION = "rfp-rag-open-v1"
+
+OPEN_REQUIRED_COMMANDS = [
+    "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_open --chunk-size 500 --chunk-overlap 80 --embedding-provider open",
+    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open --out artifacts/eval_open --provider open --top-k 5 --min-score 0.55",
+]
+
+
+def open_contract() -> dict[str, Any]:
+    return {
+        "contract_version": OPEN_CONTRACT_VERSION,
+        "required_eval_files": list(REQUIRED_EVAL_FILES),
+        "required_commands": OPEN_REQUIRED_COMMANDS,
+        "quality_semantics": {
+            "open": {
+                # open lane은 저비용 이터레이션 신호 전용 — 게이트 증거가 아니다.
+                # 최종 게이트(rag_quality_complete)는 real_openai lane에서만 판정한다.
+                "claims_semantic_quality": False,
+                "allowed_completion_claim": None,
+                "forbidden_completion_claim": "rag_quality_complete",
+            }
+        },
+    }
+
+
 AGENT_CONTRACT_VERSION = "rfp-agent-v1"
 
 AGENT_REQUIRED_COMMANDS = [

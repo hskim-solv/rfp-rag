@@ -16,7 +16,7 @@ import json
 import os
 from pathlib import Path
 
-from rfp_rag.judge import judge_predictions
+from rfp_rag.judge import DEFAULT_JUDGE_MODEL, judge_predictions
 from rfp_rag.tracing import flush_tracing
 
 METRICS = ("faithfulness", "answer_relevancy")
@@ -62,7 +62,8 @@ def main() -> int:
         ]
 
     summary = {
-        "judge_model": os.environ.get("RFP_JUDGE_MODEL", "gpt-5.4"),
+        "judge_model": os.environ.get("RFP_JUDGE_MODEL", DEFAULT_JUDGE_MODEL),
+        "judge_base_url": os.environ.get("RFP_JUDGE_BASE_URL"),
         "n_predictions": len(rows),
         "baseline_mean": {m: _mean([r["baseline"][m] for r in rows]) for m in METRICS},
         "rejudged_mean": {m: _mean([r["rejudged"][m] for r in rows]) for m in METRICS},

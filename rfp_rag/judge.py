@@ -19,6 +19,9 @@ JUDGED_QUERY_TYPES = {
     "curated_text",
 }
 
+# mini 기본값: §10-11 A/B에서 gpt-5.4 대비 게이트 판정 일치·이탈 보수적·비용 1/6.
+DEFAULT_JUDGE_MODEL = "gpt-5.4-mini"
+
 
 def _build_metrics() -> dict[str, Any]:
     """Real RAGAS metrics. Requires OPENAI_API_KEY."""
@@ -29,10 +32,19 @@ def _build_metrics() -> dict[str, Any]:
     from ragas.metrics import Faithfulness, ResponseRelevancy
     from ragas.run_config import RunConfig
 
-    judge_model = os.environ.get("RFP_JUDGE_MODEL", "gpt-5.4")
+    judge_model = os.environ.get("RFP_JUDGE_MODEL", DEFAULT_JUDGE_MODEL)
     embedding_model = os.environ.get("RFP_EMBEDDING_MODEL", "text-embedding-3-small")
+    # OpenAI 호환 백엔드(DeepSeek 등)로 judge를 돌리는 오버라이드 (scripts/judge_ab.py).
+    # 임베딩(answer_relevancy)은 OpenAI 유지 — OPENAI_API_KEY는 여전히 필요하다.
+    llm_kwargs: dict[str, Any] = {}
+    judge_base_url = os.environ.get("RFP_JUDGE_BASE_URL")
+    if judge_base_url:
+        llm_kwargs["base_url"] = judge_base_url
+        judge_api_key = os.environ.get("RFP_JUDGE_API_KEY")
+        if judge_api_key:
+            llm_kwargs["api_key"] = judge_api_key
     llm = LangchainLLMWrapper(
-        ChatOpenAI(model=judge_model, callbacks=tracing_callbacks())
+        ChatOpenAI(model=judge_model, callbacks=tracing_callbacks(), **llm_kwargs)
     )
     embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model=embedding_model))
     metrics: dict[str, Any] = {
