@@ -37,6 +37,29 @@ Outputs:
 The first implementation uses local `hwp5txt` for `.hwp` files and records
 `.pdf` files as unsupported unless a PDF backend is added later.
 
+## Parser/render bakeoff
+
+Before parsed HWP output becomes an index source, the project compares parser and
+renderer backends on representative RFP samples.
+
+```bash
+python3 -m rfp_rag.run_parser_bakeoff \
+  --data data/data_list.csv \
+  --files data/files \
+  --parse-manifest artifacts/parsed_docs/manifest.jsonl \
+  --out artifacts/parser_bakeoff
+```
+
+Outputs:
+
+- `artifacts/parser_bakeoff/samples.json`
+- `artifacts/parser_bakeoff/results.jsonl`
+- `artifacts/parser_bakeoff/summary.json`
+
+Optional backends such as `rhwp`, `unhwp`, `hwpxkit`, and LibreOffice are recorded
+as `missing_dependency` when unavailable, so the bakeoff remains reproducible on
+a minimal local setup.
+
 ### Retrieval mode
 
 `--retrieval-mode vector` is the default. `--retrieval-mode hybrid` fuses Qdrant

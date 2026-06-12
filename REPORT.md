@@ -520,6 +520,40 @@ python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --
 - source-aware indexing은 parser EDA 확인 후 별도 PR에서
   `--source csv|parsed|parsed-with-csv-fallback`로 추가한다.
 
+### 10-18. Parser/Render Bakeoff Lane
+
+Source-aware indexing is intentionally blocked until parser/render quality is
+measured. This lane compares text extraction and rendered evidence surfaces on a
+deterministic subset of HWP/PDF RFP files.
+
+| metric | value |
+|---|---|
+| result_count | `112` |
+| backend_counts | `{"hwp5html": 16, "hwp5odt": 16, "hwp5txt": 16, "hwpxkit": 16, "libreoffice_pdf": 16, "rhwp": 16, "unhwp": 16}` |
+| status_counts | `{"backend_error": 3, "empty_output": 3, "missing_dependency": 48, "ok": 17, "timeout": 13, "unsupported_format": 28}` |
+| backend_success_rate | `{"hwp5html": 0.4375, "hwp5odt": 0.0, "hwp5txt": 0.625, "hwpxkit": 0.0, "libreoffice_pdf": 0.0, "rhwp": 0.0, "unhwp": 0.0}` |
+| rendered_pdf_count_by_backend | `{"hwp5html": 0, "hwp5odt": 0, "hwp5txt": 0, "hwpxkit": 0, "libreoffice_pdf": 0, "rhwp": 0, "unhwp": 0}` |
+| top_error_reasons | `{"backend timeout after 20s": 13, "hwp5html supports only .hwp": 4, "hwp5odt supports only .hwp": 4, "hwp5txt supports only .hwp": 4, "hwpxkit not installed": 12, "rhwp not installed": 12, "rhwp supports only .hwp/.hwpx": 4, "soffice not found": 12, "unhwp not found": 12, "unhwp supports only .hwp/.hwpx": 4}` |
+
+재현 커맨드:
+
+```bash
+python3 -m rfp_rag.run_parser_bakeoff \
+  --data data/data_list.csv \
+  --files data/files \
+  --parse-manifest artifacts/parsed_docs/manifest.jsonl \
+  --out artifacts/parser_bakeoff
+```
+
+해석:
+
+- `hwp5txt`, `hwp5html`, `hwp5odt`는 로컬 baseline이다.
+- `hwp5txt`는 검색용 텍스트 extraction baseline으로 가장 안정적이나, 표/이미지 보존은 없다.
+- `hwp5html`은 일부 문서에서 table/image evidence를 보존하지만 timeout과 empty output이 있다.
+- `hwp5odt`는 현재 smoke에서 성공 결과가 없어 렌더 evidence backend로 바로 채택하지 않는다.
+- `rhwp`, `unhwp`, `hwpxkit`, LibreOffice는 현재 로컬에 없어 `missing_dependency`로 기록한다.
+- 다음 단계의 `--source parsed` indexing은 이 bakeoff 결과를 기준으로 backend를 선택한다.
+
 ## 11. 결론
 
 본 프로젝트는 RFP 100건에 대한 RAG baseline의 핵심 골격을 완성했다. 현재 산출물은 API 없이도 재현 가능한 offline scaffold이며, corpus 정합성·index 생성·cited QA·abstention·evaluation/report gate까지 end-to-end로 검증되었다.
