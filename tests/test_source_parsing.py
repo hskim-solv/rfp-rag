@@ -116,6 +116,7 @@ def test_build_parse_record_writes_text_for_parsed_result(tmp_path: Path) -> Non
     assert record["parsed_to_csv_length_ratio"] == len("원문 본문입니다") / len("CSV 본문입니다")
     assert record["stderr_length"] == len("diagnostic")
     assert record["stderr_sample"] == "diagnostic"
+    assert record["text_path"] == str(out_dir / "text" / safe_doc_filename("doc:000"))
     assert Path(record["text_path"]).read_text(encoding="utf-8") == "원문 본문입니다\n"
 
 
@@ -173,3 +174,23 @@ def test_summarize_records_counts_statuses_and_lengths(tmp_path: Path) -> None:
     assert summary["csv_text_length"]["median"] == 65
     assert summary["parsed_to_csv_length_ratio"]["median"] == 1.25
     assert summary["top_error_reasons"] == {"unsupported suffix: .pdf": 1}
+
+
+def test_summarize_records_counts_empty_suffix_and_limits_top_errors() -> None:
+    records = [
+        {
+            "source_suffix": "" if idx == 0 else ".hwp",
+            "parser_backend": None,
+            "parse_status": PARSE_PARSER_ERROR,
+            "text_length": 0,
+            "csv_text_length": 10,
+            "parsed_to_csv_length_ratio": None,
+            "error_reason": f"error-{idx:02d}",
+        }
+        for idx in range(12)
+    ]
+
+    summary = summarize_records(records)
+
+    assert summary["suffix_counts"] == {"": 1, ".hwp": 11}
+    assert summary["top_error_reasons"] == {f"error-{idx:02d}": 1 for idx in range(10)}

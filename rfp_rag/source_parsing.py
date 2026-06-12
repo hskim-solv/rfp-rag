@@ -178,6 +178,10 @@ def _count_nonempty(values: Iterable[Any]) -> dict[Any, int]:
     return dict(Counter(value for value in values if value))
 
 
+def _count_present(values: Iterable[Any]) -> dict[Any, int]:
+    return dict(Counter(value for value in values if value is not None))
+
+
 def _distribution(values: Iterable[int | float | None]) -> dict[str, int | float | None]:
     numeric_values = [value for value in values if value is not None]
     if not numeric_values:
@@ -193,11 +197,12 @@ def summarize_records(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
     rows = list(records)
     row_count = len(rows)
     parse_status_counts = Counter(row.get("parse_status") for row in rows if row.get("parse_status"))
+    error_reason_counts = Counter(row.get("error_reason") for row in rows if row.get("error_reason"))
     parsed_count = parse_status_counts.get(PARSE_PARSED, 0)
 
     return {
         "row_count": row_count,
-        "suffix_counts": _count_nonempty(row.get("source_suffix") for row in rows),
+        "suffix_counts": _count_present(row.get("source_suffix") for row in rows),
         "parse_status_counts": dict(parse_status_counts),
         "parser_backend_counts": _count_nonempty(row.get("parser_backend") for row in rows),
         "parsed_success_rate": parsed_count / row_count if row_count else 0.0,
@@ -205,7 +210,7 @@ def summarize_records(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "text_length": _distribution(row.get("text_length") for row in rows),
         "csv_text_length": _distribution(row.get("csv_text_length") for row in rows),
         "parsed_to_csv_length_ratio": _distribution(row.get("parsed_to_csv_length_ratio") for row in rows),
-        "top_error_reasons": _count_nonempty(row.get("error_reason") for row in rows),
+        "top_error_reasons": dict(error_reason_counts.most_common(10)),
     }
 
 
