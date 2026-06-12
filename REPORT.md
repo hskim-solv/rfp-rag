@@ -116,8 +116,10 @@ flowchart LR
 2. **Fake lexical retrieval 한계**
    - 현재 retrieval은 deterministic lexical/hash 기반이므로 실제 semantic similarity를 대체하지 않는다.
 
-3. **원본 HWP/PDF 파싱 미포함**
-   - MVP에서는 CSV `텍스트` 컬럼을 신뢰한다.
+3. **원문 파싱은 별도 artifact lane**
+   - HWP 원문 파싱 결과는 `artifacts/parsed_docs`로 계측한다.
+   - 현재 RAG index 기본 입력은 여전히 CSV `텍스트` 컬럼이다.
+   - PDF는 첫 구현에서 unsupported로 기록한다.
 
 4. **UI 미구현**
    - CLI와 artifacts 중심 baseline이다.
@@ -143,8 +145,9 @@ flowchart LR
 4. **간단 데모 UI**
    - Streamlit 또는 FastAPI 기반 Q&A 화면을 만든다.
 
-5. **원문 파싱 확장**
-   - HWP/PDF parser를 붙이고 CSV text와 비교 검증한다.
+5. **Source-aware indexing 확장**
+   - `--source csv|parsed|parsed-with-csv-fallback` 모드를 추가한다.
+   - PDF parser와 section-aware chunking을 붙이고 CSV text와 비교 검증한다.
 
 ## 10. Real Lane 평가 결과
 
@@ -484,6 +487,38 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index \
 
 이 결과는 offline contract 기반 비교이며, 최종 RAG 품질 주장은 계속 `real_openai` lane에만
 귀속된다.
+
+### 10-17. Source Parsing Lane
+
+현재 RAG index는 CSV `텍스트` 컬럼을 기준으로 한다. 원문 파싱 lane은 기존 baseline을
+대체하지 않고, `data/files`의 원본 HWP/PDF 파싱 품질을 먼저 계측한다.
+
+| metric | value |
+|---|---|
+| row_count | `100` |
+| suffix_counts | `{".hwp": 96, ".pdf": 4}` |
+| parse_status_counts | `{"empty_text": 1, "parsed": 94, "parser_error": 1, "unsupported_suffix": 4}` |
+| parser_backend_counts | `{"hwp5txt": 96}` |
+| parsed_success_rate | `0.94` |
+| empty_parse_count | `1` |
+| text_length | `{"max": 54952, "median": 19914.0, "min": 0}` |
+| csv_text_length | `{"max": 18335, "median": 2583.0, "min": 89}` |
+| parsed_to_csv_length_ratio | `{"max": 167.85384615384615, "median": 6.956993276133796, "min": 1.3225285500057677}` |
+| top_error_reasons | `{"empty stdout": 1, "hwp5txt exited 1": 1, "unsupported suffix: .pdf": 4}` |
+
+재현 커맨드:
+
+```bash
+python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs
+```
+
+해석:
+
+- CSV baseline은 유지한다.
+- HWP는 `hwp5txt`로 파싱한다.
+- PDF는 첫 구현에서 unsupported로 기록한다.
+- source-aware indexing은 parser EDA 확인 후 별도 PR에서
+  `--source csv|parsed|parsed-with-csv-fallback`로 추가한다.
 
 ## 11. 결론
 

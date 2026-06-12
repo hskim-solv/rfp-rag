@@ -1,6 +1,6 @@
 # CSV-first RFP RAG Baseline
 
-입찰 RFP 100건의 CSV `텍스트` 컬럼을 MVP source of truth로 사용하는 로컬 RAG 스캐폴드입니다. 원본 HWP/PDF 파싱은 stretch이며, 현재 offline lane은 파일명 정규화, corpus/index 계약, cited QA schema, abstention, report artifacts를 검증합니다.
+입찰 RFP 100건의 CSV `텍스트` 컬럼을 MVP source of truth로 사용하는 로컬 RAG 스캐폴드입니다. 원본 HWP 파싱은 별도 artifact lane에서 품질을 계측하며, 현재 RAG index 기본 입력은 CSV `텍스트`입니다. offline lane은 파일명 정규화, corpus/index 계약, cited QA schema, abstention, report artifacts를 검증합니다.
 
 ## Gate semantics
 
@@ -17,6 +17,25 @@ python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --ou
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.15
 python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
 ```
+
+## Source parsing lane
+
+The current RAG path remains CSV-first. Source parsing is a separate artifact lane
+that extracts original source text and records parser quality before parsed text
+is used for indexing.
+
+```bash
+python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs
+```
+
+Outputs:
+
+- `artifacts/parsed_docs/manifest.jsonl`
+- `artifacts/parsed_docs/summary.json`
+- `artifacts/parsed_docs/text/*.txt` for parsed documents
+
+The first implementation uses local `hwp5txt` for `.hwp` files and records
+`.pdf` files as unsupported unless a PDF backend is added later.
 
 ### Retrieval mode
 
