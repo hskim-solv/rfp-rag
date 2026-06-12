@@ -139,6 +139,7 @@ def parse_document_source(doc: CorpusDocument, timeout_seconds: int = 60) -> Par
 
 
 def build_parse_record(doc: CorpusDocument, result: ParseResult, out_dir: Path | str) -> dict[str, Any]:
+    """Build a parse manifest row and persist parsed text for successful results."""
     out = Path(out_dir)
     source_path = doc.metadata.get("resolved_filesystem_path")
     source_path_text = None if source_path is None else str(source_path)

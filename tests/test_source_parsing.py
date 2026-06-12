@@ -1,20 +1,24 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
 from rfp_rag.corpus import CorpusDocument
 from rfp_rag.source_parsing import (
     PARSE_EMPTY_TEXT,
+    PARSE_MISSING_SOURCE_FILE,
     PARSE_PARSED,
     PARSE_PARSER_ERROR,
     PARSE_TIMEOUT,
     PARSE_UNSUPPORTED_SUFFIX,
     ParseResult,
     build_parse_record,
+    parse_document_source,
     parse_hwp_file,
     safe_doc_filename,
     summarize_records,
+    write_parse_artifacts,
 )
 
 
@@ -91,6 +95,30 @@ def test_parse_hwp_file_timeout_is_recorded(tmp_path: Path) -> None:
 
     assert result.status == PARSE_TIMEOUT
     assert result.error_reason == "parser timeout after 5s"
+
+
+def test_parse_document_source_missing_path_is_recorded(tmp_path: Path) -> None:
+    no_path_result = parse_document_source(_doc(None))
+    missing_file_result = parse_document_source(_doc(tmp_path / "missing.hwp"))
+
+    assert no_path_result.status == PARSE_MISSING_SOURCE_FILE
+    assert no_path_result.parser_backend is None
+    assert no_path_result.error_reason == "missing source file"
+    assert missing_file_result.status == PARSE_MISSING_SOURCE_FILE
+    assert missing_file_result.parser_backend is None
+    assert missing_file_result.error_reason == "missing source file"
+
+
+def test_parse_document_source_unsupported_pdf_is_recorded(tmp_path: Path) -> None:
+    source = tmp_path / "sample.pdf"
+    source.write_bytes(b"fake")
+
+    result = parse_document_source(_doc(source))
+
+    assert result.status == PARSE_UNSUPPORTED_SUFFIX
+    assert result.parser_backend is None
+    assert result.text == ""
+    assert result.error_reason == "unsupported suffix: .pdf"
 
 
 def test_build_parse_record_writes_text_for_parsed_result(tmp_path: Path) -> None:
@@ -194,3 +222,48 @@ def test_summarize_records_counts_empty_suffix_and_limits_top_errors() -> None:
 
     assert summary["suffix_counts"] == {"": 1, ".hwp": 11}
     assert summary["top_error_reasons"] == {f"error-{idx:02d}": 1 for idx in range(10)}
+
+
+def test_write_parse_artifacts_writes_manifest_and_summary(tmp_path: Path) -> None:
+    records = [
+        {
+            "doc_id": "doc:000",
+            "csv_row_id": "000",
+            "source_path": "/tmp/sample.hwp",
+            "source_suffix": ".hwp",
+            "parser_backend": "hwp5txt",
+            "parse_status": PARSE_PARSED,
+            "text_path": "/tmp/parsed/text/doc_000.txt",
+            "text_length": 100,
+            "stderr_length": 0,
+            "stderr_sample": "",
+            "error_reason": None,
+            "csv_text_length": 80,
+            "parsed_to_csv_length_ratio": 1.25,
+        },
+        {
+            "doc_id": "doc:001",
+            "csv_row_id": "001",
+            "source_path": "/tmp/sample.pdf",
+            "source_suffix": ".pdf",
+            "parser_backend": None,
+            "parse_status": PARSE_UNSUPPORTED_SUFFIX,
+            "text_path": None,
+            "text_length": 0,
+            "stderr_length": 0,
+            "stderr_sample": "",
+            "error_reason": "unsupported suffix: .pdf",
+            "csv_text_length": 50,
+            "parsed_to_csv_length_ratio": None,
+        },
+    ]
+
+    summary = write_parse_artifacts(records, tmp_path)
+
+    manifest_rows = [
+        json.loads(line)
+        for line in (tmp_path / "manifest.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    summary_json = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert manifest_rows == records
+    assert summary_json == summary
