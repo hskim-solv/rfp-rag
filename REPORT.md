@@ -542,14 +542,16 @@ python3 -m rfp_rag.run_parser_bakeoff \
   --data data/data_list.csv \
   --files data/files \
   --parse-manifest artifacts/parsed_docs/manifest.jsonl \
-  --out artifacts/parser_bakeoff
+  --out artifacts/parser_bakeoff \
+  --timeout-seconds 20
 ```
 
 해석:
 
 - `hwp5txt`, `hwp5html`, `hwp5odt`는 로컬 baseline이다.
 - `hwp5txt`는 검색용 텍스트 extraction baseline으로 가장 안정적이나, 표/이미지 보존은 없다.
-- `hwp5html`은 일부 문서에서 table/image evidence를 보존하지만 timeout과 empty output이 있다.
+- `hwp5html`은 일부 문서에서 table 구조와 `<img>` reference를 감지하지만, image asset 자체는
+  아직 보존하지 못하며 timeout과 empty output이 있다.
 - `hwp5odt`는 현재 smoke에서 성공 결과가 없어 렌더 evidence backend로 바로 채택하지 않는다.
 - `rhwp`, `unhwp`, `hwpxkit`, LibreOffice는 현재 로컬에 없어 `missing_dependency`로 기록한다.
 - 다음 단계의 `--source parsed` indexing은 이 bakeoff 결과를 기준으로 backend를 선택한다.
