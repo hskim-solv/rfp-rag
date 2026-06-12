@@ -99,3 +99,13 @@ def test_answer_query_rejects_lane_mismatch(tmp_path: Path) -> None:
 def test_answer_query_requires_manifest(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="manifest not found"):
         answer_query(tmp_path / "empty", "질문")
+
+
+def test_answer_with_store_rejects_hybrid_without_index_dir() -> None:
+    with pytest.raises(ValueError, match="index_dir is required"):
+        answer_with_store(
+            _store(),
+            TemplateAnswerGenerator(),
+            "한영대학교 학사정보시스템",
+            retrieval_mode="hybrid",
+        )

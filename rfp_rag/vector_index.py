@@ -11,9 +11,14 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
 
 from .chunking import Chunk
+from .hybrid_retrieval import BM25Index, fuse_ranked_results
 from .index_store import SearchResult
 
 _COLLECTION_PREFIX = "rfp_chunks"
+
+RETRIEVAL_VECTOR = "vector"
+RETRIEVAL_HYBRID = "hybrid"
+RETRIEVAL_MODES = {RETRIEVAL_VECTOR, RETRIEVAL_HYBRID}
 
 
 def collection_name(lane: str) -> str:
@@ -84,7 +89,7 @@ def load_vector_store(qdrant_path: Path, embeddings: Embeddings, lane: str) -> Q
     )
 
 
-def search(store: QdrantVectorStore, query: str, top_k: int = 5) -> list[SearchResult]:
+def _vector_search(store: QdrantVectorStore, query: str, top_k: int = 5) -> list[SearchResult]:
     if top_k <= 0:
         return []
     pairs = store.similarity_search_with_score(query, k=top_k)
@@ -103,3 +108,24 @@ def search(store: QdrantVectorStore, query: str, top_k: int = 5) -> list[SearchR
         )
     results.sort(key=lambda item: (-item.score, item.doc_id, item.chunk_id))
     return results
+
+
+def search(
+    store: QdrantVectorStore,
+    query: str,
+    top_k: int = 5,
+    *,
+    retrieval_mode: str = RETRIEVAL_VECTOR,
+    index_dir: Path | None = None,
+) -> list[SearchResult]:
+    if retrieval_mode not in RETRIEVAL_MODES:
+        raise ValueError(f"unknown retrieval_mode: {retrieval_mode}")
+    if retrieval_mode == RETRIEVAL_VECTOR:
+        return _vector_search(store, query, top_k=top_k)
+    if index_dir is None:
+        raise ValueError("index_dir is required for hybrid retrieval")
+
+    candidate_k = max(top_k * 4, 20)
+    vector_results = _vector_search(store, query, top_k=candidate_k)
+    bm25_results = BM25Index.from_index_dir(index_dir).search(query, top_k=candidate_k)
+    return fuse_ranked_results(vector_results, bm25_results, top_k=top_k)

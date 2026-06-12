@@ -2,9 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from rfp_rag.chunking import Chunk
+from rfp_rag.index_store import save_index
 from rfp_rag.providers import LexicalHashEmbeddings
-from rfp_rag.vector_index import build_vector_store, load_vector_store, search
+from rfp_rag.vector_index import (
+    RETRIEVAL_HYBRID,
+    RETRIEVAL_VECTOR,
+    build_vector_store,
+    load_vector_store,
+    search,
+)
 
 
 def _chunks() -> list[Chunk]:
@@ -57,3 +66,54 @@ def test_search_returns_at_most_top_k() -> None:
     store = build_vector_store(_chunks(), emb, qdrant_path=None, lane="offline")
 
     assert len(search(store, "사업", top_k=1)) == 1
+    assert len(search(store, "사업", top_k=1, retrieval_mode=RETRIEVAL_VECTOR)) == 1
+
+
+def test_search_rejects_unknown_retrieval_mode() -> None:
+    emb = LexicalHashEmbeddings(dim=512)
+    store = build_vector_store(_chunks(), emb, qdrant_path=None, lane="offline")
+
+    with pytest.raises(ValueError, match="unknown retrieval_mode"):
+        search(store, "사업", top_k=1, retrieval_mode="magic")
+
+
+def test_hybrid_search_requires_index_dir() -> None:
+    emb = LexicalHashEmbeddings(dim=512)
+    store = build_vector_store(_chunks(), emb, qdrant_path=None, lane="offline")
+
+    with pytest.raises(ValueError, match="index_dir is required"):
+        search(store, "사업", top_k=1, retrieval_mode=RETRIEVAL_HYBRID)
+
+
+def test_hybrid_search_promotes_keyword_candidate(tmp_path: Path) -> None:
+    chunks = [
+        Chunk(
+            chunk_id="doc:000:chunk:0",
+            doc_id="doc:000",
+            csv_row_id="000",
+            text="범용 시스템 유지보수",
+            metadata={"project_name": "일반 유지보수", "issuer": "테스트기관"},
+        ),
+        Chunk(
+            chunk_id="doc:001:chunk:0",
+            doc_id="doc:001",
+            csv_row_id="001",
+            text="AI LMS 추천 엔진 학습 분석",
+            metadata={"project_name": "AI LMS 고도화", "issuer": "테스트기관"},
+        ),
+    ]
+    emb = LexicalHashEmbeddings(dim=512)
+    index_dir = tmp_path / "index"
+    save_index(index_dir, {"embedding_provider": "offline"}, chunks)
+    store = build_vector_store(chunks, emb, qdrant_path=None, lane="offline")
+
+    results = search(
+        store,
+        "AI LMS 추천 엔진",
+        top_k=1,
+        retrieval_mode=RETRIEVAL_HYBRID,
+        index_dir=index_dir,
+    )
+
+    assert results[0].chunk_id == "doc:001:chunk:0"
+    assert results[0].score > 0
