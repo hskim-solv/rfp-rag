@@ -99,7 +99,7 @@ class BM25Index:
     def search(self, query: str, top_k: int) -> list[SearchResult]:
         if top_k <= 0:
             return []
-        query_terms = tokenize(query)
+        query_terms = list(dict.fromkeys(tokenize(query)))
         if not query_terms:
             return []
 
@@ -131,6 +131,11 @@ def fuse_ranked_results(
     bm25_weight: float = 0.3,
     rank_constant: int = 60,
 ) -> list[SearchResult]:
+    if rank_constant <= -1:
+        raise ValueError("rank_constant must be greater than -1")
+    max_possible = (vector_weight + bm25_weight) / (rank_constant + 1)
+    if max_possible <= 0:
+        raise ValueError("max possible fused score must be positive")
     if top_k <= 0:
         return []
 
@@ -153,7 +158,7 @@ def fuse_ranked_results(
                 chunk_id=base.chunk_id,
                 doc_id=base.doc_id,
                 csv_row_id=base.csv_row_id,
-                score=round(score, 8),
+                score=round(score / max_possible, 8),
                 text=base.text,
                 metadata=base.metadata,
             )

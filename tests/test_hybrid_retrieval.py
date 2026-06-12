@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from rfp_rag.chunking import Chunk
 from rfp_rag.hybrid_retrieval import (
     BM25Index,
@@ -88,6 +90,50 @@ def test_bm25_empty_query_returns_no_results(tmp_path: Path) -> None:
     index = BM25Index.from_index_dir(out)
 
     assert index.search("!!!", top_k=5) == []
+
+
+def test_bm25_repeated_query_terms_do_not_change_ordering(tmp_path: Path) -> None:
+    out = tmp_path / "index"
+    chunks = [
+        _chunk("doc:000:chunk:0", "AI 범용 시스템"),
+        _chunk("doc:001:chunk:0", "LMS LMS 구축"),
+    ]
+    save_index(out, {"embedding_provider": "offline"}, chunks)
+    index = BM25Index.from_index_dir(out)
+
+    base = index.search("AI LMS", top_k=2)
+    repeated = index.search("AI AI AI LMS", top_k=2)
+
+    assert [result.chunk_id for result in base] == ["doc:001:chunk:0", "doc:000:chunk:0"]
+    assert [result.chunk_id for result in repeated] == [result.chunk_id for result in base]
+
+
+def test_fuse_ranked_results_normalizes_scores_to_rank_confidence() -> None:
+    vector = [
+        _search_result("doc:001:chunk:0", 0.90),
+        _search_result("doc:000:chunk:0", 0.80),
+    ]
+    bm25 = [
+        _search_result("doc:001:chunk:0", 12.0),
+        _search_result("doc:002:chunk:0", 8.0),
+    ]
+
+    fused = fuse_ranked_results(vector, bm25, 3)
+    vector_only = fuse_ranked_results([_search_result("doc:000:chunk:0", 0.90)], [], 1)
+
+    assert fused[0].chunk_id == "doc:001:chunk:0"
+    assert fused[0].score == 1.0
+    assert vector_only[0].score == 0.7
+
+
+def test_fuse_ranked_results_rejects_invalid_normalization_parameters() -> None:
+    vector = [_search_result("doc:000:chunk:0", 0.90)]
+
+    with pytest.raises(ValueError):
+        fuse_ranked_results(vector, [], 1, rank_constant=-1)
+
+    with pytest.raises(ValueError):
+        fuse_ranked_results(vector, [], 1, vector_weight=0.0, bm25_weight=0.0)
 
 
 def test_fuse_ranked_results_promotes_keyword_candidate() -> None:
