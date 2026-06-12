@@ -433,6 +433,7 @@ def _render_report(metrics: dict[str, Any], predictions: list[dict[str, Any]]) -
         "",
         f"- {metrics['quality_note']}",
         f"- provider_lane: {metrics['provider_lane']}",
+        f"- retrieval_mode: {metrics['retrieval_mode']}",
         f"- min_score: {metrics['min_score']}",
         f"- error_rate: {metrics['error_rate']}",
         f"- evaluation_valid: {metrics['evaluation_valid']}",
@@ -492,6 +493,8 @@ def evaluate_index(
     min_score: float = 0.05,
     retrieval_mode: str = RETRIEVAL_VECTOR,
 ) -> dict[str, Any]:
+    if retrieval_mode not in RETRIEVAL_MODES:
+        raise ValueError(f"unknown retrieval_mode: {retrieval_mode}")
     lane = normalize_lane(provider)
     data_path = Path(data_path)
     index_dir = Path(index_dir)
