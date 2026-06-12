@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+import time
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import median
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from .corpus import CorpusDocument
 
@@ -15,6 +18,8 @@ BAKEOFF_UNSUPPORTED_FORMAT = "unsupported_format"
 BAKEOFF_EMPTY_OUTPUT = "empty_output"
 BAKEOFF_TIMEOUT = "timeout"
 BAKEOFF_BACKEND_ERROR = "backend_error"
+
+Runner = Callable[..., subprocess.CompletedProcess[Any]]
 
 
 @dataclass(frozen=True)
@@ -176,6 +181,294 @@ def _distribution(values: Iterable[int | float | None]) -> dict[str, int | float
     if not numbers:
         return {"min": None, "median": None, "max": None}
     return {"min": min(numbers), "median": median(numbers), "max": max(numbers)}
+
+
+def _safe_doc_stem(doc_id: str) -> str:
+    return doc_id.replace(":", "_")
+
+
+def _stringify(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def _normalize_output(value: Any) -> str:
+    return _stringify(value).replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _empty_result(
+    sample: BakeoffSample,
+    *,
+    backend: str,
+    status: str,
+    elapsed_ms: int = 0,
+    stdout: Any = "",
+    stderr: Any = "",
+    error_reason: str | None,
+) -> BakeoffResult:
+    stdout_text = _stringify(stdout)
+    stderr_text = _stringify(stderr)
+    return BakeoffResult(
+        doc_id=sample.doc_id,
+        source_path=sample.source_path,
+        source_suffix=sample.source_suffix,
+        backend=backend,
+        status=status,
+        elapsed_ms=elapsed_ms,
+        text_path=None,
+        markdown_path=None,
+        html_path=None,
+        json_path=None,
+        rendered_pdf_path=None,
+        rendered_svg_count=0,
+        rendered_png_count=0,
+        asset_count=0,
+        text_length=0,
+        markdown_length=0,
+        html_length=0,
+        json_length=0,
+        table_count=0,
+        image_count=0,
+        page_count=None,
+        stdout_length=len(stdout_text),
+        stderr_length=len(stderr_text),
+        error_reason=error_reason,
+    )
+
+
+def run_command_backend(
+    sample: BakeoffSample,
+    *,
+    backend: str,
+    command: list[str],
+    out_dir: Path | str,
+    timeout_seconds: int,
+    output_kind: str,
+    runner: Runner = subprocess.run,
+) -> BakeoffResult:
+    started = time.perf_counter()
+    try:
+        completed = runner(command, capture_output=True, text=True, timeout=timeout_seconds, check=False)
+    except subprocess.TimeoutExpired as exc:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_TIMEOUT,
+            elapsed_ms=elapsed_ms,
+            stdout=exc.stdout or exc.output,
+            stderr=exc.stderr,
+            error_reason=f"backend timeout after {timeout_seconds}s",
+        )
+    except FileNotFoundError:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_MISSING_DEPENDENCY,
+            elapsed_ms=elapsed_ms,
+            error_reason=f"{command[0]} not found",
+        )
+    except OSError as exc:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_BACKEND_ERROR,
+            elapsed_ms=elapsed_ms,
+            error_reason=str(exc),
+        )
+
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    stdout = _normalize_output(completed.stdout)
+    stderr = _stringify(completed.stderr)
+    if completed.returncode != 0:
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_BACKEND_ERROR,
+            elapsed_ms=elapsed_ms,
+            stdout=stdout,
+            stderr=stderr,
+            error_reason=f"{command[0]} exited {completed.returncode}",
+        )
+    if not stdout:
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_EMPTY_OUTPUT,
+            elapsed_ms=elapsed_ms,
+            stdout=stdout,
+            stderr=stderr,
+            error_reason="empty output",
+        )
+
+    backend_dir = Path(out_dir) / "backends" / backend
+    backend_dir.mkdir(parents=True, exist_ok=True)
+    suffix_by_kind = {"text": ".txt", "markdown": ".md", "html": ".html", "json": ".json", "xml": ".xml"}
+    extension = suffix_by_kind.get(output_kind, ".txt")
+    output_path = backend_dir / f"{_safe_doc_stem(sample.doc_id)}{extension}"
+    output_path.write_text(stdout.rstrip("\n") + "\n", encoding="utf-8")
+
+    text_path = str(output_path) if output_kind in {"text", "xml"} else None
+    markdown_path = str(output_path) if output_kind == "markdown" else None
+    html_path = str(output_path) if output_kind == "html" else None
+    json_path = str(output_path) if output_kind == "json" else None
+    lowered_output = stdout.lower()
+
+    return BakeoffResult(
+        doc_id=sample.doc_id,
+        source_path=sample.source_path,
+        source_suffix=sample.source_suffix,
+        backend=backend,
+        status=BAKEOFF_OK,
+        elapsed_ms=elapsed_ms,
+        text_path=text_path,
+        markdown_path=markdown_path,
+        html_path=html_path,
+        json_path=json_path,
+        rendered_pdf_path=None,
+        rendered_svg_count=0,
+        rendered_png_count=0,
+        asset_count=0,
+        text_length=len(stdout) if output_kind in {"text", "xml"} else 0,
+        markdown_length=len(stdout) if output_kind == "markdown" else 0,
+        html_length=len(stdout) if output_kind == "html" else 0,
+        json_length=len(stdout) if output_kind == "json" else 0,
+        table_count=lowered_output.count("<table"),
+        image_count=lowered_output.count("<img"),
+        page_count=None,
+        stdout_length=len(stdout),
+        stderr_length=len(stderr),
+        error_reason=None,
+    )
+
+
+def run_optional_import_backend(
+    sample: BakeoffSample,
+    *,
+    backend: str,
+    module_name: str,
+    out_dir: Path | str,
+) -> BakeoffResult:
+    try:
+        __import__(module_name)
+    except ImportError:
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_MISSING_DEPENDENCY,
+            error_reason=f"{module_name} not installed",
+        )
+
+    return _empty_result(
+        sample,
+        backend=backend,
+        status=BAKEOFF_BACKEND_ERROR,
+        error_reason=f"{backend} installed but runner not implemented",
+    )
+
+
+def run_backend_for_sample(
+    sample: BakeoffSample,
+    *,
+    backend: str,
+    out_dir: Path | str,
+    timeout_seconds: int = 60,
+) -> BakeoffResult:
+    suffix = sample.source_suffix.lower()
+    if backend in {"hwp5txt", "hwp5html", "hwp5odt"} and suffix != ".hwp":
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_UNSUPPORTED_FORMAT,
+            error_reason=f"{backend} supports only .hwp",
+        )
+    if backend in {"rhwp", "unhwp", "hwpxkit"} and suffix not in {".hwp", ".hwpx"}:
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_UNSUPPORTED_FORMAT,
+            error_reason=f"{backend} supports only .hwp/.hwpx",
+        )
+    if backend == "libreoffice_pdf" and suffix != ".hwp":
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_UNSUPPORTED_FORMAT,
+            error_reason="libreoffice_pdf supports only .hwp",
+        )
+
+    if backend == "hwp5txt":
+        return run_command_backend(
+            sample,
+            backend=backend,
+            command=["hwp5txt", sample.source_path],
+            out_dir=out_dir,
+            timeout_seconds=timeout_seconds,
+            output_kind="text",
+        )
+    if backend == "hwp5html":
+        return run_command_backend(
+            sample,
+            backend=backend,
+            command=["hwp5html", "--html", sample.source_path],
+            out_dir=out_dir,
+            timeout_seconds=timeout_seconds,
+            output_kind="html",
+        )
+    if backend == "hwp5odt":
+        return run_command_backend(
+            sample,
+            backend=backend,
+            command=["hwp5odt", "--document", sample.source_path],
+            out_dir=out_dir,
+            timeout_seconds=timeout_seconds,
+            output_kind="xml",
+        )
+    if backend == "rhwp":
+        return run_optional_import_backend(sample, backend=backend, module_name="rhwp", out_dir=out_dir)
+    if backend == "unhwp":
+        if shutil.which("unhwp") is None:
+            return _empty_result(
+                sample,
+                backend=backend,
+                status=BAKEOFF_MISSING_DEPENDENCY,
+                error_reason="unhwp not found",
+            )
+        return run_command_backend(
+            sample,
+            backend=backend,
+            command=["unhwp", sample.source_path],
+            out_dir=out_dir,
+            timeout_seconds=timeout_seconds,
+            output_kind="markdown",
+        )
+    if backend == "hwpxkit":
+        return run_optional_import_backend(sample, backend=backend, module_name="hwpxkit", out_dir=out_dir)
+    if backend == "libreoffice_pdf":
+        if shutil.which("soffice") is None and shutil.which("libreoffice") is None:
+            return _empty_result(
+                sample,
+                backend=backend,
+                status=BAKEOFF_MISSING_DEPENDENCY,
+                error_reason="soffice not found",
+            )
+        return _empty_result(
+            sample,
+            backend=backend,
+            status=BAKEOFF_BACKEND_ERROR,
+            error_reason="libreoffice_pdf runner not implemented in first bakeoff",
+        )
+    return _empty_result(
+        sample,
+        backend=backend,
+        status=BAKEOFF_BACKEND_ERROR,
+        error_reason=f"unknown backend: {backend}",
+    )
 
 
 def summarize_bakeoff_results(results: Iterable[BakeoffResult]) -> dict[str, Any]:
