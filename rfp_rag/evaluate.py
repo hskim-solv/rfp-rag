@@ -12,6 +12,7 @@ from .corpus import CorpusDocument, load_corpus
 from .providers import normalize_lane
 from .rag_chain import answer_query
 from .tracing import flush_tracing
+from .vector_index import RETRIEVAL_MODES, RETRIEVAL_VECTOR
 
 REAL_QUALITY_THRESHOLDS = {
     "recall@3": 0.85,
@@ -489,6 +490,7 @@ def evaluate_index(
     # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
     # pass min_score explicitly per lane (real lane calibrates in its own run).
     min_score: float = 0.05,
+    retrieval_mode: str = RETRIEVAL_VECTOR,
 ) -> dict[str, Any]:
     lane = normalize_lane(provider)
     data_path = Path(data_path)
@@ -505,7 +507,11 @@ def evaluate_index(
     for record in queries:
         try:
             response = answer_query(
-                index_dir, record["query"], top_k=top_k, min_score=min_score
+                index_dir,
+                record["query"],
+                top_k=top_k,
+                min_score=min_score,
+                retrieval_mode=retrieval_mode,
             )
         except Exception as exc:  # noqa: BLE001 - isolate per-question API failures
             error_count += 1
@@ -551,6 +557,7 @@ def evaluate_index(
         "provider_lane": lane,
         "top_k": top_k,
         "min_score": min_score,
+        "retrieval_mode": retrieval_mode,
         "error_rate": error_rate,
         "evaluation_valid": evaluation_valid,
         "score_distribution": score_distribution,
@@ -619,6 +626,7 @@ def reaggregate_metrics(
         # 실행 파라미터는 predictions에서 도출할 수 없으므로 이전 run 값을 보존한다.
         "top_k": previous.get("top_k"),
         "min_score": previous.get("min_score"),
+        "retrieval_mode": previous.get("retrieval_mode", RETRIEVAL_VECTOR),
         "error_rate": error_rate,
         "evaluation_valid": evaluation_valid,
         "score_distribution": _score_distribution(predictions),
@@ -654,6 +662,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     # pass --min-score explicitly per lane.
     parser.add_argument("--min-score", default=0.05, type=float)
     parser.add_argument(
+        "--retrieval-mode",
+        choices=sorted(RETRIEVAL_MODES),
+        default=RETRIEVAL_VECTOR,
+    )
+    parser.add_argument(
         "--reaggregate",
         action="store_true",
         help="recompute metrics/contract/report from existing predictions.jsonl in --out (no API calls)",
@@ -679,6 +692,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             top_k=args.top_k,
             max_docs=args.max_docs,
             min_score=args.min_score,
+            retrieval_mode=args.retrieval_mode,
         )
     finally:
         flush_tracing()  # 예외 경로 포함 — 단명 CLI에서 배치 전송 보장
