@@ -125,8 +125,8 @@ class BM25Index:
 def fuse_ranked_results(
     vector_results: list[SearchResult],
     bm25_results: list[SearchResult],
-    *,
     top_k: int,
+    *,
     vector_weight: float = 0.7,
     bm25_weight: float = 0.3,
     rank_constant: int = 60,

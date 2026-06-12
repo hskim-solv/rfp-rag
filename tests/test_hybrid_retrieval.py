@@ -100,7 +100,7 @@ def test_fuse_ranked_results_promotes_keyword_candidate() -> None:
         _search_result("doc:002:chunk:0", 8.0),
     ]
 
-    fused = fuse_ranked_results(vector, bm25, top_k=3, vector_weight=0.7, bm25_weight=0.3, rank_constant=1)
+    fused = fuse_ranked_results(vector, bm25, 3, vector_weight=0.7, bm25_weight=0.3, rank_constant=1)
 
     assert [r.chunk_id for r in fused] == [
         "doc:001:chunk:0",
@@ -112,8 +112,9 @@ def test_fuse_ranked_results_promotes_keyword_candidate() -> None:
 
 def test_fusion_tie_breaks_deterministically() -> None:
     vector = [_search_result("doc:002:chunk:0", 0.9), _search_result("doc:001:chunk:0", 0.8)]
-    bm25: list[SearchResult] = []
+    bm25 = [_search_result("doc:001:chunk:0", 12.0), _search_result("doc:002:chunk:0", 8.0)]
 
-    fused = fuse_ranked_results(vector, bm25, top_k=2, vector_weight=1.0, bm25_weight=0.0, rank_constant=60)
+    fused = fuse_ranked_results(vector, bm25, 2, vector_weight=1.0, bm25_weight=1.0, rank_constant=60)
 
-    assert [r.chunk_id for r in fused] == ["doc:002:chunk:0", "doc:001:chunk:0"]
+    assert fused[0].score == fused[1].score
+    assert [r.chunk_id for r in fused] == ["doc:001:chunk:0", "doc:002:chunk:0"]
