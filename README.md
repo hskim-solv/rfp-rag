@@ -76,8 +76,7 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_op
   --out artifacts/eval_open --provider open --top-k 5
 ```
 
-- `--min-score`는 bge-m3 점수 분포에 맞춰 첫 런의 `score_distribution`으로 보정 후
-  REPORT.md에 근거를 기록합니다 (offline 0.15 / real 0.47과 다른 값이 됩니다).
+`--min-score`는 첫 성공 런의 `score_distribution`에서 in-domain top score와 abstention top score가 분리될 때만 고정합니다. 분리가 없거나 백엔드가 준비되지 않은 경우 open lane은 cutoff 미확정 상태로 남깁니다.
 - open lane 평가도 judge를 실행합니다 — 기본 judge는 OpenAI `gpt-5.4-mini`이므로
   `OPENAI_API_KEY`가 필요하고, DeepSeek judge(A/B 검증 후)는 `RFP_JUDGE_BASE_URL`로
   전환합니다.
