@@ -131,6 +131,8 @@ def fuse_ranked_results(
     bm25_weight: float = 0.3,
     rank_constant: int = 60,
 ) -> list[SearchResult]:
+    if vector_weight < 0 or bm25_weight < 0:
+        raise ValueError("weights must be non-negative")
     if rank_constant <= -1:
         raise ValueError("rank_constant must be greater than -1")
     max_possible = (vector_weight + bm25_weight) / (rank_constant + 1)
@@ -143,7 +145,11 @@ def fuse_ranked_results(
     scores: dict[str, float] = {}
 
     def add(results: list[SearchResult], weight: float) -> None:
+        seen: set[str] = set()
         for rank, result in enumerate(results, start=1):
+            if result.chunk_id in seen:
+                continue
+            seen.add(result.chunk_id)
             by_chunk.setdefault(result.chunk_id, result)
             scores[result.chunk_id] = scores.get(result.chunk_id, 0.0) + weight / (rank_constant + rank)
 

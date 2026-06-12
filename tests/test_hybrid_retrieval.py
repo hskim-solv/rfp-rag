@@ -106,6 +106,7 @@ def test_bm25_repeated_query_terms_do_not_change_ordering(tmp_path: Path) -> Non
 
     assert [result.chunk_id for result in base] == ["doc:001:chunk:0", "doc:000:chunk:0"]
     assert [result.chunk_id for result in repeated] == [result.chunk_id for result in base]
+    assert [result.score for result in repeated] == [result.score for result in base]
 
 
 def test_fuse_ranked_results_normalizes_scores_to_rank_confidence() -> None:
@@ -134,6 +135,30 @@ def test_fuse_ranked_results_rejects_invalid_normalization_parameters() -> None:
 
     with pytest.raises(ValueError):
         fuse_ranked_results(vector, [], 1, vector_weight=0.0, bm25_weight=0.0)
+
+
+def test_fuse_ranked_results_rejects_negative_weights() -> None:
+    vector = [_search_result("doc:000:chunk:0", 0.90)]
+    bm25 = [_search_result("doc:001:chunk:0", 12.0)]
+
+    with pytest.raises(ValueError, match="weights must be non-negative"):
+        fuse_ranked_results(vector, bm25, 2, vector_weight=-0.1)
+
+    with pytest.raises(ValueError, match="weights must be non-negative"):
+        fuse_ranked_results(vector, bm25, 2, bm25_weight=-0.1)
+
+
+def test_fuse_ranked_results_ignores_duplicate_chunk_ids_per_ranked_list() -> None:
+    vector = [
+        _search_result("doc:000:chunk:0", 0.90),
+        _search_result("doc:000:chunk:0", 0.80),
+    ]
+
+    fused = fuse_ranked_results(vector, [], 5)
+
+    assert [result.chunk_id for result in fused] == ["doc:000:chunk:0"]
+    assert fused[0].score == 0.7
+    assert fused[0].score <= 1.0
 
 
 def test_fuse_ranked_results_promotes_keyword_candidate() -> None:
