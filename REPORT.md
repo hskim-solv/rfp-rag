@@ -757,6 +757,17 @@ CLI JSON output machine-readable. It still needs failure handling and
 sample-level comparison against `unhwp` before becoming the default source
 parser.
 
+Default ingestion recommendation recorded by `summary.json`:
+
+```json
+{
+  "default_text_backend": "unhwp",
+  "default_visual_backend": "libreoffice_pdf",
+  "experimental_backends": ["rhwp"],
+  "strategy": "unhwp_text+libreoffice_pdf_visual"
+}
+```
+
 Fallback policy:
 
 - Do not block MVP progress on `rhwp` DocInfo UTF-16 decode failures. Public

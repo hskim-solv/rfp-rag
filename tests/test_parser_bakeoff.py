@@ -267,6 +267,69 @@ def test_summarize_bakeoff_results_recommends_fallbacks_for_failed_rhwp() -> Non
     ]
 
 
+def test_summarize_bakeoff_results_recommends_default_ingestion_backends() -> None:
+    def result(
+        *,
+        backend: str,
+        status: str,
+        text_length: int = 0,
+        rendered_pdf_path: str | None = None,
+        error_reason: str | None = None,
+    ) -> BakeoffResult:
+        return BakeoffResult(
+            doc_id="doc:025",
+            source_path="sample.hwp",
+            source_suffix=".hwp",
+            backend=backend,
+            status=status,
+            elapsed_ms=1,
+            text_path=f"{backend}.txt" if text_length else None,
+            markdown_path=None,
+            html_path=None,
+            json_path=None,
+            rendered_pdf_path=rendered_pdf_path,
+            rendered_svg_count=0,
+            rendered_png_count=0,
+            asset_count=0,
+            text_length=text_length,
+            markdown_length=0,
+            html_length=0,
+            json_length=0,
+            table_count=0,
+            image_count=0,
+            page_count=None,
+            stdout_length=0,
+            stderr_length=0,
+            error_reason=error_reason,
+        )
+
+    summary = summarize_bakeoff_results(
+        [
+            result(backend="hwp5txt", status=BAKEOFF_OK, text_length=45000),
+            result(backend="unhwp", status=BAKEOFF_OK, text_length=109971),
+            result(
+                backend="libreoffice_pdf",
+                status=BAKEOFF_OK,
+                rendered_pdf_path="artifacts/parser_bakeoff/backends/libreoffice_pdf/doc_025.pdf",
+            ),
+            result(
+                backend="rhwp",
+                status=BAKEOFF_TIMEOUT,
+                error_reason="backend timeout after 30s",
+            ),
+        ]
+    )
+
+    assert summary["ingestion_recommendation"] == {
+        "default_text_backend": "unhwp",
+        "fallback_text_backends": ["hwp5txt"],
+        "default_visual_backend": "libreoffice_pdf",
+        "fallback_visual_backends": [],
+        "experimental_backends": ["rhwp"],
+        "strategy": "unhwp_text+libreoffice_pdf_visual",
+    }
+
+
 def test_write_bakeoff_artifacts_writes_samples_results_and_summary(tmp_path: Path) -> None:
     samples = [
         BakeoffSample(

@@ -25,6 +25,10 @@ BAKEOFF_EMPTY_OUTPUT = "empty_output"
 BAKEOFF_TIMEOUT = "timeout"
 BAKEOFF_BACKEND_ERROR = "backend_error"
 
+TEXT_INGESTION_BACKEND_PRIORITY = ["unhwp", "hwp5txt", "hwp5html", "rhwp"]
+VISUAL_EVIDENCE_BACKEND_PRIORITY = ["libreoffice_pdf", "rhwp"]
+EXPERIMENTAL_BACKENDS = ["rhwp", "hwpkit", "hwpxkit"]
+
 Runner = Callable[..., subprocess.CompletedProcess[Any]]
 
 
@@ -927,6 +931,49 @@ def _fallback_recommendations(rows: list[BakeoffResult]) -> list[dict[str, Any]]
     return recommendations
 
 
+def _eligible_backends(
+    rows: list[BakeoffResult],
+    priority: list[str],
+    predicate: Callable[[BakeoffResult], bool],
+) -> list[str]:
+    eligible = {
+        row.backend
+        for row in rows
+        if row.status == BAKEOFF_OK and predicate(row)
+    }
+    return [backend for backend in priority if backend in eligible]
+
+
+def _ingestion_recommendation(rows: list[BakeoffResult]) -> dict[str, Any]:
+    text_backends = _eligible_backends(
+        rows,
+        TEXT_INGESTION_BACKEND_PRIORITY,
+        lambda row: row.text_length > 0,
+    )
+    visual_backends = _eligible_backends(
+        rows,
+        VISUAL_EVIDENCE_BACKEND_PRIORITY,
+        lambda row: bool(row.rendered_pdf_path),
+    )
+    default_text_backend = text_backends[0] if text_backends else None
+    default_visual_backend = visual_backends[0] if visual_backends else None
+    experimental_backends = [
+        backend
+        for backend in EXPERIMENTAL_BACKENDS
+        if any(row.backend == backend for row in rows) and backend not in {default_text_backend, default_visual_backend}
+    ]
+    text_part = default_text_backend or "csv"
+    visual_part = default_visual_backend or "no_visual"
+    return {
+        "default_text_backend": default_text_backend,
+        "fallback_text_backends": text_backends[1:],
+        "default_visual_backend": default_visual_backend,
+        "fallback_visual_backends": visual_backends[1:],
+        "experimental_backends": experimental_backends,
+        "strategy": f"{text_part}_text+{visual_part}_visual",
+    }
+
+
 def summarize_bakeoff_results(results: Iterable[BakeoffResult]) -> dict[str, Any]:
     rows = list(results)
     backend_counts = Counter(row.backend for row in rows)
@@ -972,6 +1019,7 @@ def summarize_bakeoff_results(results: Iterable[BakeoffResult]) -> dict[str, Any
             for backend, backend_rows in sorted(by_backend.items())
         },
         "fallback_recommendations": _fallback_recommendations(rows),
+        "ingestion_recommendation": _ingestion_recommendation(rows),
         "top_error_reasons": dict(errors.most_common(10)),
     }
 

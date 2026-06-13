@@ -60,6 +60,11 @@ Optional backends such as `rhwp`, `unhwp`, `hwpxkit`, and LibreOffice are record
 as `missing_dependency` when unavailable, so the bakeoff remains reproducible on
 a minimal local setup.
 
+`summary.json` also records `ingestion_recommendation`. The current local rule
+separates searchable text from visual evidence: prefer `unhwp` for text/JSON,
+prefer `libreoffice_pdf` for rendered PDF evidence, and keep `rhwp` experimental
+until its timeout/DocInfo failures are resolved.
+
 ### Retrieval mode
 
 `--retrieval-mode vector` is the default. `--retrieval-mode hybrid` fuses Qdrant
