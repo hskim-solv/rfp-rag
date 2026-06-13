@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Iterable
 
 from .corpus import load_corpus
-from .source_parsing import build_parse_record, parse_document_source, write_parse_artifacts
+from .source_parsing import (
+    build_parse_record,
+    parse_document_source,
+    write_parse_artifacts,
+)
 
 
 def parse_sources(
@@ -21,7 +25,9 @@ def parse_sources(
     out_dir = Path(out_dir)
     records = []
     for doc in docs:
-        result = parse_document_source(doc, timeout_seconds=timeout_seconds)
+        result = parse_document_source(
+            doc, timeout_seconds=timeout_seconds, out_dir=out_dir
+        )
         records.append(
             build_parse_record(
                 doc,
@@ -35,11 +41,21 @@ def parse_sources(
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Parse original RFP source files into local text artifacts.")
-    parser.add_argument("--data", required=True, type=Path, help="Path to data_list.csv")
-    parser.add_argument("--files", required=True, type=Path, help="Path to source file directory")
-    parser.add_argument("--out", required=True, type=Path, help="Parsed artifact output directory")
-    parser.add_argument("--timeout-seconds", default=60, type=int, help="Per-document parser timeout")
+    parser = argparse.ArgumentParser(
+        description="Parse original RFP source files into local text artifacts."
+    )
+    parser.add_argument(
+        "--data", required=True, type=Path, help="Path to data_list.csv"
+    )
+    parser.add_argument(
+        "--files", required=True, type=Path, help="Path to source file directory"
+    )
+    parser.add_argument(
+        "--out", required=True, type=Path, help="Parsed artifact output directory"
+    )
+    parser.add_argument(
+        "--timeout-seconds", default=60, type=int, help="Per-document parser timeout"
+    )
     parser.add_argument(
         "--no-page-citation",
         action="store_true",

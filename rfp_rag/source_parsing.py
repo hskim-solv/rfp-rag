@@ -20,8 +20,11 @@ PARSE_PARSER_ERROR = "parser_error"
 PARSE_TIMEOUT = "timeout"
 
 HWP5TXT_BACKEND = "hwp5txt"
+UNHWP_BACKEND = "unhwp"
 LIBREOFFICE_PDF_BACKEND = "libreoffice_pdf"
 PYMUPDF_BACKEND = "pymupdf"
+CONVERTED_PDF_TEXT_BACKEND = "converted_pdf_pymupdf"
+CSV_TEXT_DEGRADED_BACKEND = "csv_text_degraded"
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,9 @@ class ParseResult:
     text: str
     stderr: str
     error_reason: str | None
+    attempts: list[dict[str, Any]] | None = None
+    content_source: str | None = None
+    source_quality: str | None = None
 
 
 Runner = Callable[..., subprocess.CompletedProcess[Any]]
@@ -62,7 +68,9 @@ def _normalize_text(value: Any) -> str:
     return _stringify(value).replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
-def _find_executable(name: str, *, extra_candidates: Iterable[Path | str] = ()) -> str | None:
+def _find_executable(
+    name: str, *, extra_candidates: Iterable[Path | str] = ()
+) -> str | None:
     found = shutil.which(name)
     if found:
         return found
@@ -73,11 +81,15 @@ def _find_executable(name: str, *, extra_candidates: Iterable[Path | str] = ()) 
     return None
 
 
-def parse_hwp_file(path: Path | str, timeout_seconds: int = 60, runner: Runner = subprocess.run) -> ParseResult:
+def parse_hwp_file(
+    path: Path | str, timeout_seconds: int = 60, runner: Runner = subprocess.run
+) -> ParseResult:
     source = Path(path)
     cmd = [HWP5TXT_BACKEND, str(source)]
     try:
-        completed = runner(cmd, capture_output=True, text=True, timeout=timeout_seconds, check=False)
+        completed = runner(
+            cmd, capture_output=True, text=True, timeout=timeout_seconds, check=False
+        )
     except subprocess.TimeoutExpired as exc:
         return ParseResult(
             status=PARSE_TIMEOUT,
@@ -130,7 +142,274 @@ def parse_hwp_file(path: Path | str, timeout_seconds: int = 60, runner: Runner =
     )
 
 
-def parse_document_source(doc: CorpusDocument, timeout_seconds: int = 60) -> ParseResult:
+def _parse_unhwp_file(
+    path: Path | str,
+    *,
+    timeout_seconds: int = 60,
+    runner: Runner = subprocess.run,
+    executable_finder: ExecutableFinder = _find_executable,
+) -> ParseResult:
+    source = Path(path)
+    executable = executable_finder(
+        UNHWP_BACKEND, extra_candidates=["~/.cargo/bin/unhwp"]
+    )
+    if executable is None:
+        return ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=UNHWP_BACKEND,
+            text="",
+            stderr="",
+            error_reason=f"{UNHWP_BACKEND} not found",
+        )
+
+    cmd = [executable, "text", str(source)]
+    try:
+        completed = runner(
+            cmd, capture_output=True, text=True, timeout=timeout_seconds, check=False
+        )
+    except subprocess.TimeoutExpired as exc:
+        return ParseResult(
+            status=PARSE_TIMEOUT,
+            parser_backend=UNHWP_BACKEND,
+            text=_normalize_text(exc.stdout),
+            stderr=_stringify(exc.stderr),
+            error_reason=f"{UNHWP_BACKEND} timeout after {timeout_seconds}s",
+        )
+    except OSError as exc:
+        return ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=UNHWP_BACKEND,
+            text="",
+            stderr="",
+            error_reason=str(exc),
+        )
+
+    text = _normalize_text(completed.stdout)
+    stderr = _stringify(completed.stderr)
+    if completed.returncode != 0:
+        return ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=UNHWP_BACKEND,
+            text=text,
+            stderr=stderr,
+            error_reason=f"{UNHWP_BACKEND} exited {completed.returncode}",
+        )
+    if not text:
+        return ParseResult(
+            status=PARSE_EMPTY_TEXT,
+            parser_backend=UNHWP_BACKEND,
+            text="",
+            stderr=stderr,
+            error_reason="empty stdout",
+        )
+    return ParseResult(
+        status=PARSE_PARSED,
+        parser_backend=UNHWP_BACKEND,
+        text=text,
+        stderr=stderr,
+        error_reason=None,
+    )
+
+
+def _attempt_record(result: ParseResult) -> dict[str, Any]:
+    return {
+        "backend": result.parser_backend,
+        "status": result.status,
+        "text_length": len(result.text),
+        "error_reason": result.error_reason,
+    }
+
+
+def _with_fallback_metadata(
+    result: ParseResult,
+    *,
+    attempts: list[dict[str, Any]],
+    content_source: str | None = None,
+    source_quality: str | None = None,
+) -> ParseResult:
+    return ParseResult(
+        status=result.status,
+        parser_backend=result.parser_backend,
+        text=result.text,
+        stderr=result.stderr,
+        error_reason=result.error_reason,
+        attempts=attempts,
+        content_source=content_source
+        if content_source is not None
+        else result.content_source,
+        source_quality=source_quality
+        if source_quality is not None
+        else result.source_quality,
+    )
+
+
+def _parse_converted_pdf_text_file(
+    path: Path | str,
+    *,
+    doc_id: str,
+    out_dir: Path | str | None,
+    timeout_seconds: int = 60,
+    runner: Runner = subprocess.run,
+    executable_finder: ExecutableFinder = _find_executable,
+    pdf_page_text_extractor: PdfPageTextExtractor | None = None,
+) -> ParseResult:
+    if out_dir is None:
+        return ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=CONVERTED_PDF_TEXT_BACKEND,
+            text="",
+            stderr="",
+            error_reason="converted pdf fallback requires out_dir",
+        )
+
+    pdf_path, conversion_error = _convert_hwp_to_pdf(
+        Path(path),
+        doc_id,
+        Path(out_dir),
+        timeout_seconds=timeout_seconds,
+        runner=runner,
+        executable_finder=executable_finder,
+    )
+    if pdf_path is None:
+        return ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=CONVERTED_PDF_TEXT_BACKEND,
+            text="",
+            stderr="",
+            error_reason=conversion_error,
+        )
+
+    try:
+        extractor = pdf_page_text_extractor or _extract_pdf_pages_with_pymupdf
+        pages = extractor(pdf_path)
+    except ImportError:
+        return ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=CONVERTED_PDF_TEXT_BACKEND,
+            text="",
+            stderr="",
+            error_reason="pymupdf not installed",
+        )
+    except Exception as exc:
+        return ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=CONVERTED_PDF_TEXT_BACKEND,
+            text="",
+            stderr="",
+            error_reason=str(exc),
+        )
+
+    text = "\n".join(
+        text
+        for _, text in (
+            (_page, _normalize_text(page_text)) for _page, page_text in pages
+        )
+        if text
+    )
+    if not text:
+        return ParseResult(
+            status=PARSE_EMPTY_TEXT,
+            parser_backend=CONVERTED_PDF_TEXT_BACKEND,
+            text="",
+            stderr="",
+            error_reason="empty pdf page text",
+        )
+    return ParseResult(
+        status=PARSE_PARSED,
+        parser_backend=CONVERTED_PDF_TEXT_BACKEND,
+        text=text,
+        stderr="",
+        error_reason=None,
+        content_source="converted_pdf_text",
+        source_quality="source_converted_pdf",
+    )
+
+
+def parse_hwp_file_with_fallbacks(
+    path: Path | str,
+    *,
+    doc_id: str,
+    csv_text: str = "",
+    out_dir: Path | str | None = None,
+    timeout_seconds: int = 60,
+    runner: Runner = subprocess.run,
+    executable_finder: ExecutableFinder = _find_executable,
+    pdf_page_text_extractor: PdfPageTextExtractor | None = None,
+) -> ParseResult:
+    attempts: list[dict[str, Any]] = []
+
+    result = _parse_unhwp_file(
+        path,
+        timeout_seconds=timeout_seconds,
+        runner=runner,
+        executable_finder=executable_finder,
+    )
+    attempts.append(_attempt_record(result))
+    if result.status == PARSE_PARSED and result.text:
+        return _with_fallback_metadata(
+            result,
+            attempts=attempts,
+            content_source="source_hwp_text",
+            source_quality="source_parsed",
+        )
+
+    result = parse_hwp_file(path, timeout_seconds=timeout_seconds, runner=runner)
+    attempts.append(_attempt_record(result))
+    if result.status == PARSE_PARSED and result.text:
+        return _with_fallback_metadata(
+            result,
+            attempts=attempts,
+            content_source="source_hwp_text",
+            source_quality="source_parsed",
+        )
+
+    result = _parse_converted_pdf_text_file(
+        path,
+        doc_id=doc_id,
+        out_dir=out_dir,
+        timeout_seconds=timeout_seconds,
+        runner=runner,
+        executable_finder=executable_finder,
+        pdf_page_text_extractor=pdf_page_text_extractor,
+    )
+    attempts.append(_attempt_record(result))
+    if result.status == PARSE_PARSED and result.text:
+        return _with_fallback_metadata(
+            result,
+            attempts=attempts,
+            content_source="converted_pdf_text",
+            source_quality="source_converted_pdf",
+        )
+
+    csv_fallback_text = _normalize_text(csv_text)
+    if csv_fallback_text:
+        csv_result = ParseResult(
+            status=PARSE_PARSED,
+            parser_backend=CSV_TEXT_DEGRADED_BACKEND,
+            text=csv_fallback_text,
+            stderr="",
+            error_reason=None,
+        )
+        attempts.append(_attempt_record(csv_result))
+        return _with_fallback_metadata(
+            csv_result,
+            attempts=attempts,
+            content_source="csv_text_fallback",
+            source_quality="degraded_csv_text",
+        )
+
+    return _with_fallback_metadata(result, attempts=attempts)
+
+
+def parse_document_source(
+    doc: CorpusDocument,
+    timeout_seconds: int = 60,
+    *,
+    out_dir: Path | str | None = None,
+    runner: Runner = subprocess.run,
+    executable_finder: ExecutableFinder = _find_executable,
+    pdf_page_text_extractor: PdfPageTextExtractor | None = None,
+) -> ParseResult:
     source_path = doc.metadata.get("resolved_filesystem_path")
     if not source_path:
         return ParseResult(
@@ -153,7 +432,16 @@ def parse_document_source(doc: CorpusDocument, timeout_seconds: int = 60) -> Par
 
     suffix = source.suffix.lower()
     if suffix == ".hwp":
-        return parse_hwp_file(source, timeout_seconds=timeout_seconds)
+        return parse_hwp_file_with_fallbacks(
+            source,
+            doc_id=doc.doc_id,
+            csv_text=doc.text,
+            out_dir=out_dir,
+            timeout_seconds=timeout_seconds,
+            runner=runner,
+            executable_finder=executable_finder,
+            pdf_page_text_extractor=pdf_page_text_extractor,
+        )
     return ParseResult(
         status=PARSE_UNSUPPORTED_SUFFIX,
         parser_backend=None,
@@ -174,7 +462,9 @@ def _extract_pdf_pages_with_pymupdf(pdf_path: Path) -> list[tuple[int, str]]:
     return pages
 
 
-def _write_page_text_artifact(doc_id: str, pages: list[tuple[int, str]], out_dir: Path) -> str | None:
+def _write_page_text_artifact(
+    doc_id: str, pages: list[tuple[int, str]], out_dir: Path
+) -> str | None:
     if not pages:
         return None
     page_text_dir = out_dir / "page_text"
@@ -182,7 +472,14 @@ def _write_page_text_artifact(doc_id: str, pages: list[tuple[int, str]], out_dir
     target = page_text_dir / page_text_filename(doc_id)
     with target.open("w", encoding="utf-8") as f:
         for page_number, text in pages:
-            f.write(json.dumps({"page": page_number, "text": text}, ensure_ascii=False, sort_keys=True) + "\n")
+            f.write(
+                json.dumps(
+                    {"page": page_number, "text": text},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+                + "\n"
+            )
     return str(target)
 
 
@@ -220,7 +517,15 @@ def _convert_hwp_to_pdf(
     work_dir.mkdir(parents=True, exist_ok=True)
     try:
         completed = runner(
-            [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(work_dir), str(source)],
+            [
+                soffice,
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(work_dir),
+                str(source),
+            ],
             capture_output=True,
             text=True,
             timeout=timeout_seconds,
@@ -325,7 +630,9 @@ def _build_page_citation_evidence(
         "page_text_path": page_text_path,
         "page_count": len(pages),
         "page_citation_available": page_text_path is not None,
-        "page_citation_error_reason": None if page_text_path is not None else "empty pdf page text",
+        "page_citation_error_reason": None
+        if page_text_path is not None
+        else "empty pdf page text",
     }
 
 
@@ -370,8 +677,18 @@ def build_parse_record(
     text_length = len(result.text)
     csv_text_length = len(doc.text or "")
     ratio = text_length / csv_text_length if text_length and csv_text_length else None
-    content_source = _content_source_for(doc, result)
-    source_quality = "source_parsed" if result.status == PARSE_PARSED else "source_unparsed"
+    content_source = (
+        result.content_source
+        if result.content_source is not None
+        else _content_source_for(doc, result)
+    )
+    source_quality = (
+        result.source_quality
+        if result.source_quality is not None
+        else "source_parsed"
+        if result.status == PARSE_PARSED
+        else "source_unparsed"
+    )
     citation_evidence = (
         _build_page_citation_evidence(
             doc,
@@ -392,7 +709,13 @@ def build_parse_record(
             "page_citation_error_reason": None,
         }
     )
-    citation_level = "page" if citation_evidence["page_citation_available"] else "document" if result.status == PARSE_PARSED else "none"
+    citation_level = (
+        "page"
+        if citation_evidence["page_citation_available"]
+        else "document"
+        if result.status == PARSE_PARSED
+        else "none"
+    )
 
     return {
         "doc_id": doc.doc_id,
@@ -410,6 +733,7 @@ def build_parse_record(
         "parsed_to_csv_length_ratio": ratio,
         "content_source": content_source,
         "source_quality": source_quality,
+        "text_backend_attempts": result.attempts or [],
         "citation_level": citation_level,
         **citation_evidence,
     }
@@ -423,7 +747,9 @@ def _count_present(values: Iterable[Any]) -> dict[Any, int]:
     return dict(Counter(value for value in values if value is not None))
 
 
-def _distribution(values: Iterable[int | float | None]) -> dict[str, int | float | None]:
+def _distribution(
+    values: Iterable[int | float | None],
+) -> dict[str, int | float | None]:
     numeric_values = [value for value in values if value is not None]
     if not numeric_values:
         return {"min": None, "median": None, "max": None}
@@ -437,31 +763,60 @@ def _distribution(values: Iterable[int | float | None]) -> dict[str, int | float
 def summarize_records(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
     rows = list(records)
     row_count = len(rows)
-    parse_status_counts = Counter(row.get("parse_status") for row in rows if row.get("parse_status"))
-    error_reason_counts = Counter(row.get("error_reason") for row in rows if row.get("error_reason"))
+    parse_status_counts = Counter(
+        row.get("parse_status") for row in rows if row.get("parse_status")
+    )
+    error_reason_counts = Counter(
+        row.get("error_reason") for row in rows if row.get("error_reason")
+    )
     parsed_count = parse_status_counts.get(PARSE_PARSED, 0)
-    page_citation_available_count = sum(1 for row in rows if row.get("page_citation_available") is True)
+    page_citation_available_count = sum(
+        1 for row in rows if row.get("page_citation_available") is True
+    )
 
     return {
         "row_count": row_count,
         "suffix_counts": _count_present(row.get("source_suffix") for row in rows),
         "parse_status_counts": dict(parse_status_counts),
-        "parser_backend_counts": _count_nonempty(row.get("parser_backend") for row in rows),
-        "visual_backend_counts": _count_nonempty(row.get("visual_backend") for row in rows),
-        "page_text_backend_counts": _count_nonempty(row.get("page_text_backend") for row in rows),
-        "citation_level_counts": _count_nonempty(row.get("citation_level") for row in rows),
+        "parser_backend_counts": _count_nonempty(
+            row.get("parser_backend") for row in rows
+        ),
+        "content_source_counts": _count_nonempty(
+            row.get("content_source") for row in rows
+        ),
+        "source_quality_counts": _count_nonempty(
+            row.get("source_quality") for row in rows
+        ),
+        "visual_backend_counts": _count_nonempty(
+            row.get("visual_backend") for row in rows
+        ),
+        "page_text_backend_counts": _count_nonempty(
+            row.get("page_text_backend") for row in rows
+        ),
+        "citation_level_counts": _count_nonempty(
+            row.get("citation_level") for row in rows
+        ),
         "parsed_success_rate": parsed_count / row_count if row_count else 0.0,
         "page_citation_available_count": page_citation_available_count,
-        "page_citation_coverage": page_citation_available_count / row_count if row_count else 0.0,
+        "page_citation_coverage": page_citation_available_count / row_count
+        if row_count
+        else 0.0,
+        "degraded_csv_fallback_count": sum(
+            1 for row in rows if row.get("parser_backend") == CSV_TEXT_DEGRADED_BACKEND
+        ),
         "empty_parse_count": parse_status_counts.get(PARSE_EMPTY_TEXT, 0),
         "text_length": _distribution(row.get("text_length") for row in rows),
         "csv_text_length": _distribution(row.get("csv_text_length") for row in rows),
-        "parsed_to_csv_length_ratio": _distribution(row.get("parsed_to_csv_length_ratio") for row in rows),
+        "parsed_to_csv_length_ratio": _distribution(
+            row.get("parsed_to_csv_length_ratio") for row in rows
+        ),
         "top_error_reasons": dict(error_reason_counts.most_common(10)),
     }
 
 
-def write_parse_artifacts(records: Iterable[dict[str, Any]], out_dir: Path | str) -> dict[str, Any]:
+def write_parse_artifacts(
+    records: Iterable[dict[str, Any]], out_dir: Path | str
+) -> dict[str, Any]:
     rows = list(records)
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

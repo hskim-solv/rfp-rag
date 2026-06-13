@@ -50,7 +50,9 @@ def _row(filename: str, text: str = "CSV 본문") -> dict[str, str]:
     }
 
 
-def test_parse_sources_writes_manifest_summary_and_text(tmp_path: Path, monkeypatch) -> None:
+def test_parse_sources_writes_manifest_summary_and_text(
+    tmp_path: Path, monkeypatch
+) -> None:
     files_dir = tmp_path / "files"
     files_dir.mkdir()
     (files_dir / "a.hwp").write_bytes(b"hwp")
@@ -58,24 +60,46 @@ def test_parse_sources_writes_manifest_summary_and_text(tmp_path: Path, monkeypa
     csv_path = tmp_path / "data.csv"
     _write_csv(csv_path, [_row("a.hwp"), _row("b.pdf")])
 
-    def fake_parse_document_source(doc, *, timeout_seconds: int = 60):
+    def fake_parse_document_source(doc, *, timeout_seconds: int = 60, out_dir=None):
         if doc.metadata["csv_filename_raw"] == "a.hwp":
             return ParseResult(PARSE_PARSED, "hwp5txt", "원문 본문", "warn", None)
-        return ParseResult(PARSE_UNSUPPORTED_SUFFIX, None, "", "", "unsupported suffix: .pdf")
+        return ParseResult(
+            PARSE_UNSUPPORTED_SUFFIX, None, "", "", "unsupported suffix: .pdf"
+        )
 
-    monkeypatch.setattr(parse_sources_module, "parse_document_source", fake_parse_document_source)
+    monkeypatch.setattr(
+        parse_sources_module, "parse_document_source", fake_parse_document_source
+    )
 
-    summary = parse_sources(csv_path, files_dir, tmp_path / "parsed", timeout_seconds=7, enable_page_citation=False)
+    summary = parse_sources(
+        csv_path,
+        files_dir,
+        tmp_path / "parsed",
+        timeout_seconds=7,
+        enable_page_citation=False,
+    )
 
-    manifest_lines = (tmp_path / "parsed" / "manifest.jsonl").read_text(encoding="utf-8").splitlines()
+    manifest_lines = (
+        (tmp_path / "parsed" / "manifest.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
     records = [json.loads(line) for line in manifest_lines]
     assert summary["row_count"] == 2
-    assert summary["parse_status_counts"] == {PARSE_PARSED: 1, PARSE_UNSUPPORTED_SUFFIX: 1}
+    assert summary["parse_status_counts"] == {
+        PARSE_PARSED: 1,
+        PARSE_UNSUPPORTED_SUFFIX: 1,
+    }
     assert records[0]["parse_status"] == PARSE_PARSED
     assert records[0]["text_path"].endswith("doc_000.txt")
-    assert (tmp_path / "parsed" / "text" / "doc_000.txt").read_text(encoding="utf-8") == "원문 본문\n"
+    assert (tmp_path / "parsed" / "text" / "doc_000.txt").read_text(
+        encoding="utf-8"
+    ) == "원문 본문\n"
     assert records[1]["parse_status"] == PARSE_UNSUPPORTED_SUFFIX
-    assert json.loads((tmp_path / "parsed" / "summary.json").read_text(encoding="utf-8")) == summary
+    assert (
+        json.loads((tmp_path / "parsed" / "summary.json").read_text(encoding="utf-8"))
+        == summary
+    )
 
 
 def test_main_prints_summary_json(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -85,10 +109,12 @@ def test_main_prints_summary_json(tmp_path: Path, monkeypatch, capsys) -> None:
     csv_path = tmp_path / "data.csv"
     _write_csv(csv_path, [_row("a.hwp")])
 
-    def fake_parse_document_source(doc, *, timeout_seconds: int = 60):
+    def fake_parse_document_source(doc, *, timeout_seconds: int = 60, out_dir=None):
         return ParseResult(PARSE_PARSED, "hwp5txt", "원문", "", None)
 
-    monkeypatch.setattr(parse_sources_module, "parse_document_source", fake_parse_document_source)
+    monkeypatch.setattr(
+        parse_sources_module, "parse_document_source", fake_parse_document_source
+    )
 
     rc = main(
         [
@@ -110,7 +136,9 @@ def test_main_prints_summary_json(tmp_path: Path, monkeypatch, capsys) -> None:
     assert payload["parse_status_counts"] == {PARSE_PARSED: 1}
 
 
-def test_parse_sources_enables_page_citation_by_default(tmp_path: Path, monkeypatch) -> None:
+def test_parse_sources_enables_page_citation_by_default(
+    tmp_path: Path, monkeypatch
+) -> None:
     files_dir = tmp_path / "files"
     files_dir.mkdir()
     (files_dir / "a.hwp").write_bytes(b"hwp")
@@ -118,7 +146,7 @@ def test_parse_sources_enables_page_citation_by_default(tmp_path: Path, monkeypa
     _write_csv(csv_path, [_row("a.hwp")])
     calls: list[dict[str, object]] = []
 
-    def fake_parse_document_source(doc, *, timeout_seconds: int = 60):
+    def fake_parse_document_source(doc, *, timeout_seconds: int = 60, out_dir=None):
         return ParseResult(PARSE_PARSED, "hwp5txt", "원문", "", None)
 
     def fake_build_parse_record(doc, result, out_dir, **kwargs):
@@ -139,6 +167,7 @@ def test_parse_sources_enables_page_citation_by_default(tmp_path: Path, monkeypa
             "parsed_to_csv_length_ratio": 1.0,
             "content_source": "source_hwp_text",
             "source_quality": "source_parsed",
+            "text_backend_attempts": [],
             "citation_level": "page",
             "converted_pdf_path": "doc_000.pdf",
             "visual_backend": "libreoffice_pdf",
@@ -149,8 +178,12 @@ def test_parse_sources_enables_page_citation_by_default(tmp_path: Path, monkeypa
             "page_citation_error_reason": None,
         }
 
-    monkeypatch.setattr(parse_sources_module, "parse_document_source", fake_parse_document_source)
-    monkeypatch.setattr(parse_sources_module, "build_parse_record", fake_build_parse_record)
+    monkeypatch.setattr(
+        parse_sources_module, "parse_document_source", fake_parse_document_source
+    )
+    monkeypatch.setattr(
+        parse_sources_module, "build_parse_record", fake_build_parse_record
+    )
 
     parse_sources(csv_path, files_dir, tmp_path / "parsed", timeout_seconds=9)
 

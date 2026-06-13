@@ -36,10 +36,13 @@ Outputs:
 - `artifacts/parsed_docs/pdf/*.pdf` for page-citation evidence
 - `artifacts/parsed_docs/page_text/*.jsonl` for extracted per-page text
 
-The first implementation uses local `hwp5txt` for `.hwp` files and records
-LibreOffice HWP-to-PDF conversion plus PyMuPDF page text when available. This
-keeps searchable text extraction separate from page-level citation evidence. Use
-`--no-page-citation` to skip this evidence pass in constrained local checks.
+For `.hwp` files, the source parser now uses a measured failover chain:
+`unhwp -> hwp5txt -> converted_pdf_pymupdf -> csv_text_degraded`. The manifest
+records the selected `parser_backend`, `content_source`, `source_quality`, and
+`text_backend_attempts` for each document, so degraded CSV fallback is visible
+instead of being treated as original-source parsing. LibreOffice HWP-to-PDF
+conversion plus PyMuPDF page text remains the page-level citation evidence path.
+Use `--no-page-citation` to skip this evidence pass in constrained local checks.
 
 ## Parser/render bakeoff
 
