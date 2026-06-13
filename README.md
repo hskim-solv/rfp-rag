@@ -69,6 +69,28 @@ separates searchable text from visual evidence: prefer `unhwp` for text/JSON,
 prefer `libreoffice_pdf` for rendered PDF evidence, and keep `rhwp` experimental
 until its timeout/DocInfo failures are resolved.
 
+## Parser quality evaluation
+
+After source parsing creates text, PDF, and page-text artifacts, run deterministic
+quality evaluation:
+
+```bash
+python3 -m rfp_rag.run_parser_quality_eval \
+  --parsed-dir artifacts/parsed_docs \
+  --out artifacts/parser_quality
+```
+
+Outputs:
+
+- `artifacts/parser_quality/per_doc.jsonl`
+- `artifacts/parser_quality/summary.json`
+- `artifacts/parser_quality/risky_docs.jsonl`
+
+The evaluator scores parsed text against PDF page text, tracks page-citation
+coverage, estimates table-like line preservation, and records image/drawing
+signals from PyMuPDF. Drawing-heavy pages are treated as chart candidates, not as
+confirmed chart understanding; OCR/VLM judging is a later quality layer.
+
 ### Retrieval mode
 
 `--retrieval-mode vector` is the default. `--retrieval-mode hybrid` fuses Qdrant

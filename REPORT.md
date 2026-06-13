@@ -532,6 +532,29 @@ Page citation smoke:
   `citation_level=page`, `page_count=59`
 - Artifacts: `pdf/doc_000.pdf`, `page_text/doc_000.jsonl`, `text/doc_000.txt`
 
+Parser quality smoke:
+
+```bash
+python3 -m rfp_rag.run_parser_quality_eval \
+  --parsed-dir /tmp/rfp_parsed_one_verify \
+  --out /tmp/rfp_parser_quality_one \
+  --quality-threshold 0.6
+```
+
+- `average_quality_score=0.7089`, `page_citation_coverage=1.0`,
+  `low_quality_doc_count=0`
+- `text_pdf_token_recall=0.5571`, `text_pdf_token_precision=0.9924`,
+  `text_pdf_token_f1=0.7136`
+- `table_like_page_line_count=96`, `table_like_parsed_line_count=5`,
+  `table_like_recall=0.0521`
+- Risk flags:
+  `table_signal_loss`, `visual_content_present`, `visual_content_unparsed`,
+  `chart_or_drawing_signal_present`
+
+Interpretation: the sample is searchable and page-citable, but table/visual
+content preservation is weak. `chart_or_drawing_signal_present` is a deterministic
+PyMuPDF drawing-count signal, not semantic chart understanding.
+
 ### 10-18. Parser/Render Bakeoff Lane
 
 Source-aware indexing is intentionally blocked until parser/render quality is
