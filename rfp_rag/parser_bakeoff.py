@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import shutil
 import subprocess
@@ -187,6 +188,17 @@ def _safe_doc_stem(doc_id: str) -> str:
     return doc_id.replace(":", "_")
 
 
+def _find_executable(name: str, *, extra_candidates: Iterable[Path | str] = ()) -> str | None:
+    found = shutil.which(name)
+    if found:
+        return found
+    for candidate in extra_candidates:
+        path = Path(candidate).expanduser()
+        if path.is_file():
+            return str(path)
+    return None
+
+
 def _stringify(value: Any) -> str:
     if value is None:
         return ""
@@ -372,6 +384,301 @@ def run_optional_import_backend(
     )
 
 
+def _count_markers(*values: str) -> tuple[int, int]:
+    joined = "\n".join(values).lower()
+    table_count = joined.count("<table") + joined.count('"tables"') + joined.count("'tables'")
+    image_count = joined.count("<img") + joined.count("<image") + joined.count('"images"') + joined.count("'images'")
+    return table_count, image_count
+
+
+def _read_artifact_text(path: Path | None) -> str:
+    if path is None or not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace").rstrip("\n")
+
+
+def _build_result_from_artifacts(
+    sample: BakeoffSample,
+    *,
+    backend: str,
+    elapsed_ms: int,
+    text_path: Path | None = None,
+    markdown_path: Path | None = None,
+    html_path: Path | None = None,
+    json_path: Path | None = None,
+    rendered_pdf_path: Path | None = None,
+    rendered_svg_paths: Iterable[Path] = (),
+    rendered_png_paths: Iterable[Path] = (),
+    asset_count: int = 0,
+    stdout: Any = "",
+    stderr: Any = "",
+    page_count: int | None = None,
+) -> BakeoffResult:
+    text_value = _read_artifact_text(text_path)
+    markdown_value = _read_artifact_text(markdown_path)
+    html_value = _read_artifact_text(html_path)
+    json_value = _read_artifact_text(json_path)
+    svg_paths = list(rendered_svg_paths)
+    svg_values = [_read_artifact_text(path) for path in svg_paths]
+    png_paths = list(rendered_png_paths)
+    table_count, image_count = _count_markers(text_value, markdown_value, html_value, json_value, *svg_values)
+    stdout_text = _stringify(stdout)
+    stderr_text = _stringify(stderr)
+    return BakeoffResult(
+        doc_id=sample.doc_id,
+        source_path=sample.source_path,
+        source_suffix=sample.source_suffix,
+        backend=backend,
+        status=BAKEOFF_OK,
+        elapsed_ms=elapsed_ms,
+        text_path=str(text_path) if text_path else None,
+        markdown_path=str(markdown_path) if markdown_path else None,
+        html_path=str(html_path) if html_path else None,
+        json_path=str(json_path) if json_path else None,
+        rendered_pdf_path=str(rendered_pdf_path) if rendered_pdf_path else None,
+        rendered_svg_count=len(svg_paths),
+        rendered_png_count=len(png_paths),
+        asset_count=asset_count,
+        text_length=len(text_value),
+        markdown_length=len(markdown_value),
+        html_length=len(html_value),
+        json_length=len(json_value),
+        table_count=table_count,
+        image_count=image_count,
+        page_count=page_count,
+        stdout_length=len(stdout_text),
+        stderr_length=len(stderr_text),
+        error_reason=None,
+    )
+
+
+def run_rhwp_backend(
+    sample: BakeoffSample,
+    *,
+    out_dir: Path | str,
+    timeout_seconds: int,
+    rhwp_module: Any | None = None,
+) -> BakeoffResult:
+    started = time.perf_counter()
+    try:
+        module = rhwp_module if rhwp_module is not None else importlib.import_module("rhwp")
+    except ImportError:
+        return _empty_result(sample, backend="rhwp", status=BAKEOFF_MISSING_DEPENDENCY, error_reason="rhwp not installed")
+
+    backend_dir = Path(out_dir) / "backends" / "rhwp"
+    backend_dir.mkdir(parents=True, exist_ok=True)
+    stem = _safe_doc_stem(sample.doc_id)
+    text_path = backend_dir / f"{stem}.txt"
+    json_path = backend_dir / f"{stem}.json"
+    pdf_path = backend_dir / f"{stem}.pdf"
+    render_dir = backend_dir / stem
+    render_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        doc = module.parse(sample.source_path)
+        text = _normalize_output(doc.extract_text())
+        if not text:
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            return _empty_result(
+                sample,
+                backend="rhwp",
+                status=BAKEOFF_EMPTY_OUTPUT,
+                elapsed_ms=elapsed_ms,
+                error_reason="empty output",
+            )
+        text_path.write_text(text.rstrip("\n") + "\n", encoding="utf-8")
+        if hasattr(doc, "to_ir_json"):
+            json_path.write_text(doc.to_ir_json(indent=2).rstrip("\n") + "\n", encoding="utf-8")
+        rendered_pdf_path = None
+        if hasattr(doc, "export_pdf"):
+            doc.export_pdf(str(pdf_path))
+            rendered_pdf_path = pdf_path if pdf_path.is_file() else None
+        svg_paths = [Path(path) for path in doc.export_svg(str(render_dir), prefix=stem)] if hasattr(doc, "export_svg") else []
+        png_paths = [Path(path) for path in doc.export_png(str(render_dir), prefix=stem)] if hasattr(doc, "export_png") else []
+    except Exception as exc:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend="rhwp",
+            status=BAKEOFF_BACKEND_ERROR,
+            elapsed_ms=elapsed_ms,
+            error_reason=str(exc),
+        )
+
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    return _build_result_from_artifacts(
+        sample,
+        backend="rhwp",
+        elapsed_ms=elapsed_ms,
+        text_path=text_path,
+        json_path=json_path if json_path.is_file() else None,
+        rendered_pdf_path=rendered_pdf_path,
+        rendered_svg_paths=svg_paths,
+        rendered_png_paths=png_paths,
+        page_count=getattr(doc, "page_count", None),
+    )
+
+
+def run_unhwp_backend(
+    sample: BakeoffSample,
+    *,
+    out_dir: Path | str,
+    timeout_seconds: int,
+    runner: Runner = subprocess.run,
+) -> BakeoffResult:
+    executable = _find_executable("unhwp", extra_candidates=[Path.home() / ".cargo" / "bin" / "unhwp"])
+    if executable is None:
+        return _empty_result(sample, backend="unhwp", status=BAKEOFF_MISSING_DEPENDENCY, error_reason="unhwp not found")
+
+    started = time.perf_counter()
+    outputs: dict[str, str] = {}
+    stderr_parts: list[str] = []
+    try:
+        for kind, subcommand in [("markdown", "markdown"), ("text", "text"), ("json", "json")]:
+            completed = runner(
+                [executable, subcommand, sample.source_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                check=False,
+            )
+            stderr_parts.append(_stringify(completed.stderr))
+            if completed.returncode != 0:
+                elapsed_ms = int((time.perf_counter() - started) * 1000)
+                return _empty_result(
+                    sample,
+                    backend="unhwp",
+                    status=BAKEOFF_BACKEND_ERROR,
+                    elapsed_ms=elapsed_ms,
+                    stdout=completed.stdout,
+                    stderr=completed.stderr,
+                    error_reason=f"unhwp {subcommand} exited {completed.returncode}",
+                )
+            outputs[kind] = _normalize_output(completed.stdout)
+    except subprocess.TimeoutExpired as exc:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend="unhwp",
+            status=BAKEOFF_TIMEOUT,
+            elapsed_ms=elapsed_ms,
+            stdout=exc.stdout or exc.output,
+            stderr=exc.stderr,
+            error_reason=f"backend timeout after {timeout_seconds}s",
+        )
+
+    if not outputs.get("markdown") and not outputs.get("text"):
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend="unhwp",
+            status=BAKEOFF_EMPTY_OUTPUT,
+            elapsed_ms=elapsed_ms,
+            error_reason="empty output",
+        )
+
+    backend_dir = Path(out_dir) / "backends" / "unhwp"
+    backend_dir.mkdir(parents=True, exist_ok=True)
+    stem = _safe_doc_stem(sample.doc_id)
+    markdown_path = backend_dir / f"{stem}.md"
+    text_path = backend_dir / f"{stem}.txt"
+    json_path = backend_dir / f"{stem}.json"
+    markdown_path.write_text(outputs.get("markdown", "").rstrip("\n") + "\n", encoding="utf-8")
+    text_path.write_text(outputs.get("text", "").rstrip("\n") + "\n", encoding="utf-8")
+    if outputs.get("json"):
+        json_path.write_text(outputs["json"].rstrip("\n") + "\n", encoding="utf-8")
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    return _build_result_from_artifacts(
+        sample,
+        backend="unhwp",
+        elapsed_ms=elapsed_ms,
+        text_path=text_path,
+        markdown_path=markdown_path,
+        json_path=json_path if json_path.is_file() else None,
+        stderr="\n".join(stderr_parts),
+    )
+
+
+def run_libreoffice_pdf_backend(
+    sample: BakeoffSample,
+    *,
+    out_dir: Path | str,
+    timeout_seconds: int,
+    runner: Runner = subprocess.run,
+) -> BakeoffResult:
+    soffice = _find_executable(
+        "soffice",
+        extra_candidates=[
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+            "/Applications/LibreOffice.app/Contents/MacOS/libreoffice",
+        ],
+    )
+    if soffice is None:
+        return _empty_result(
+            sample,
+            backend="libreoffice_pdf",
+            status=BAKEOFF_MISSING_DEPENDENCY,
+            error_reason="soffice not found",
+        )
+
+    started = time.perf_counter()
+    backend_dir = Path(out_dir) / "backends" / "libreoffice_pdf"
+    work_dir = backend_dir / _safe_doc_stem(sample.doc_id)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        completed = runner(
+            [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(work_dir), sample.source_path],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend="libreoffice_pdf",
+            status=BAKEOFF_TIMEOUT,
+            elapsed_ms=elapsed_ms,
+            stdout=exc.stdout or exc.output,
+            stderr=exc.stderr,
+            error_reason=f"backend timeout after {timeout_seconds}s",
+        )
+
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    if completed.returncode != 0:
+        return _empty_result(
+            sample,
+            backend="libreoffice_pdf",
+            status=BAKEOFF_BACKEND_ERROR,
+            elapsed_ms=elapsed_ms,
+            stdout=completed.stdout,
+            stderr=completed.stderr,
+            error_reason=f"soffice exited {completed.returncode}",
+        )
+    converted = work_dir / f"{Path(sample.source_path).stem}.pdf"
+    if not converted.is_file():
+        return _empty_result(
+            sample,
+            backend="libreoffice_pdf",
+            status=BAKEOFF_EMPTY_OUTPUT,
+            elapsed_ms=elapsed_ms,
+            stdout=completed.stdout,
+            stderr=completed.stderr,
+            error_reason="converted pdf not found",
+        )
+    final_pdf = backend_dir / f"{_safe_doc_stem(sample.doc_id)}.pdf"
+    converted.replace(final_pdf)
+    return _build_result_from_artifacts(
+        sample,
+        backend="libreoffice_pdf",
+        elapsed_ms=elapsed_ms,
+        rendered_pdf_path=final_pdf,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+    )
+
+
 def run_backend_for_sample(
     sample: BakeoffSample,
     *,
@@ -387,7 +694,7 @@ def run_backend_for_sample(
             status=BAKEOFF_UNSUPPORTED_FORMAT,
             error_reason=f"{backend} supports only .hwp",
         )
-    if backend in {"rhwp", "unhwp", "hwpxkit"} and suffix not in {".hwp", ".hwpx"}:
+    if backend in {"rhwp", "unhwp", "hwpxkit", "hwpkit"} and suffix not in {".hwp", ".hwpx"}:
         return _empty_result(
             sample,
             backend=backend,
@@ -430,39 +737,15 @@ def run_backend_for_sample(
             output_kind="xml",
         )
     if backend == "rhwp":
-        return run_optional_import_backend(sample, backend=backend, module_name="rhwp", out_dir=out_dir)
+        return run_rhwp_backend(sample, out_dir=out_dir, timeout_seconds=timeout_seconds)
     if backend == "unhwp":
-        if shutil.which("unhwp") is None:
-            return _empty_result(
-                sample,
-                backend=backend,
-                status=BAKEOFF_MISSING_DEPENDENCY,
-                error_reason="unhwp not found",
-            )
-        return run_command_backend(
-            sample,
-            backend=backend,
-            command=["unhwp", sample.source_path],
-            out_dir=out_dir,
-            timeout_seconds=timeout_seconds,
-            output_kind="markdown",
-        )
+        return run_unhwp_backend(sample, out_dir=out_dir, timeout_seconds=timeout_seconds)
     if backend == "hwpxkit":
         return run_optional_import_backend(sample, backend=backend, module_name="hwpxkit", out_dir=out_dir)
+    if backend == "hwpkit":
+        return run_optional_import_backend(sample, backend=backend, module_name="hwpkit", out_dir=out_dir)
     if backend == "libreoffice_pdf":
-        if shutil.which("soffice") is None and shutil.which("libreoffice") is None:
-            return _empty_result(
-                sample,
-                backend=backend,
-                status=BAKEOFF_MISSING_DEPENDENCY,
-                error_reason="soffice not found",
-            )
-        return _empty_result(
-            sample,
-            backend=backend,
-            status=BAKEOFF_BACKEND_ERROR,
-            error_reason="libreoffice_pdf runner not implemented in first bakeoff",
-        )
+        return run_libreoffice_pdf_backend(sample, out_dir=out_dir, timeout_seconds=timeout_seconds)
     return _empty_result(
         sample,
         backend=backend,

@@ -16,7 +16,10 @@ from rfp_rag.parser_bakeoff import (
     BakeoffSample,
     run_backend_for_sample,
     run_command_backend,
+    run_libreoffice_pdf_backend,
     run_optional_import_backend,
+    run_rhwp_backend,
+    run_unhwp_backend,
     select_bakeoff_samples,
     summarize_bakeoff_results,
     write_bakeoff_artifacts,
@@ -288,6 +291,247 @@ def test_run_command_backend_writes_text_output(tmp_path: Path) -> None:
     assert result.stderr_length == len("warn")
     assert result.text_path == str(tmp_path / "out" / "backends" / "hwp5txt" / "doc_000.txt")
     assert Path(result.text_path).read_text(encoding="utf-8") == "본문\n"
+
+
+def test_find_executable_prefers_path_then_extra_candidates(tmp_path: Path, monkeypatch) -> None:
+    from rfp_rag import parser_bakeoff
+
+    extra = tmp_path / "tool"
+    extra.write_text("#!/bin/sh\n", encoding="utf-8")
+    extra.chmod(0o755)
+
+    monkeypatch.setattr(parser_bakeoff.shutil, "which", lambda name: None)
+
+    assert parser_bakeoff._find_executable("missing", extra_candidates=[extra]) == str(extra)
+    assert parser_bakeoff._find_executable("missing", extra_candidates=[tmp_path / "absent"]) is None
+
+
+def test_build_result_from_artifacts_counts_lengths_tables_images_and_renders(tmp_path: Path) -> None:
+    sample = BakeoffSample(
+        doc_id="doc:009",
+        csv_row_id="009",
+        source_path=str(tmp_path / "sample.hwp"),
+        source_suffix=".hwp",
+        project_name="사업",
+        issuer="기관",
+        csv_text_length=10,
+        prior_parse_status="parsed",
+        prior_text_length=100,
+        prior_ratio=10.0,
+        selection_reasons=["large_text"],
+    )
+    backend_dir = tmp_path / "out" / "backends" / "rhwp"
+    backend_dir.mkdir(parents=True)
+    text_path = backend_dir / "doc_009.txt"
+    json_path = backend_dir / "doc_009.json"
+    pdf_path = backend_dir / "doc_009.pdf"
+    svg_path = backend_dir / "doc_009-1.svg"
+    png_path = backend_dir / "doc_009-1.png"
+    text_path.write_text("본문", encoding="utf-8")
+    json_path.write_text('{"tables": [{"cells": []}], "images": ["a"]}', encoding="utf-8")
+    pdf_path.write_bytes(b"%PDF")
+    svg_path.write_text("<svg><image /></svg>", encoding="utf-8")
+    png_path.write_bytes(b"png")
+
+    from rfp_rag import parser_bakeoff
+
+    result = parser_bakeoff._build_result_from_artifacts(
+        sample,
+        backend="rhwp",
+        elapsed_ms=12,
+        text_path=text_path,
+        json_path=json_path,
+        rendered_pdf_path=pdf_path,
+        rendered_svg_paths=[svg_path],
+        rendered_png_paths=[png_path],
+        stdout="ok",
+        stderr="warn",
+        page_count=1,
+    )
+
+    assert result.status == BAKEOFF_OK
+    assert result.text_length == len("본문")
+    assert result.json_length == len('{"tables": [{"cells": []}], "images": ["a"]}')
+    assert result.table_count == 1
+    assert result.image_count == 2
+    assert result.rendered_pdf_path == str(pdf_path)
+    assert result.rendered_svg_count == 1
+    assert result.rendered_png_count == 1
+    assert result.page_count == 1
+
+
+def test_run_rhwp_backend_writes_text_json_and_renders(tmp_path: Path) -> None:
+    sample = BakeoffSample(
+        doc_id="doc:010",
+        csv_row_id="010",
+        source_path=str(tmp_path / "sample.hwp"),
+        source_suffix=".hwp",
+        project_name="사업",
+        issuer="기관",
+        csv_text_length=10,
+        prior_parse_status="parsed",
+        prior_text_length=100,
+        prior_ratio=10.0,
+        selection_reasons=["large_text"],
+    )
+    Path(sample.source_path).write_bytes(b"hwp")
+
+    class FakeDoc:
+        page_count = 2
+
+        def extract_text(self) -> str:
+            return "본문"
+
+        def to_ir_json(self, *, indent=None) -> str:
+            return '{"tables": [], "images": []}'
+
+        def export_pdf(self, output_path: str) -> int:
+            Path(output_path).write_bytes(b"%PDF")
+            return 4
+
+        def export_svg(self, output_dir: str, prefix: str | None = None) -> list[str]:
+            path = Path(output_dir) / f"{prefix}-1.svg"
+            path.write_text("<svg></svg>", encoding="utf-8")
+            return [str(path)]
+
+        def export_png(self, output_dir: str, *, prefix: str | None = None) -> list[str]:
+            path = Path(output_dir) / f"{prefix}-1.png"
+            path.write_bytes(b"png")
+            return [str(path)]
+
+    class FakeRhwp:
+        @staticmethod
+        def parse(path: str):
+            assert path == sample.source_path
+            return FakeDoc()
+
+    result = run_rhwp_backend(
+        sample,
+        out_dir=tmp_path / "out",
+        timeout_seconds=5,
+        rhwp_module=FakeRhwp,
+    )
+
+    assert result.status == BAKEOFF_OK
+    assert result.text_length == len("본문")
+    assert result.json_length == len('{"tables": [], "images": []}')
+    assert result.rendered_pdf_path is not None
+    assert result.rendered_svg_count == 1
+    assert result.rendered_png_count == 1
+    assert result.page_count == 2
+
+
+def test_run_unhwp_backend_uses_markdown_text_and_json_subcommands(tmp_path: Path, monkeypatch) -> None:
+    sample = BakeoffSample(
+        doc_id="doc:011",
+        csv_row_id="011",
+        source_path=str(tmp_path / "sample.hwp"),
+        source_suffix=".hwp",
+        project_name="사업",
+        issuer="기관",
+        csv_text_length=10,
+        prior_parse_status="parsed",
+        prior_text_length=100,
+        prior_ratio=10.0,
+        selection_reasons=["large_text"],
+    )
+    Path(sample.source_path).write_bytes(b"hwp")
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if command[1] == "markdown":
+            return subprocess.CompletedProcess(command, 0, stdout="# 제목\n\n| A | B |\n|---|---|\n| 1 | 2 |", stderr="")
+        if command[1] == "text":
+            return subprocess.CompletedProcess(command, 0, stdout="제목\n1 2", stderr="")
+        if command[1] == "json":
+            return subprocess.CompletedProcess(command, 0, stdout='{"tables": [{"rows": []}], "images": []}', stderr="")
+        return subprocess.CompletedProcess(command, 2, stdout="", stderr="bad")
+
+    from rfp_rag import parser_bakeoff
+
+    monkeypatch.setattr(parser_bakeoff, "_find_executable", lambda name, extra_candidates=(): "/tmp/unhwp")
+
+    result = run_unhwp_backend(
+        sample,
+        out_dir=tmp_path / "out",
+        timeout_seconds=5,
+        runner=fake_run,
+    )
+
+    assert result.status == BAKEOFF_OK
+    assert calls == [
+        ["/tmp/unhwp", "markdown", sample.source_path],
+        ["/tmp/unhwp", "text", sample.source_path],
+        ["/tmp/unhwp", "json", sample.source_path],
+    ]
+    assert result.markdown_length > 0
+    assert result.text_length > 0
+    assert result.json_length > 0
+    assert result.table_count >= 1
+
+
+def test_run_libreoffice_pdf_backend_records_converted_pdf(tmp_path: Path, monkeypatch) -> None:
+    sample = BakeoffSample(
+        doc_id="doc:012",
+        csv_row_id="012",
+        source_path=str(tmp_path / "sample.hwp"),
+        source_suffix=".hwp",
+        project_name="사업",
+        issuer="기관",
+        csv_text_length=10,
+        prior_parse_status="parsed",
+        prior_text_length=100,
+        prior_ratio=10.0,
+        selection_reasons=["large_text"],
+    )
+    Path(sample.source_path).write_bytes(b"hwp")
+
+    from rfp_rag import parser_bakeoff
+
+    monkeypatch.setattr(
+        parser_bakeoff,
+        "_find_executable",
+        lambda name, extra_candidates=(): "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    )
+
+    def fake_run(command, **kwargs):
+        out_index = command.index("--outdir") + 1
+        out_dir = Path(command[out_index])
+        (out_dir / "sample.pdf").write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    result = run_libreoffice_pdf_backend(
+        sample,
+        out_dir=tmp_path / "out",
+        timeout_seconds=5,
+        runner=fake_run,
+    )
+
+    assert result.status == BAKEOFF_OK
+    assert result.rendered_pdf_path is not None
+    assert Path(result.rendered_pdf_path).name == "doc_012.pdf"
+
+
+def test_run_backend_for_sample_routes_hwpkit_as_optional_hwp_backend(tmp_path: Path) -> None:
+    sample = BakeoffSample(
+        doc_id="doc:013",
+        csv_row_id="013",
+        source_path=str(tmp_path / "sample.hwp"),
+        source_suffix=".hwp",
+        project_name="사업",
+        issuer="기관",
+        csv_text_length=10,
+        prior_parse_status="parsed",
+        prior_text_length=100,
+        prior_ratio=10.0,
+        selection_reasons=["large_text"],
+    )
+
+    result = run_backend_for_sample(sample, backend="hwpkit", out_dir=tmp_path / "out", timeout_seconds=5)
+
+    assert result.status in {BAKEOFF_MISSING_DEPENDENCY, BAKEOFF_BACKEND_ERROR}
+    assert result.backend == "hwpkit"
 
 
 def test_run_command_backend_counts_html_tables_and_images(tmp_path: Path) -> None:

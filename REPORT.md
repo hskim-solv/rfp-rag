@@ -709,3 +709,45 @@ python3 -m rfp_rag.agent.run_agent --index artifacts/index \
 교훈: sanitize 함수는 출력 검증자(`save_report_file`)와 같은 규칙으로 닫혀야 한다 —
 입력 문자 클래스만 거르면 결합부(`.md`)·길이처럼 검증자가 보는 최종 산출물 차원의
 결함이 남는다.
+
+## 13. Parser/render backend expansion
+
+The parser/render bakeoff can now measure installed HWP/HWPX and rendering
+candidates instead of only recording dependency stubs:
+
+- `rhwp`: extracts text and IR JSON, and records PDF/SVG/PNG render artifacts
+  when the installed package supports them.
+- `unhwp`: runs Markdown, text, and JSON subcommands through the local CLI,
+  including `~/.cargo/bin/unhwp`.
+- `libreoffice_pdf`: detects `/Applications/LibreOffice.app/.../soffice` as a
+  headless HWP-to-PDF rendering fallback.
+- `hwpkit`: tracked as an optional candidate until a real adapter is validated.
+
+Generated bakeoff artifacts remain under ignored `artifacts/parser_bakeoff/`.
+
+Small local smoke command:
+
+```bash
+uv run --group dev python -m rfp_rag.run_parser_bakeoff \
+  --data data/data_list.csv \
+  --files data/files \
+  --parse-manifest artifacts/parsed_docs/manifest.jsonl \
+  --out artifacts/parser_bakeoff \
+  --backend rhwp \
+  --backend unhwp \
+  --backend libreoffice_pdf \
+  --hwp-limit 2 \
+  --timeout-seconds 30 \
+  --no-pdfs
+```
+
+Smoke result:
+
+- `unhwp`: 2/2 `ok`, text length median 86,878.5, max elapsed 767 ms.
+- `libreoffice_pdf`: 2/2 `ok`, rendered PDF 2/2, max elapsed 9,245 ms.
+- `rhwp`: 1/2 `ok`, rendered PDF 1/2, max elapsed 31,932 ms; one sample failed
+  with `InvalidFile("DocInfo ... UTF-16 ... lone surrogate found")`.
+
+Operational note: `rhwp` is promising for IR/render artifacts, but it still needs
+failure handling and sample-level comparison against `unhwp` before becoming the
+default source parser.

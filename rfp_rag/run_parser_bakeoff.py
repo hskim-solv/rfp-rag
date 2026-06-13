@@ -13,7 +13,7 @@ from .parser_bakeoff import (
     write_bakeoff_artifacts,
 )
 
-DEFAULT_BACKENDS = ["hwp5txt", "hwp5html", "hwp5odt", "rhwp", "unhwp", "hwpxkit", "libreoffice_pdf"]
+DEFAULT_BACKENDS = ["hwp5txt", "hwp5html", "hwp5odt", "rhwp", "unhwp", "hwpxkit", "hwpkit", "libreoffice_pdf"]
 
 
 def run_parser_bakeoff(
