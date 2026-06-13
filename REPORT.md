@@ -516,9 +516,21 @@ python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --
 
 - CSV baseline은 유지한다.
 - HWP는 `hwp5txt`로 파싱한다.
-- PDF는 첫 구현에서 unsupported로 기록한다.
+- page-level citation evidence는 별도 artifact로 관리한다. HWP 문서는
+  LibreOffice로 PDF 변환을 강제 시도하고, 변환 PDF에서 PyMuPDF로 page text를
+  추출한다. 변환/추출 실패 시 ingestion은 막지 않고
+  `page_citation_available=false`와 `citation_level=document|none`으로 기록한다.
 - source-aware indexing은 parser EDA 확인 후 별도 PR에서
   `--source csv|parsed|parsed-with-csv-fallback`로 추가한다.
+
+Page citation smoke:
+
+- Input: first HWP sample
+  `한영대학_한영대학교 특성화 맞춤형 교육환경 구축 - 트랙운영 학사정보.hwp`
+- Output: `parse_status=parsed`, `content_source=source_hwp_text`,
+  `visual_backend=libreoffice_pdf`, `page_text_backend=pymupdf`,
+  `citation_level=page`, `page_count=59`
+- Artifacts: `pdf/doc_000.pdf`, `page_text/doc_000.jsonl`, `text/doc_000.txt`
 
 ### 10-18. Parser/Render Bakeoff Lane
 

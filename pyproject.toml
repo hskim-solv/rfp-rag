@@ -13,6 +13,7 @@ dependencies = [
     "langgraph>=1.0",
     "langgraph-checkpoint-sqlite",
     "langfuse>=3",  # optional tracing — LANGFUSE_* 키 없으면 no-op (rfp_rag/tracing.py)
+    "pymupdf>=1.26",
     "rhwp-python>=0.7.0",
 ]
 

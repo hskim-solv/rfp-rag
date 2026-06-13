@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib
 import json
+import shutil
 import subprocess
 from collections import Counter
 from dataclasses import dataclass
@@ -18,6 +20,8 @@ PARSE_PARSER_ERROR = "parser_error"
 PARSE_TIMEOUT = "timeout"
 
 HWP5TXT_BACKEND = "hwp5txt"
+LIBREOFFICE_PDF_BACKEND = "libreoffice_pdf"
+PYMUPDF_BACKEND = "pymupdf"
 
 
 @dataclass(frozen=True)
@@ -30,10 +34,20 @@ class ParseResult:
 
 
 Runner = Callable[..., subprocess.CompletedProcess[Any]]
+ExecutableFinder = Callable[..., str | None]
+PdfPageTextExtractor = Callable[[Path], list[tuple[int, str]]]
 
 
 def safe_doc_filename(doc_id: str) -> str:
     return f"{doc_id.replace(':', '_')}.txt"
+
+
+def safe_doc_stem(doc_id: str) -> str:
+    return doc_id.replace(":", "_")
+
+
+def page_text_filename(doc_id: str) -> str:
+    return f"{safe_doc_stem(doc_id)}.jsonl"
 
 
 def _stringify(value: Any) -> str:
@@ -46,6 +60,17 @@ def _stringify(value: Any) -> str:
 
 def _normalize_text(value: Any) -> str:
     return _stringify(value).replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _find_executable(name: str, *, extra_candidates: Iterable[Path | str] = ()) -> str | None:
+    found = shutil.which(name)
+    if found:
+        return found
+    for candidate in extra_candidates:
+        path = Path(candidate).expanduser()
+        if path.is_file():
+            return str(path)
+    return None
 
 
 def parse_hwp_file(path: Path | str, timeout_seconds: int = 60, runner: Runner = subprocess.run) -> ParseResult:
@@ -138,7 +163,195 @@ def parse_document_source(doc: CorpusDocument, timeout_seconds: int = 60) -> Par
     )
 
 
-def build_parse_record(doc: CorpusDocument, result: ParseResult, out_dir: Path | str) -> dict[str, Any]:
+def _extract_pdf_pages_with_pymupdf(pdf_path: Path) -> list[tuple[int, str]]:
+    pymupdf = importlib.import_module("pymupdf")
+    pages: list[tuple[int, str]] = []
+    with pymupdf.open(str(pdf_path)) as document:
+        for index, page in enumerate(document, start=1):
+            text = _normalize_text(page.get_text("text"))
+            if text:
+                pages.append((index, text))
+    return pages
+
+
+def _write_page_text_artifact(doc_id: str, pages: list[tuple[int, str]], out_dir: Path) -> str | None:
+    if not pages:
+        return None
+    page_text_dir = out_dir / "page_text"
+    page_text_dir.mkdir(parents=True, exist_ok=True)
+    target = page_text_dir / page_text_filename(doc_id)
+    with target.open("w", encoding="utf-8") as f:
+        for page_number, text in pages:
+            f.write(json.dumps({"page": page_number, "text": text}, ensure_ascii=False, sort_keys=True) + "\n")
+    return str(target)
+
+
+def _copy_pdf_source_for_citation(source: Path, doc_id: str, out_dir: Path) -> Path:
+    pdf_dir = out_dir / "pdf"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    target = pdf_dir / f"{safe_doc_stem(doc_id)}.pdf"
+    if source.resolve() != target.resolve():
+        target.write_bytes(source.read_bytes())
+    return target
+
+
+def _convert_hwp_to_pdf(
+    source: Path,
+    doc_id: str,
+    out_dir: Path,
+    *,
+    timeout_seconds: int,
+    runner: Runner,
+    executable_finder: ExecutableFinder,
+) -> tuple[Path | None, str | None]:
+    soffice = executable_finder(
+        "soffice",
+        extra_candidates=[
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+            "/Applications/LibreOffice.app/Contents/MacOS/libreoffice",
+        ],
+    )
+    if soffice is None:
+        return None, "soffice not found"
+
+    pdf_dir = out_dir / "pdf"
+    work_dir = out_dir / "pdf_work" / safe_doc_stem(doc_id)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        completed = runner(
+            [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(work_dir), str(source)],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None, f"pdf conversion timeout after {timeout_seconds}s"
+    except OSError as exc:
+        return None, str(exc)
+
+    if completed.returncode != 0:
+        return None, f"soffice exited {completed.returncode}"
+    converted = work_dir / f"{source.stem}.pdf"
+    if not converted.is_file():
+        return None, "converted pdf not found"
+    target = pdf_dir / f"{safe_doc_stem(doc_id)}.pdf"
+    converted.replace(target)
+    return target, None
+
+
+def _build_page_citation_evidence(
+    doc: CorpusDocument,
+    out_dir: Path,
+    *,
+    timeout_seconds: int,
+    runner: Runner,
+    executable_finder: ExecutableFinder,
+    pdf_page_text_extractor: PdfPageTextExtractor,
+) -> dict[str, Any]:
+    source_path = doc.metadata.get("resolved_filesystem_path")
+    if not source_path:
+        return {
+            "converted_pdf_path": None,
+            "visual_backend": None,
+            "page_text_backend": None,
+            "page_text_path": None,
+            "page_count": 0,
+            "page_citation_available": False,
+            "page_citation_error_reason": "missing source file",
+        }
+
+    source = Path(str(source_path))
+    suffix = source.suffix.lower()
+    pdf_path: Path | None = None
+    visual_backend: str | None = None
+    conversion_error: str | None = None
+    if suffix == ".hwp":
+        pdf_path, conversion_error = _convert_hwp_to_pdf(
+            source,
+            doc.doc_id,
+            out_dir,
+            timeout_seconds=timeout_seconds,
+            runner=runner,
+            executable_finder=executable_finder,
+        )
+        visual_backend = LIBREOFFICE_PDF_BACKEND if pdf_path is not None else None
+    elif suffix == ".pdf":
+        pdf_path = _copy_pdf_source_for_citation(source, doc.doc_id, out_dir)
+        visual_backend = "source_pdf"
+    else:
+        conversion_error = f"unsupported citation suffix: {suffix or '<none>'}"
+
+    if pdf_path is None:
+        return {
+            "converted_pdf_path": None,
+            "visual_backend": visual_backend,
+            "page_text_backend": None,
+            "page_text_path": None,
+            "page_count": 0,
+            "page_citation_available": False,
+            "page_citation_error_reason": conversion_error,
+        }
+
+    try:
+        pages = pdf_page_text_extractor(pdf_path)
+    except ImportError:
+        return {
+            "converted_pdf_path": str(pdf_path),
+            "visual_backend": visual_backend,
+            "page_text_backend": None,
+            "page_text_path": None,
+            "page_count": 0,
+            "page_citation_available": False,
+            "page_citation_error_reason": "pymupdf not installed",
+        }
+    except Exception as exc:
+        return {
+            "converted_pdf_path": str(pdf_path),
+            "visual_backend": visual_backend,
+            "page_text_backend": None,
+            "page_text_path": None,
+            "page_count": 0,
+            "page_citation_available": False,
+            "page_citation_error_reason": str(exc),
+        }
+
+    page_text_path = _write_page_text_artifact(doc.doc_id, pages, out_dir)
+    return {
+        "converted_pdf_path": str(pdf_path),
+        "visual_backend": visual_backend,
+        "page_text_backend": PYMUPDF_BACKEND if page_text_path is not None else None,
+        "page_text_path": page_text_path,
+        "page_count": len(pages),
+        "page_citation_available": page_text_path is not None,
+        "page_citation_error_reason": None if page_text_path is not None else "empty pdf page text",
+    }
+
+
+def _content_source_for(doc: CorpusDocument, result: ParseResult) -> str | None:
+    if result.status != PARSE_PARSED:
+        return None
+    source_path = doc.metadata.get("resolved_filesystem_path")
+    suffix = Path(str(source_path)).suffix.lower() if source_path else ""
+    if suffix == ".hwp":
+        return "source_hwp_text"
+    if suffix == ".pdf":
+        return "source_pdf_text"
+    return "source_text"
+
+
+def build_parse_record(
+    doc: CorpusDocument,
+    result: ParseResult,
+    out_dir: Path | str,
+    *,
+    enable_page_citation: bool = False,
+    citation_timeout_seconds: int = 60,
+    citation_runner: Runner = subprocess.run,
+    executable_finder: ExecutableFinder = _find_executable,
+    pdf_page_text_extractor: PdfPageTextExtractor = _extract_pdf_pages_with_pymupdf,
+) -> dict[str, Any]:
     """Build a parse manifest row and persist parsed text for successful results."""
     out = Path(out_dir)
     source_path = doc.metadata.get("resolved_filesystem_path")
@@ -157,6 +370,29 @@ def build_parse_record(doc: CorpusDocument, result: ParseResult, out_dir: Path |
     text_length = len(result.text)
     csv_text_length = len(doc.text or "")
     ratio = text_length / csv_text_length if text_length and csv_text_length else None
+    content_source = _content_source_for(doc, result)
+    source_quality = "source_parsed" if result.status == PARSE_PARSED else "source_unparsed"
+    citation_evidence = (
+        _build_page_citation_evidence(
+            doc,
+            out,
+            timeout_seconds=citation_timeout_seconds,
+            runner=citation_runner,
+            executable_finder=executable_finder,
+            pdf_page_text_extractor=pdf_page_text_extractor,
+        )
+        if enable_page_citation
+        else {
+            "converted_pdf_path": None,
+            "visual_backend": None,
+            "page_text_backend": None,
+            "page_text_path": None,
+            "page_count": 0,
+            "page_citation_available": False,
+            "page_citation_error_reason": None,
+        }
+    )
+    citation_level = "page" if citation_evidence["page_citation_available"] else "document" if result.status == PARSE_PARSED else "none"
 
     return {
         "doc_id": doc.doc_id,
@@ -172,6 +408,10 @@ def build_parse_record(doc: CorpusDocument, result: ParseResult, out_dir: Path |
         "error_reason": result.error_reason,
         "csv_text_length": csv_text_length,
         "parsed_to_csv_length_ratio": ratio,
+        "content_source": content_source,
+        "source_quality": source_quality,
+        "citation_level": citation_level,
+        **citation_evidence,
     }
 
 
@@ -200,13 +440,19 @@ def summarize_records(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
     parse_status_counts = Counter(row.get("parse_status") for row in rows if row.get("parse_status"))
     error_reason_counts = Counter(row.get("error_reason") for row in rows if row.get("error_reason"))
     parsed_count = parse_status_counts.get(PARSE_PARSED, 0)
+    page_citation_available_count = sum(1 for row in rows if row.get("page_citation_available") is True)
 
     return {
         "row_count": row_count,
         "suffix_counts": _count_present(row.get("source_suffix") for row in rows),
         "parse_status_counts": dict(parse_status_counts),
         "parser_backend_counts": _count_nonempty(row.get("parser_backend") for row in rows),
+        "visual_backend_counts": _count_nonempty(row.get("visual_backend") for row in rows),
+        "page_text_backend_counts": _count_nonempty(row.get("page_text_backend") for row in rows),
+        "citation_level_counts": _count_nonempty(row.get("citation_level") for row in rows),
         "parsed_success_rate": parsed_count / row_count if row_count else 0.0,
+        "page_citation_available_count": page_citation_available_count,
+        "page_citation_coverage": page_citation_available_count / row_count if row_count else 0.0,
         "empty_parse_count": parse_status_counts.get(PARSE_EMPTY_TEXT, 0),
         "text_length": _distribution(row.get("text_length") for row in rows),
         "csv_text_length": _distribution(row.get("csv_text_length") for row in rows),

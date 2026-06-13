@@ -148,6 +148,84 @@ def test_build_parse_record_writes_text_for_parsed_result(tmp_path: Path) -> Non
     assert Path(record["text_path"]).read_text(encoding="utf-8") == "원문 본문입니다\n"
 
 
+def test_build_parse_record_forces_hwp_pdf_page_citation_evidence(tmp_path: Path) -> None:
+    source = tmp_path / "sample.hwp"
+    source.write_bytes(b"fake")
+    out_dir = tmp_path / "parsed"
+
+    def citation_runner(command, **kwargs):
+        outdir = Path(command[command.index("--outdir") + 1])
+        outdir.mkdir(parents=True, exist_ok=True)
+        (outdir / "sample.pdf").write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(command, 0, stdout="converted", stderr="")
+
+    def pdf_page_text_extractor(pdf_path: Path):
+        assert pdf_path.name == "doc_000.pdf"
+        return [(1, "1페이지 본문"), (2, "2페이지 본문")]
+
+    record = build_parse_record(
+        _doc(source, text="CSV 본문입니다"),
+        ParseResult(
+            status=PARSE_PARSED,
+            parser_backend="hwp5txt",
+            text="원문 본문입니다",
+            stderr="",
+            error_reason=None,
+        ),
+        out_dir,
+        enable_page_citation=True,
+        citation_timeout_seconds=5,
+        citation_runner=citation_runner,
+        pdf_page_text_extractor=pdf_page_text_extractor,
+    )
+
+    assert record["content_source"] == "source_hwp_text"
+    assert record["source_quality"] == "source_parsed"
+    assert record["visual_backend"] == "libreoffice_pdf"
+    assert record["page_text_backend"] == "pymupdf"
+    assert record["page_citation_available"] is True
+    assert record["citation_level"] == "page"
+    assert record["page_count"] == 2
+    assert record["converted_pdf_path"] == str(out_dir / "pdf" / "doc_000.pdf")
+    assert record["page_text_path"] == str(out_dir / "page_text" / "doc_000.jsonl")
+    page_rows = [
+        json.loads(line)
+        for line in Path(record["page_text_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    assert page_rows == [
+        {"page": 1, "text": "1페이지 본문"},
+        {"page": 2, "text": "2페이지 본문"},
+    ]
+
+
+def test_build_parse_record_marks_document_citation_when_pdf_conversion_fails(tmp_path: Path) -> None:
+    source = tmp_path / "sample.hwp"
+    source.write_bytes(b"fake")
+
+    def missing_soffice(name: str, *, extra_candidates=()):
+        return None
+
+    record = build_parse_record(
+        _doc(source),
+        ParseResult(
+            status=PARSE_PARSED,
+            parser_backend="hwp5txt",
+            text="원문 본문",
+            stderr="",
+            error_reason=None,
+        ),
+        tmp_path / "parsed",
+        enable_page_citation=True,
+        executable_finder=missing_soffice,
+    )
+
+    assert record["page_citation_available"] is False
+    assert record["citation_level"] == "document"
+    assert record["visual_backend"] is None
+    assert record["page_text_backend"] is None
+    assert record["page_citation_error_reason"] == "soffice not found"
+
+
 def test_build_parse_record_marks_unsupported_without_text_file(tmp_path: Path) -> None:
     source = tmp_path / "sample.pdf"
     source.write_bytes(b"fake")
@@ -177,6 +255,10 @@ def test_summarize_records_counts_statuses_and_lengths(tmp_path: Path) -> None:
             "text_length": 100,
             "csv_text_length": 80,
             "parsed_to_csv_length_ratio": 1.25,
+            "citation_level": "page",
+            "visual_backend": "libreoffice_pdf",
+            "page_text_backend": "pymupdf",
+            "page_citation_available": True,
             "error_reason": None,
         },
         {
@@ -186,6 +268,10 @@ def test_summarize_records_counts_statuses_and_lengths(tmp_path: Path) -> None:
             "text_length": 0,
             "csv_text_length": 50,
             "parsed_to_csv_length_ratio": None,
+            "citation_level": "none",
+            "visual_backend": None,
+            "page_text_backend": None,
+            "page_citation_available": False,
             "error_reason": "unsupported suffix: .pdf",
         },
     ]
@@ -201,6 +287,11 @@ def test_summarize_records_counts_statuses_and_lengths(tmp_path: Path) -> None:
     assert summary["text_length"]["median"] == 50
     assert summary["csv_text_length"]["median"] == 65
     assert summary["parsed_to_csv_length_ratio"]["median"] == 1.25
+    assert summary["page_citation_available_count"] == 1
+    assert summary["page_citation_coverage"] == 0.5
+    assert summary["citation_level_counts"] == {"page": 1, "none": 1}
+    assert summary["visual_backend_counts"] == {"libreoffice_pdf": 1}
+    assert summary["page_text_backend_counts"] == {"pymupdf": 1}
     assert summary["top_error_reasons"] == {"unsupported suffix: .pdf": 1}
 
 

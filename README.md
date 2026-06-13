@@ -33,9 +33,13 @@ Outputs:
 - `artifacts/parsed_docs/manifest.jsonl`
 - `artifacts/parsed_docs/summary.json`
 - `artifacts/parsed_docs/text/*.txt` for parsed documents
+- `artifacts/parsed_docs/pdf/*.pdf` for page-citation evidence
+- `artifacts/parsed_docs/page_text/*.jsonl` for extracted per-page text
 
 The first implementation uses local `hwp5txt` for `.hwp` files and records
-`.pdf` files as unsupported unless a PDF backend is added later.
+LibreOffice HWP-to-PDF conversion plus PyMuPDF page text when available. This
+keeps searchable text extraction separate from page-level citation evidence. Use
+`--no-page-citation` to skip this evidence pass in constrained local checks.
 
 ## Parser/render bakeoff
 

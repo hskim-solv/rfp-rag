@@ -65,7 +65,7 @@ def test_parse_sources_writes_manifest_summary_and_text(tmp_path: Path, monkeypa
 
     monkeypatch.setattr(parse_sources_module, "parse_document_source", fake_parse_document_source)
 
-    summary = parse_sources(csv_path, files_dir, tmp_path / "parsed", timeout_seconds=7)
+    summary = parse_sources(csv_path, files_dir, tmp_path / "parsed", timeout_seconds=7, enable_page_citation=False)
 
     manifest_lines = (tmp_path / "parsed" / "manifest.jsonl").read_text(encoding="utf-8").splitlines()
     records = [json.loads(line) for line in manifest_lines]
@@ -100,6 +100,7 @@ def test_main_prints_summary_json(tmp_path: Path, monkeypatch, capsys) -> None:
             str(tmp_path / "parsed"),
             "--timeout-seconds",
             "3",
+            "--no-page-citation",
         ]
     )
 
@@ -107,3 +108,55 @@ def test_main_prints_summary_json(tmp_path: Path, monkeypatch, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["row_count"] == 1
     assert payload["parse_status_counts"] == {PARSE_PARSED: 1}
+
+
+def test_parse_sources_enables_page_citation_by_default(tmp_path: Path, monkeypatch) -> None:
+    files_dir = tmp_path / "files"
+    files_dir.mkdir()
+    (files_dir / "a.hwp").write_bytes(b"hwp")
+    csv_path = tmp_path / "data.csv"
+    _write_csv(csv_path, [_row("a.hwp")])
+    calls: list[dict[str, object]] = []
+
+    def fake_parse_document_source(doc, *, timeout_seconds: int = 60):
+        return ParseResult(PARSE_PARSED, "hwp5txt", "원문", "", None)
+
+    def fake_build_parse_record(doc, result, out_dir, **kwargs):
+        calls.append(kwargs)
+        return {
+            "doc_id": doc.doc_id,
+            "csv_row_id": doc.csv_row_id,
+            "source_path": doc.metadata["resolved_filesystem_path"],
+            "source_suffix": ".hwp",
+            "parser_backend": result.parser_backend,
+            "parse_status": result.status,
+            "text_path": None,
+            "text_length": len(result.text),
+            "stderr_length": 0,
+            "stderr_sample": "",
+            "error_reason": None,
+            "csv_text_length": len(doc.text),
+            "parsed_to_csv_length_ratio": 1.0,
+            "content_source": "source_hwp_text",
+            "source_quality": "source_parsed",
+            "citation_level": "page",
+            "converted_pdf_path": "doc_000.pdf",
+            "visual_backend": "libreoffice_pdf",
+            "page_text_backend": "pymupdf",
+            "page_text_path": "doc_000.jsonl",
+            "page_count": 1,
+            "page_citation_available": True,
+            "page_citation_error_reason": None,
+        }
+
+    monkeypatch.setattr(parse_sources_module, "parse_document_source", fake_parse_document_source)
+    monkeypatch.setattr(parse_sources_module, "build_parse_record", fake_build_parse_record)
+
+    parse_sources(csv_path, files_dir, tmp_path / "parsed", timeout_seconds=9)
+
+    assert calls == [
+        {
+            "enable_page_citation": True,
+            "citation_timeout_seconds": 9,
+        }
+    ]
