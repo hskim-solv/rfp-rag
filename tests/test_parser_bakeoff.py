@@ -199,6 +199,71 @@ def test_summarize_bakeoff_results_counts_statuses_and_backend_metrics() -> None
     assert summary["top_error_reasons"] == {"rhwp not installed": 1, "unsupported suffix: .pdf": 1}
 
 
+def test_summarize_bakeoff_results_recommends_fallbacks_for_failed_rhwp() -> None:
+    def result(
+        *,
+        backend: str,
+        status: str,
+        text_length: int = 0,
+        rendered_pdf_path: str | None = None,
+        error_reason: str | None = None,
+    ) -> BakeoffResult:
+        return BakeoffResult(
+            doc_id="doc:042",
+            source_path="broken-docinfo.hwp",
+            source_suffix=".hwp",
+            backend=backend,
+            status=status,
+            elapsed_ms=1,
+            text_path="out.txt" if text_length else None,
+            markdown_path=None,
+            html_path=None,
+            json_path=None,
+            rendered_pdf_path=rendered_pdf_path,
+            rendered_svg_count=0,
+            rendered_png_count=0,
+            asset_count=0,
+            text_length=text_length,
+            markdown_length=0,
+            html_length=0,
+            json_length=0,
+            table_count=0,
+            image_count=0,
+            page_count=None,
+            stdout_length=0,
+            stderr_length=0,
+            error_reason=error_reason,
+        )
+
+    summary = summarize_bakeoff_results(
+        [
+            result(
+                backend="rhwp",
+                status=BAKEOFF_BACKEND_ERROR,
+                error_reason="DocInfo UTF-16 decode failed",
+            ),
+            result(backend="unhwp", status=BAKEOFF_OK, text_length=63786),
+            result(
+                backend="libreoffice_pdf",
+                status=BAKEOFF_OK,
+                rendered_pdf_path="artifacts/parser_bakeoff/backends/libreoffice_pdf/doc_042.pdf",
+            ),
+        ]
+    )
+
+    assert summary["fallback_recommendations"] == [
+        {
+            "doc_id": "doc:042",
+            "failed_backend": "rhwp",
+            "failed_error_reason": "DocInfo UTF-16 decode failed",
+            "text_fallback_backend": "unhwp",
+            "text_fallback_text_length": 63786,
+            "visual_fallback_backend": "libreoffice_pdf",
+            "visual_fallback_rendered_pdf_path": "artifacts/parser_bakeoff/backends/libreoffice_pdf/doc_042.pdf",
+        }
+    ]
+
+
 def test_write_bakeoff_artifacts_writes_samples_results_and_summary(tmp_path: Path) -> None:
     samples = [
         BakeoffSample(

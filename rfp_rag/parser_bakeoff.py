@@ -754,6 +754,49 @@ def run_backend_for_sample(
     )
 
 
+def _fallback_recommendations(rows: list[BakeoffResult]) -> list[dict[str, Any]]:
+    by_doc: dict[str, list[BakeoffResult]] = defaultdict(list)
+    for row in rows:
+        by_doc[row.doc_id].append(row)
+
+    recommendations: list[dict[str, Any]] = []
+    for doc_id, doc_rows in sorted(by_doc.items()):
+        failed_rhwp = next(
+            (row for row in doc_rows if row.backend == "rhwp" and row.status != BAKEOFF_OK),
+            None,
+        )
+        if failed_rhwp is None:
+            continue
+        text_fallback = next(
+            (
+                row
+                for row in sorted(doc_rows, key=lambda item: (item.backend != "unhwp", item.backend))
+                if row.status == BAKEOFF_OK and row.text_length > 0
+            ),
+            None,
+        )
+        visual_fallback = next(
+            (
+                row
+                for row in sorted(doc_rows, key=lambda item: (item.backend != "libreoffice_pdf", item.backend))
+                if row.status == BAKEOFF_OK and row.rendered_pdf_path
+            ),
+            None,
+        )
+        recommendations.append(
+            {
+                "doc_id": doc_id,
+                "failed_backend": "rhwp",
+                "failed_error_reason": failed_rhwp.error_reason,
+                "text_fallback_backend": None if text_fallback is None else text_fallback.backend,
+                "text_fallback_text_length": 0 if text_fallback is None else text_fallback.text_length,
+                "visual_fallback_backend": None if visual_fallback is None else visual_fallback.backend,
+                "visual_fallback_rendered_pdf_path": None if visual_fallback is None else visual_fallback.rendered_pdf_path,
+            }
+        )
+    return recommendations
+
+
 def summarize_bakeoff_results(results: Iterable[BakeoffResult]) -> dict[str, Any]:
     rows = list(results)
     backend_counts = Counter(row.backend for row in rows)
@@ -798,6 +841,7 @@ def summarize_bakeoff_results(results: Iterable[BakeoffResult]) -> dict[str, Any
             backend: sum(1 for row in backend_rows if row.rendered_pdf_path)
             for backend, backend_rows in sorted(by_backend.items())
         },
+        "fallback_recommendations": _fallback_recommendations(rows),
         "top_error_reasons": dict(errors.most_common(10)),
     }
 

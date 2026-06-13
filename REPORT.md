@@ -751,3 +751,16 @@ Smoke result:
 Operational note: `rhwp` is promising for IR/render artifacts, but it still needs
 failure handling and sample-level comparison against `unhwp` before becoming the
 default source parser.
+
+Fallback policy:
+
+- Do not block MVP progress on `rhwp` DocInfo UTF-16 decode failures. Public
+  docs/search did not reveal a stable local lenient-decode option for this
+  failure mode.
+- Treat `rhwp` failures as measured backend failures in the bakeoff summary.
+- Prefer `unhwp` as the text/JSON fallback when it succeeds on the same
+  document.
+- Prefer `libreoffice_pdf` as the visual evidence fallback when it renders the
+  same document.
+- Do not choose `rhwp-only` as the default ingestion strategy until these
+  failures are resolved upstream or covered by a validated local fallback.
