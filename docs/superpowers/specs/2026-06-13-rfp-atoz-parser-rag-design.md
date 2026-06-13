@@ -61,6 +61,7 @@ Known local gaps:
 | Evaluation | Recall@k, MRR, nDCG, faithfulness, citation accuracy, no-answer accuracy | Core portfolio proof. Changes should be accepted by metrics, not demos alone. |
 | Observability | Langfuse, Phoenix, DeepEval/RAGAS, trace IDs | Turns failed retrieval/generation cases into inspectable engineering evidence. |
 | Agent/MCP service surface | LangGraph workflow, FastMCP tools/resources/prompts | Add after ingestion/retrieval quality is credible. Strong serviceization signal. |
+| Agentic RAG control | adaptive routing, corrective retrieval, retrieval grading, query decomposition, capped retry loops | Keep as a workflow layer. Do not make the core system agentic-always. |
 
 ## 3.1 Latest Candidate Additions
 
@@ -81,6 +82,64 @@ options to the watchlist:
 | PyMuPDF4LLM | Lightweight PDF to Markdown | Yes as cheap baseline | Fast, local, and simple for digital PDFs. Useful baseline even if not enough for complex layouts. |
 | MarkItDown | Lightweight multi-format to Markdown | Candidate only | Useful for clean office/PDF files, but less structure-aware than Docling or Marker. Keep as a cheap fallback candidate. |
 | ColQwen2.5 / Visual RAG Toolkit | Visual document retrieval | Stretch only | Stronger current visual retrieval direction than plain ColPali-only framing. Needs page rendering, GPU/MPS feasibility, and multi-vector index engineering. |
+
+## 3.2 Agentic RAG Decision
+
+Agentic RAG does not need a separate deep-dive lane before parser/retrieval
+quality improves. It should be recorded as a controlled workflow pattern, not as
+the main project identity.
+
+Use these patterns later if the evaluation set proves they help:
+
+- Adaptive RAG: route easy questions to single-shot RAG and hard questions to a
+  more expensive retrieval loop.
+- Corrective RAG: grade retrieved chunks, rewrite the query, and re-retrieve
+  when evidence is weak.
+- Query decomposition: split comparison or multi-condition search questions
+  into subqueries with explicit metadata and retrieval intent.
+- ReAct over documents: allow tool calls such as `search_rfps`,
+  `show_evidence`, and `compare_rfps`, but only inside bounded workflows.
+- Retrieval/answer grading: decide whether to answer, retry, abstain, or ask for
+  clarification.
+
+Do not build an agentic-always architecture. It adds cost and latency to easy
+questions and can hide weak parsing/retrieval behind more LLM calls.
+
+The target architecture is:
+
+```text
+question
+  -> route/classify
+  -> simple RAG OR agentic retrieval loop
+  -> retrieval grader
+  -> cited generation
+  -> answer/citation gate
+  -> trace/eval logging
+```
+
+Agentic RAG should only graduate from stretch to core if it improves hard-query
+quality on the frozen evaluation set.
+
+Required agentic metrics:
+
+- route accuracy by question type
+- mean loop iterations
+- retry rate
+- hard-query Recall@k / MRR improvement
+- answer faithfulness delta versus single-shot RAG
+- p95 latency and cost/query delta
+- abstain/no-answer accuracy
+- trajectory correctness for expected tool use
+
+Framework stance:
+
+- Use the existing LangGraph lane for stateful routing, retry loops, HITL, and
+  traceable graph execution.
+- Use FastMCP to expose proven RAG operations as typed tools/resources.
+- Consider LlamaIndex Workflows only if the retrieval pipeline becomes tightly
+  LlamaIndex-based.
+- Do not rewrite the project around CrewAI or AutoGen. They can be mentioned as
+  comparison/prototype tools, not core architecture.
 
 ## 4. Recommended Build Order
 
@@ -169,7 +228,9 @@ must be spot-checked for Korean procurement/legal wording and numeric tables.
 ### Phase 5: Agent and FastMCP Service Surface
 
 Do not lead with a broad autonomous agent. The agent layer should be a controlled
-workflow and service surface around the proven RAG core.
+workflow and service surface around the proven RAG core. The concrete agentic
+scope is adaptive/corrective RAG over typed retrieval tools, not a free-form
+multi-agent demo.
 
 Candidate FastMCP tools:
 
@@ -260,6 +321,10 @@ Research inputs used for this decision:
   LlamaParse, Mistral OCR, olmOCR, PyMuPDF4LLM, and MarkItDown.
 - Current visual retrieval candidates: ColPali, ColQwen2/2.5, ViDoRe V3,
   Qdrant/Weaviate multi-vector retrieval, and Visual RAG Toolkit.
+- Current agentic RAG patterns: adaptive routing, corrective retrieval,
+  query decomposition, retrieval grading, capped reflection loops, and
+  trajectory evaluation. These are useful as workflow controls after the parser
+  and retrieval baseline is credible.
 - RAG evaluation survey: RAG systems need evaluation across retrieval and
   generation components, including relevance, accuracy, and faithfulness.
 - Text-and-table retrieval benchmarks: hybrid retrieval plus neural reranking is
