@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import importlib
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 from rfp_rag.corpus import CorpusDocument
@@ -555,6 +558,98 @@ def test_run_rhwp_backend_enforces_process_timeout(tmp_path: Path) -> None:
     assert result.error_reason == "backend timeout after 3s"
     assert process_context.process is not None
     assert process_context.process.terminated is True
+
+
+def test_run_rhwp_backend_captures_worker_logs_without_parent_leak(
+    tmp_path: Path,
+    monkeypatch,
+    capfd,
+) -> None:
+    sample = BakeoffSample(
+        doc_id="doc:010",
+        csv_row_id="010",
+        source_path=str(tmp_path / "sample.hwp"),
+        source_suffix=".hwp",
+        project_name="사업",
+        issuer="기관",
+        csv_text_length=10,
+        prior_parse_status="parsed",
+        prior_text_length=100,
+        prior_ratio=10.0,
+        selection_reasons=["large_text"],
+    )
+    Path(sample.source_path).write_bytes(b"hwp")
+
+    class FakeDoc:
+        page_count = 1
+
+        def extract_text(self) -> str:
+            print("rhwp stdout noise")
+            print("rhwp stderr noise", file=sys.stderr)
+            os.write(1, b"rhwp fd stdout noise\n")
+            os.write(2, b"rhwp fd stderr noise\n")
+            return "본문"
+
+    class FakeRhwp:
+        @staticmethod
+        def parse(path: str):
+            assert path == sample.source_path
+            return FakeDoc()
+
+    class FakeQueue:
+        def __init__(self) -> None:
+            self.value = None
+
+        def put(self, value) -> None:
+            self.value = value
+
+        def get(self, timeout=None):
+            return self.value
+
+    class ImmediateProcess:
+        exitcode = None
+
+        def __init__(self, *, target, args) -> None:
+            self.target = target
+            self.args = args
+
+        def start(self) -> None:
+            self.target(*self.args)
+            self.exitcode = 0
+
+        def join(self, timeout=None) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return False
+
+    class ImmediateProcessContext:
+        def Queue(self):
+            return FakeQueue()
+
+        def Process(self, *, target, args):
+            return ImmediateProcess(target=target, args=args)
+
+    original_import_module = importlib.import_module
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name: FakeRhwp if name == "rhwp" else original_import_module(name),
+    )
+
+    result = run_rhwp_backend(
+        sample,
+        out_dir=tmp_path / "out",
+        timeout_seconds=5,
+        process_context=ImmediateProcessContext(),
+    )
+
+    captured = capfd.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    assert result.status == BAKEOFF_OK
+    assert result.stdout_length == len("rhwp stdout noise\nrhwp fd stdout noise")
+    assert result.stderr_length == len("rhwp stderr noise\nrhwp fd stderr noise")
 
 
 def test_run_unhwp_backend_uses_markdown_text_and_json_subcommands(tmp_path: Path, monkeypatch) -> None:

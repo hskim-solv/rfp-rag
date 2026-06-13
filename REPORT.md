@@ -751,8 +751,11 @@ Smoke result:
 
 Operational note: `rhwp` is promising for IR/render artifacts, but it now runs
 behind a child-process hard timeout so slow render/layout cases cannot block the
-whole bakeoff. It still needs failure handling and sample-level comparison
-against `unhwp` before becoming the default source parser.
+whole bakeoff. Child stdout/stderr is captured under
+`artifacts/parser_bakeoff/backends/rhwp/*.stdout.log` and `*.stderr.log`, keeping
+CLI JSON output machine-readable. It still needs failure handling and
+sample-level comparison against `unhwp` before becoming the default source
+parser.
 
 Fallback policy:
 

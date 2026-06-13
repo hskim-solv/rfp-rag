@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import contextlib
 import importlib
 import json
 import multiprocessing as mp
+import os
 import queue as queue_module
 import shutil
 import subprocess
+import sys
 import time
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
@@ -454,6 +457,35 @@ def _build_result_from_artifacts(
     )
 
 
+def _rhwp_log_paths(sample: BakeoffSample, out_dir: Path | str) -> tuple[Path, Path]:
+    backend_dir = Path(out_dir) / "backends" / "rhwp"
+    backend_dir.mkdir(parents=True, exist_ok=True)
+    stem = _safe_doc_stem(sample.doc_id)
+    return backend_dir / f"{stem}.stdout.log", backend_dir / f"{stem}.stderr.log"
+
+
+@contextlib.contextmanager
+def _redirect_standard_output(stdout_log: Any, stderr_log: Any):
+    sys.stdout.flush()
+    sys.stderr.flush()
+    saved_stdout_fd = os.dup(1)
+    saved_stderr_fd = os.dup(2)
+    try:
+        os.dup2(stdout_log.fileno(), 1)
+        os.dup2(stderr_log.fileno(), 2)
+        with contextlib.redirect_stdout(stdout_log), contextlib.redirect_stderr(stderr_log):
+            yield
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        stdout_log.flush()
+        stderr_log.flush()
+        os.dup2(saved_stdout_fd, 1)
+        os.dup2(saved_stderr_fd, 2)
+        os.close(saved_stdout_fd)
+        os.close(saved_stderr_fd)
+
+
 def _run_rhwp_backend_direct(
     sample: BakeoffSample,
     *,
@@ -521,7 +553,34 @@ def _run_rhwp_backend_direct(
 
 
 def _rhwp_backend_worker(sample: BakeoffSample, out_dir: str, result_queue: Any) -> None:
-    result_queue.put(asdict(_run_rhwp_backend_direct(sample, out_dir=out_dir)))
+    stdout_log_path, stderr_log_path = _rhwp_log_paths(sample, out_dir)
+    with stdout_log_path.open("w", encoding="utf-8", buffering=1) as stdout_log:
+        with stderr_log_path.open("w", encoding="utf-8", buffering=1) as stderr_log:
+            with _redirect_standard_output(stdout_log, stderr_log):
+                result = _run_rhwp_backend_direct(sample, out_dir=out_dir)
+    result_dict = asdict(result)
+    result_dict["stdout_length"] = len(_read_artifact_text(stdout_log_path))
+    result_dict["stderr_length"] = len(_read_artifact_text(stderr_log_path))
+    result_queue.put(result_dict)
+
+
+def _empty_rhwp_timeout_result(
+    sample: BakeoffSample,
+    *,
+    out_dir: Path | str,
+    elapsed_ms: int,
+    timeout_seconds: int,
+) -> BakeoffResult:
+    stdout_log_path, stderr_log_path = _rhwp_log_paths(sample, out_dir)
+    return _empty_result(
+        sample,
+        backend="rhwp",
+        status=BAKEOFF_TIMEOUT,
+        elapsed_ms=elapsed_ms,
+        stdout=_read_artifact_text(stdout_log_path),
+        stderr=_read_artifact_text(stderr_log_path),
+        error_reason=f"backend timeout after {timeout_seconds}s",
+    )
 
 
 def _run_rhwp_backend_with_timeout(
@@ -544,12 +603,11 @@ def _run_rhwp_backend_with_timeout(
             process.kill()
             process.join(5)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
-        return _empty_result(
+        return _empty_rhwp_timeout_result(
             sample,
-            backend="rhwp",
-            status=BAKEOFF_TIMEOUT,
+            out_dir=out_dir,
             elapsed_ms=elapsed_ms,
-            error_reason=f"backend timeout after {timeout_seconds}s",
+            timeout_seconds=timeout_seconds,
         )
     if process.exitcode != 0:
         elapsed_ms = int((time.perf_counter() - started) * 1000)
