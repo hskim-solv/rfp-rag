@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib
 import json
+import multiprocessing as mp
+import queue as queue_module
 import shutil
 import subprocess
 import time
@@ -452,11 +454,10 @@ def _build_result_from_artifacts(
     )
 
 
-def run_rhwp_backend(
+def _run_rhwp_backend_direct(
     sample: BakeoffSample,
     *,
     out_dir: Path | str,
-    timeout_seconds: int,
     rhwp_module: Any | None = None,
 ) -> BakeoffResult:
     started = time.perf_counter()
@@ -516,6 +517,77 @@ def run_rhwp_backend(
         rendered_svg_paths=svg_paths,
         rendered_png_paths=png_paths,
         page_count=getattr(doc, "page_count", None),
+    )
+
+
+def _rhwp_backend_worker(sample: BakeoffSample, out_dir: str, result_queue: Any) -> None:
+    result_queue.put(asdict(_run_rhwp_backend_direct(sample, out_dir=out_dir)))
+
+
+def _run_rhwp_backend_with_timeout(
+    sample: BakeoffSample,
+    *,
+    out_dir: Path | str,
+    timeout_seconds: int,
+    process_context: Any | None = None,
+) -> BakeoffResult:
+    started = time.perf_counter()
+    context = process_context if process_context is not None else mp.get_context("spawn")
+    result_queue = context.Queue()
+    process = context.Process(target=_rhwp_backend_worker, args=(sample, str(out_dir), result_queue))
+    process.start()
+    process.join(timeout_seconds)
+    if process.is_alive():
+        process.terminate()
+        process.join(5)
+        if process.is_alive():
+            process.kill()
+            process.join(5)
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend="rhwp",
+            status=BAKEOFF_TIMEOUT,
+            elapsed_ms=elapsed_ms,
+            error_reason=f"backend timeout after {timeout_seconds}s",
+        )
+    if process.exitcode != 0:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend="rhwp",
+            status=BAKEOFF_BACKEND_ERROR,
+            elapsed_ms=elapsed_ms,
+            error_reason=f"rhwp worker exited {process.exitcode}",
+        )
+    try:
+        return BakeoffResult(**result_queue.get(timeout=1))
+    except queue_module.Empty:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return _empty_result(
+            sample,
+            backend="rhwp",
+            status=BAKEOFF_BACKEND_ERROR,
+            elapsed_ms=elapsed_ms,
+            error_reason="rhwp worker produced no result",
+        )
+
+
+def run_rhwp_backend(
+    sample: BakeoffSample,
+    *,
+    out_dir: Path | str,
+    timeout_seconds: int,
+    rhwp_module: Any | None = None,
+    process_context: Any | None = None,
+) -> BakeoffResult:
+    if rhwp_module is not None:
+        return _run_rhwp_backend_direct(sample, out_dir=out_dir, rhwp_module=rhwp_module)
+    return _run_rhwp_backend_with_timeout(
+        sample,
+        out_dir=out_dir,
+        timeout_seconds=timeout_seconds,
+        process_context=process_context,
     )
 
 

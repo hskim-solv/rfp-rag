@@ -743,14 +743,16 @@ uv run --group dev python -m rfp_rag.run_parser_bakeoff \
 
 Smoke result:
 
-- `unhwp`: 2/2 `ok`, text length median 86,878.5, max elapsed 767 ms.
-- `libreoffice_pdf`: 2/2 `ok`, rendered PDF 2/2, max elapsed 9,245 ms.
-- `rhwp`: 1/2 `ok`, rendered PDF 1/2, max elapsed 31,932 ms; one sample failed
-  with `InvalidFile("DocInfo ... UTF-16 ... lone surrogate found")`.
+- `unhwp`: 2/2 `ok`, text length median 86,878.5, max elapsed 1,127 ms.
+- `libreoffice_pdf`: 2/2 `ok`, rendered PDF 2/2, max elapsed 15,884 ms.
+- `rhwp`: 0/2 `ok`; one sample failed with
+  `InvalidFile("DocInfo ... UTF-16 ... lone surrogate found")`, and one sample
+  was stopped by the 30-second hard timeout.
 
-Operational note: `rhwp` is promising for IR/render artifacts, but it still needs
-failure handling and sample-level comparison against `unhwp` before becoming the
-default source parser.
+Operational note: `rhwp` is promising for IR/render artifacts, but it now runs
+behind a child-process hard timeout so slow render/layout cases cannot block the
+whole bakeoff. It still needs failure handling and sample-level comparison
+against `unhwp` before becoming the default source parser.
 
 Fallback policy:
 

@@ -486,6 +486,77 @@ def test_run_rhwp_backend_writes_text_json_and_renders(tmp_path: Path) -> None:
     assert result.page_count == 2
 
 
+def test_run_rhwp_backend_enforces_process_timeout(tmp_path: Path) -> None:
+    sample = BakeoffSample(
+        doc_id="doc:010",
+        csv_row_id="010",
+        source_path=str(tmp_path / "sample.hwp"),
+        source_suffix=".hwp",
+        project_name="사업",
+        issuer="기관",
+        csv_text_length=10,
+        prior_parse_status="parsed",
+        prior_text_length=100,
+        prior_ratio=10.0,
+        selection_reasons=["large_text"],
+    )
+    Path(sample.source_path).write_bytes(b"hwp")
+
+    class NeverFinishingProcess:
+        exitcode = None
+        terminated = False
+        killed = False
+
+        def __init__(self, *, target, args) -> None:
+            self.target = target
+            self.args = args
+            self.alive = False
+
+        def start(self) -> None:
+            self.alive = True
+
+        def join(self, timeout=None) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return self.alive
+
+        def terminate(self) -> None:
+            self.terminated = True
+            self.alive = False
+            self.exitcode = -15
+
+        def kill(self) -> None:
+            self.killed = True
+            self.alive = False
+            self.exitcode = -9
+
+    class FakeProcessContext:
+        def __init__(self) -> None:
+            self.process: NeverFinishingProcess | None = None
+
+        def Queue(self):
+            return object()
+
+        def Process(self, *, target, args):
+            self.process = NeverFinishingProcess(target=target, args=args)
+            return self.process
+
+    process_context = FakeProcessContext()
+
+    result = run_rhwp_backend(
+        sample,
+        out_dir=tmp_path / "out",
+        timeout_seconds=3,
+        process_context=process_context,
+    )
+
+    assert result.status == BAKEOFF_TIMEOUT
+    assert result.error_reason == "backend timeout after 3s"
+    assert process_context.process is not None
+    assert process_context.process.terminated is True
+
+
 def test_run_unhwp_backend_uses_markdown_text_and_json_subcommands(tmp_path: Path, monkeypatch) -> None:
     sample = BakeoffSample(
         doc_id="doc:011",
