@@ -829,48 +829,49 @@ The manifest records `text_backend_attempts`, `content_source`, and
 `source_quality` so CSV fallback is explicitly degraded evidence, not silently
 claimed as original-source parsing.
 
-Smoke commands:
+Full verification commands:
 
 ```bash
 uv run --group dev python -m rfp_rag.parse_sources \
-  --data /tmp/rfp_10_hwp.csv \
+  --data data/data_list.csv \
   --files data/files \
-  --out /tmp/rfp_parsed_10_fallback \
-  --timeout-seconds 30
+  --out artifacts/parsed_docs_fallback \
+  --timeout-seconds 60
 
 uv run --group dev python -m rfp_rag.run_parser_quality_eval \
-  --parsed-dir /tmp/rfp_parsed_10_fallback \
-  --out /tmp/rfp_quality_10_fallback \
+  --parsed-dir artifacts/parsed_docs_fallback \
+  --out artifacts/parser_quality_fallback \
   --quality-threshold 0.6
 ```
 
-Parse smoke result:
+Parse result:
 
 | metric | value |
 |---|---|
-| row_count | `10` |
-| parse_status_counts | `{"parsed": 10}` |
-| parser_backend_counts | `{"unhwp": 10}` |
-| content_source_counts | `{"source_hwp_text": 10}` |
-| source_quality_counts | `{"source_parsed": 10}` |
+| row_count | `100` |
+| parse_status_counts | `{"parsed": 100}` |
+| parser_backend_counts | `{"pymupdf": 4, "unhwp": 96}` |
+| content_source_counts | `{"source_hwp_text": 96, "source_pdf_text": 4}` |
+| source_quality_counts | `{"source_parsed": 100}` |
 | degraded_csv_fallback_count | `0` |
 | page_citation_coverage | `1.0` |
-| visual_backend_counts | `{"libreoffice_pdf": 10}` |
-| page_text_backend_counts | `{"pymupdf": 10}` |
-| text_length median | `63663.0` |
-| parsed_to_csv_length_ratio median | `22.8524` |
+| visual_backend_counts | `{"libreoffice_pdf": 96, "source_pdf": 4}` |
+| page_text_backend_counts | `{"pymupdf": 100}` |
+| text_length median | `66505.5` |
+| parsed_to_csv_length_ratio median | `24.7905` |
 
-Parser quality smoke result:
+Parser quality result:
 
-- `average_quality_score=0.9735`
-- `doc_count=10`
+- `average_quality_score=0.9733`
+- `doc_count=100`
 - `low_quality_doc_count=0`
 - `page_citation_coverage=1.0`
 - risk flags:
-  `chart_or_drawing_signal_present=10`, `visual_content_present=10`,
-  `visual_content_unparsed=10`
+  `chart_or_drawing_signal_present=100`, `visual_content_present=100`,
+  `visual_content_unparsed=100`
 
 Interpretation: HWP text extraction and page citation evidence are now much
-stronger than the previous hwp5txt-only parser lane on this 10-document smoke.
-However, visual/chart semantics are still not parsed; the next parser-quality
-step should evaluate OCR/VLM or structured asset extraction for those cases.
+stronger than the previous hwp5txt-only parser lane. Native PDF rows are also
+source-parsed with PyMuPDF instead of being marked unsupported. However,
+visual/chart semantics are still not parsed; the next parser-quality step should
+evaluate OCR/VLM or structured asset extraction for those cases.

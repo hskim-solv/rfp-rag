@@ -42,7 +42,9 @@ records the selected `parser_backend`, `content_source`, `source_quality`, and
 `text_backend_attempts` for each document, so degraded CSV fallback is visible
 instead of being treated as original-source parsing. LibreOffice HWP-to-PDF
 conversion plus PyMuPDF page text remains the page-level citation evidence path.
-Use `--no-page-citation` to skip this evidence pass in constrained local checks.
+Native `.pdf` files are parsed directly with PyMuPDF for source text and copied
+as source-PDF citation evidence. Use `--no-page-citation` to skip this evidence
+pass in constrained local checks.
 
 ## Parser/render bakeoff
 

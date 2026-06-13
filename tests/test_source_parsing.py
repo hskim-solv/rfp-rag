@@ -280,8 +280,36 @@ def test_parse_document_source_missing_path_is_recorded(tmp_path: Path) -> None:
     assert missing_file_result.error_reason == "missing source file"
 
 
-def test_parse_document_source_unsupported_pdf_is_recorded(tmp_path: Path) -> None:
+def test_parse_document_source_pdf_uses_pymupdf_text(tmp_path: Path) -> None:
     source = tmp_path / "sample.pdf"
+    source.write_bytes(b"fake")
+
+    def pdf_page_text_extractor(pdf_path: Path):
+        assert pdf_path == source
+        return [(1, "1페이지 본문"), (2, "2페이지 본문")]
+
+    result = parse_document_source(
+        _doc(source),
+        pdf_page_text_extractor=pdf_page_text_extractor,
+    )
+
+    assert result.status == PARSE_PARSED
+    assert result.parser_backend == "pymupdf"
+    assert result.text == "1페이지 본문\n2페이지 본문"
+    assert result.content_source == "source_pdf_text"
+    assert result.source_quality == "source_parsed"
+    assert result.attempts == [
+        {
+            "backend": "pymupdf",
+            "status": PARSE_PARSED,
+            "text_length": len("1페이지 본문\n2페이지 본문"),
+            "error_reason": None,
+        }
+    ]
+
+
+def test_parse_document_source_unsupported_suffix_is_recorded(tmp_path: Path) -> None:
+    source = tmp_path / "sample.docx"
     source.write_bytes(b"fake")
 
     result = parse_document_source(_doc(source))
@@ -289,7 +317,7 @@ def test_parse_document_source_unsupported_pdf_is_recorded(tmp_path: Path) -> No
     assert result.status == PARSE_UNSUPPORTED_SUFFIX
     assert result.parser_backend is None
     assert result.text == ""
-    assert result.error_reason == "unsupported suffix: .pdf"
+    assert result.error_reason == "unsupported suffix: .docx"
 
 
 def test_build_parse_record_writes_text_for_parsed_result(tmp_path: Path) -> None:

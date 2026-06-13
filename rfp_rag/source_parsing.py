@@ -401,6 +401,66 @@ def parse_hwp_file_with_fallbacks(
     return _with_fallback_metadata(result, attempts=attempts)
 
 
+def parse_pdf_file(
+    path: Path | str,
+    *,
+    pdf_page_text_extractor: PdfPageTextExtractor | None = None,
+) -> ParseResult:
+    source = Path(path)
+    try:
+        extractor = pdf_page_text_extractor or _extract_pdf_pages_with_pymupdf
+        pages = extractor(source)
+    except ImportError:
+        result = ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=PYMUPDF_BACKEND,
+            text="",
+            stderr="",
+            error_reason="pymupdf not installed",
+        )
+        return _with_fallback_metadata(result, attempts=[_attempt_record(result)])
+    except Exception as exc:
+        result = ParseResult(
+            status=PARSE_PARSER_ERROR,
+            parser_backend=PYMUPDF_BACKEND,
+            text="",
+            stderr="",
+            error_reason=str(exc),
+        )
+        return _with_fallback_metadata(result, attempts=[_attempt_record(result)])
+
+    text = "\n".join(
+        text
+        for _, text in (
+            (_page, _normalize_text(page_text)) for _page, page_text in pages
+        )
+        if text
+    )
+    if not text:
+        result = ParseResult(
+            status=PARSE_EMPTY_TEXT,
+            parser_backend=PYMUPDF_BACKEND,
+            text="",
+            stderr="",
+            error_reason="empty pdf page text",
+        )
+        return _with_fallback_metadata(result, attempts=[_attempt_record(result)])
+
+    result = ParseResult(
+        status=PARSE_PARSED,
+        parser_backend=PYMUPDF_BACKEND,
+        text=text,
+        stderr="",
+        error_reason=None,
+    )
+    return _with_fallback_metadata(
+        result,
+        attempts=[_attempt_record(result)],
+        content_source="source_pdf_text",
+        source_quality="source_parsed",
+    )
+
+
 def parse_document_source(
     doc: CorpusDocument,
     timeout_seconds: int = 60,
@@ -440,6 +500,11 @@ def parse_document_source(
             timeout_seconds=timeout_seconds,
             runner=runner,
             executable_finder=executable_finder,
+            pdf_page_text_extractor=pdf_page_text_extractor,
+        )
+    if suffix == ".pdf":
+        return parse_pdf_file(
+            source,
             pdf_page_text_extractor=pdf_page_text_extractor,
         )
     return ParseResult(
