@@ -24,7 +24,6 @@ UNHWP_BACKEND = "unhwp"
 LIBREOFFICE_PDF_BACKEND = "libreoffice_pdf"
 PYMUPDF_BACKEND = "pymupdf"
 CONVERTED_PDF_TEXT_BACKEND = "converted_pdf_pymupdf"
-CSV_TEXT_DEGRADED_BACKEND = "csv_text_degraded"
 
 
 @dataclass(frozen=True)
@@ -329,7 +328,6 @@ def parse_hwp_file_with_fallbacks(
     path: Path | str,
     *,
     doc_id: str,
-    csv_text: str = "",
     out_dir: Path | str | None = None,
     timeout_seconds: int = 60,
     runner: Runner = subprocess.run,
@@ -379,23 +377,6 @@ def parse_hwp_file_with_fallbacks(
             attempts=attempts,
             content_source="converted_pdf_text",
             source_quality="source_converted_pdf",
-        )
-
-    csv_fallback_text = _normalize_text(csv_text)
-    if csv_fallback_text:
-        csv_result = ParseResult(
-            status=PARSE_PARSED,
-            parser_backend=CSV_TEXT_DEGRADED_BACKEND,
-            text=csv_fallback_text,
-            stderr="",
-            error_reason=None,
-        )
-        attempts.append(_attempt_record(csv_result))
-        return _with_fallback_metadata(
-            csv_result,
-            attempts=attempts,
-            content_source="csv_text_fallback",
-            source_quality="degraded_csv_text",
         )
 
     return _with_fallback_metadata(result, attempts=attempts)
@@ -495,7 +476,6 @@ def parse_document_source(
         return parse_hwp_file_with_fallbacks(
             source,
             doc_id=doc.doc_id,
-            csv_text=doc.text,
             out_dir=out_dir,
             timeout_seconds=timeout_seconds,
             runner=runner,
@@ -740,7 +720,8 @@ def build_parse_record(
         text_path = str(target)
 
     text_length = len(result.text)
-    csv_text_length = len(doc.text or "")
+    registry_text = str(doc.metadata.get("텍스트") or doc.text or "")
+    csv_text_length = len(registry_text)
     ratio = text_length / csv_text_length if text_length and csv_text_length else None
     content_source = (
         result.content_source
@@ -866,9 +847,6 @@ def summarize_records(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "page_citation_coverage": page_citation_available_count / row_count
         if row_count
         else 0.0,
-        "degraded_csv_fallback_count": sum(
-            1 for row in rows if row.get("parser_backend") == CSV_TEXT_DEGRADED_BACKEND
-        ),
         "empty_parse_count": parse_status_counts.get(PARSE_EMPTY_TEXT, 0),
         "text_length": _distribution(row.get("text_length") for row in rows),
         "csv_text_length": _distribution(row.get("csv_text_length") for row in rows),

@@ -120,7 +120,6 @@ def test_parse_hwp_file_with_fallbacks_prefers_unhwp(tmp_path: Path) -> None:
     result = source_parsing.parse_hwp_file_with_fallbacks(
         source,
         doc_id="doc:000",
-        csv_text="CSV 본문",
         out_dir=tmp_path / "parsed",
         timeout_seconds=5,
         runner=runner,
@@ -162,7 +161,6 @@ def test_parse_hwp_file_with_fallbacks_uses_hwp5txt_after_unhwp_failure(
     result = source_parsing.parse_hwp_file_with_fallbacks(
         source,
         doc_id="doc:000",
-        csv_text="CSV 본문",
         out_dir=tmp_path / "parsed",
         timeout_seconds=5,
         runner=runner,
@@ -180,7 +178,7 @@ def test_parse_hwp_file_with_fallbacks_uses_hwp5txt_after_unhwp_failure(
     assert result.attempts[1]["status"] == PARSE_PARSED
 
 
-def test_parse_hwp_file_with_fallbacks_uses_converted_pdf_before_csv(
+def test_parse_hwp_file_with_fallbacks_uses_converted_pdf_after_text_backends(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "sample.hwp"
@@ -209,7 +207,6 @@ def test_parse_hwp_file_with_fallbacks_uses_converted_pdf_before_csv(
     result = source_parsing.parse_hwp_file_with_fallbacks(
         source,
         doc_id="doc:000",
-        csv_text="CSV 본문",
         out_dir=out_dir,
         timeout_seconds=5,
         runner=runner,
@@ -229,7 +226,9 @@ def test_parse_hwp_file_with_fallbacks_uses_converted_pdf_before_csv(
     ]
 
 
-def test_parse_hwp_file_with_fallbacks_uses_degraded_csv_last(tmp_path: Path) -> None:
+def test_parse_hwp_file_with_fallbacks_returns_parser_failure_without_csv_fallback(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "sample.hwp"
     source.write_bytes(b"fake")
 
@@ -248,23 +247,21 @@ def test_parse_hwp_file_with_fallbacks_uses_degraded_csv_last(tmp_path: Path) ->
     result = source_parsing.parse_hwp_file_with_fallbacks(
         source,
         doc_id="doc:000",
-        csv_text="CSV fallback 본문",
         out_dir=tmp_path / "parsed",
         timeout_seconds=5,
         runner=runner,
         executable_finder=finder,
     )
 
-    assert result.status == PARSE_PARSED
-    assert result.parser_backend == "csv_text_degraded"
-    assert result.text == "CSV fallback 본문"
-    assert result.content_source == "csv_text_fallback"
-    assert result.source_quality == "degraded_csv_text"
+    assert result.status == PARSE_PARSER_ERROR
+    assert result.parser_backend == "converted_pdf_pymupdf"
+    assert result.text == ""
+    assert result.content_source is None
+    assert result.source_quality is None
     assert [attempt["backend"] for attempt in result.attempts or []] == [
         "unhwp",
         "hwp5txt",
         "converted_pdf_pymupdf",
-        "csv_text_degraded",
     ]
 
 
@@ -362,31 +359,31 @@ def test_build_parse_record_preserves_backend_attempts_and_quality(
             "error_reason": "unhwp exited 2",
         },
         {
-            "backend": "csv_text_degraded",
+            "backend": "converted_pdf_pymupdf",
             "status": PARSE_PARSED,
-            "text_length": len("CSV fallback 본문"),
+            "text_length": len("PDF 변환 본문"),
             "error_reason": None,
         },
     ]
 
     record = build_parse_record(
-        _doc(source, text="CSV fallback 본문"),
+        _doc(source, text="CSV 메타데이터 텍스트"),
         ParseResult(
             status=PARSE_PARSED,
-            parser_backend="csv_text_degraded",
-            text="CSV fallback 본문",
+            parser_backend="converted_pdf_pymupdf",
+            text="PDF 변환 본문",
             stderr="",
             error_reason=None,
             attempts=attempts,
-            content_source="csv_text_fallback",
-            source_quality="degraded_csv_text",
+            content_source="converted_pdf_text",
+            source_quality="source_converted_pdf",
         ),
         tmp_path / "parsed",
     )
 
-    assert record["parser_backend"] == "csv_text_degraded"
-    assert record["content_source"] == "csv_text_fallback"
-    assert record["source_quality"] == "degraded_csv_text"
+    assert record["parser_backend"] == "converted_pdf_pymupdf"
+    assert record["content_source"] == "converted_pdf_text"
+    assert record["source_quality"] == "source_converted_pdf"
     assert record["text_backend_attempts"] == attempts
 
 

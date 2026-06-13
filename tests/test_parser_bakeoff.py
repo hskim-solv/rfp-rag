@@ -84,12 +84,17 @@ def test_bakeoff_status_constants_are_exact() -> None:
 
 def test_select_bakeoff_samples_includes_failures_large_ratio_median_and_pdfs() -> None:
     docs = [_doc(i) for i in range(14)] + [_doc(100 + i, ".pdf") for i in range(4)]
-    manifest = [_manifest_row(i, text_length=1000 + i, ratio=1.0 + i / 10) for i in range(14)]
+    manifest = [
+        _manifest_row(i, text_length=1000 + i, ratio=1.0 + i / 10) for i in range(14)
+    ]
     manifest[2] = _manifest_row(2, status="empty_text", text_length=0, ratio=None)
     manifest[3] = _manifest_row(3, status="parser_error", text_length=0, ratio=None)
     manifest[10] = _manifest_row(10, text_length=9000, ratio=20.0)
     manifest[11] = _manifest_row(11, text_length=8000, ratio=30.0)
-    manifest.extend(_manifest_row(100 + i, status="unsupported_suffix", suffix=".pdf", ratio=None) for i in range(4))
+    manifest.extend(
+        _manifest_row(100 + i, status="unsupported_suffix", suffix=".pdf", ratio=None)
+        for i in range(4)
+    )
 
     samples = select_bakeoff_samples(docs, manifest, hwp_limit=6, include_pdfs=True)
 
@@ -195,11 +200,55 @@ def test_summarize_bakeoff_results_counts_statuses_and_backend_metrics() -> None
         BAKEOFF_OK: 1,
         BAKEOFF_UNSUPPORTED_FORMAT: 1,
     }
-    assert summary["backend_status_counts"]["hwp5txt"] == {BAKEOFF_OK: 1, BAKEOFF_UNSUPPORTED_FORMAT: 1}
+    assert summary["backend_status_counts"]["hwp5txt"] == {
+        BAKEOFF_OK: 1,
+        BAKEOFF_UNSUPPORTED_FORMAT: 1,
+    }
     assert summary["backend_success_rate"]["hwp5txt"] == 0.5
     assert summary["backend_success_rate"]["rhwp"] == 0.0
     assert summary["text_length_by_backend"]["hwp5txt"]["max"] == 100
-    assert summary["top_error_reasons"] == {"rhwp not installed": 1, "unsupported suffix: .pdf": 1}
+    assert summary["top_error_reasons"] == {
+        "rhwp not installed": 1,
+        "unsupported suffix: .pdf": 1,
+    }
+
+
+def test_summarize_bakeoff_results_does_not_recommend_csv_text_fallback() -> None:
+    result = BakeoffResult(
+        doc_id="doc:000",
+        source_path="a.hwp",
+        source_suffix=".hwp",
+        backend="libreoffice_pdf",
+        status=BAKEOFF_OK,
+        elapsed_ms=10,
+        text_path=None,
+        markdown_path=None,
+        html_path=None,
+        json_path=None,
+        rendered_pdf_path="out/a.pdf",
+        rendered_svg_count=0,
+        rendered_png_count=0,
+        asset_count=0,
+        text_length=0,
+        markdown_length=0,
+        html_length=0,
+        json_length=0,
+        table_count=0,
+        image_count=0,
+        page_count=3,
+        stdout_length=0,
+        stderr_length=0,
+        error_reason=None,
+    )
+
+    summary = summarize_bakeoff_results([result])
+
+    assert summary["ingestion_recommendation"]["default_text_backend"] is None
+    assert (
+        summary["ingestion_recommendation"]["strategy"]
+        == "no_text+libreoffice_pdf_visual"
+    )
+    assert "csv" not in summary["ingestion_recommendation"]["strategy"]
 
 
 def test_summarize_bakeoff_results_recommends_fallbacks_for_failed_rhwp() -> None:
@@ -330,7 +379,9 @@ def test_summarize_bakeoff_results_recommends_default_ingestion_backends() -> No
     }
 
 
-def test_write_bakeoff_artifacts_writes_samples_results_and_summary(tmp_path: Path) -> None:
+def test_write_bakeoff_artifacts_writes_samples_results_and_summary(
+    tmp_path: Path,
+) -> None:
     samples = [
         BakeoffSample(
             doc_id="doc:000",
@@ -380,11 +431,24 @@ def test_write_bakeoff_artifacts_writes_samples_results_and_summary(tmp_path: Pa
     assert (tmp_path / "bakeoff" / "samples.json").is_file()
     assert (tmp_path / "bakeoff" / "results.jsonl").is_file()
     assert (tmp_path / "bakeoff" / "summary.json").is_file()
-    assert json.loads((tmp_path / "bakeoff" / "samples.json").read_text(encoding="utf-8"))[0]["doc_id"] == "doc:000"
-    assert json.loads((tmp_path / "bakeoff" / "results.jsonl").read_text(encoding="utf-8").splitlines()[0])[
-        "backend"
-    ] == "hwp5txt"
-    assert json.loads((tmp_path / "bakeoff" / "summary.json").read_text(encoding="utf-8")) == summary
+    assert (
+        json.loads((tmp_path / "bakeoff" / "samples.json").read_text(encoding="utf-8"))[
+            0
+        ]["doc_id"]
+        == "doc:000"
+    )
+    assert (
+        json.loads(
+            (tmp_path / "bakeoff" / "results.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()[0]
+        )["backend"]
+        == "hwp5txt"
+    )
+    assert (
+        json.loads((tmp_path / "bakeoff" / "summary.json").read_text(encoding="utf-8"))
+        == summary
+    )
 
 
 def test_run_command_backend_writes_text_output(tmp_path: Path) -> None:
@@ -405,7 +469,9 @@ def test_run_command_backend_writes_text_output(tmp_path: Path) -> None:
     )
 
     def runner(*args, **kwargs):
-        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=" 본문\n", stderr="warn")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout=" 본문\n", stderr="warn"
+        )
 
     result = run_command_backend(
         sample,
@@ -420,11 +486,15 @@ def test_run_command_backend_writes_text_output(tmp_path: Path) -> None:
     assert result.status == BAKEOFF_OK
     assert result.text_length == len("본문")
     assert result.stderr_length == len("warn")
-    assert result.text_path == str(tmp_path / "out" / "backends" / "hwp5txt" / "doc_000.txt")
+    assert result.text_path == str(
+        tmp_path / "out" / "backends" / "hwp5txt" / "doc_000.txt"
+    )
     assert Path(result.text_path).read_text(encoding="utf-8") == "본문\n"
 
 
-def test_find_executable_prefers_path_then_extra_candidates(tmp_path: Path, monkeypatch) -> None:
+def test_find_executable_prefers_path_then_extra_candidates(
+    tmp_path: Path, monkeypatch
+) -> None:
     from rfp_rag import parser_bakeoff
 
     extra = tmp_path / "tool"
@@ -433,11 +503,20 @@ def test_find_executable_prefers_path_then_extra_candidates(tmp_path: Path, monk
 
     monkeypatch.setattr(parser_bakeoff.shutil, "which", lambda name: None)
 
-    assert parser_bakeoff._find_executable("missing", extra_candidates=[extra]) == str(extra)
-    assert parser_bakeoff._find_executable("missing", extra_candidates=[tmp_path / "absent"]) is None
+    assert parser_bakeoff._find_executable("missing", extra_candidates=[extra]) == str(
+        extra
+    )
+    assert (
+        parser_bakeoff._find_executable(
+            "missing", extra_candidates=[tmp_path / "absent"]
+        )
+        is None
+    )
 
 
-def test_build_result_from_artifacts_counts_lengths_tables_images_and_renders(tmp_path: Path) -> None:
+def test_build_result_from_artifacts_counts_lengths_tables_images_and_renders(
+    tmp_path: Path,
+) -> None:
     sample = BakeoffSample(
         doc_id="doc:009",
         csv_row_id="009",
@@ -459,7 +538,9 @@ def test_build_result_from_artifacts_counts_lengths_tables_images_and_renders(tm
     svg_path = backend_dir / "doc_009-1.svg"
     png_path = backend_dir / "doc_009-1.png"
     text_path.write_text("본문", encoding="utf-8")
-    json_path.write_text('{"tables": [{"cells": []}], "images": ["a"]}', encoding="utf-8")
+    json_path.write_text(
+        '{"tables": [{"cells": []}], "images": ["a"]}', encoding="utf-8"
+    )
     pdf_path.write_bytes(b"%PDF")
     svg_path.write_text("<svg><image /></svg>", encoding="utf-8")
     png_path.write_bytes(b"png")
@@ -525,7 +606,9 @@ def test_run_rhwp_backend_writes_text_json_and_renders(tmp_path: Path) -> None:
             path.write_text("<svg></svg>", encoding="utf-8")
             return [str(path)]
 
-        def export_png(self, output_dir: str, *, prefix: str | None = None) -> list[str]:
+        def export_png(
+            self, output_dir: str, *, prefix: str | None = None
+        ) -> list[str]:
             path = Path(output_dir) / f"{prefix}-1.png"
             path.write_bytes(b"png")
             return [str(path)]
@@ -715,7 +798,9 @@ def test_run_rhwp_backend_captures_worker_logs_without_parent_leak(
     assert result.stderr_length == len("rhwp stderr noise\nrhwp fd stderr noise")
 
 
-def test_run_unhwp_backend_uses_markdown_text_and_json_subcommands(tmp_path: Path, monkeypatch) -> None:
+def test_run_unhwp_backend_uses_markdown_text_and_json_subcommands(
+    tmp_path: Path, monkeypatch
+) -> None:
     sample = BakeoffSample(
         doc_id="doc:011",
         csv_row_id="011",
@@ -735,16 +820,29 @@ def test_run_unhwp_backend_uses_markdown_text_and_json_subcommands(tmp_path: Pat
     def fake_run(command, **kwargs):
         calls.append(command)
         if command[1] == "markdown":
-            return subprocess.CompletedProcess(command, 0, stdout="# 제목\n\n| A | B |\n|---|---|\n| 1 | 2 |", stderr="")
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="# 제목\n\n| A | B |\n|---|---|\n| 1 | 2 |",
+                stderr="",
+            )
         if command[1] == "text":
-            return subprocess.CompletedProcess(command, 0, stdout="제목\n1 2", stderr="")
+            return subprocess.CompletedProcess(
+                command, 0, stdout="제목\n1 2", stderr=""
+            )
         if command[1] == "json":
-            return subprocess.CompletedProcess(command, 0, stdout='{"tables": [{"rows": []}], "images": []}', stderr="")
+            return subprocess.CompletedProcess(
+                command, 0, stdout='{"tables": [{"rows": []}], "images": []}', stderr=""
+            )
         return subprocess.CompletedProcess(command, 2, stdout="", stderr="bad")
 
     from rfp_rag import parser_bakeoff
 
-    monkeypatch.setattr(parser_bakeoff, "_find_executable", lambda name, extra_candidates=(): "/tmp/unhwp")
+    monkeypatch.setattr(
+        parser_bakeoff,
+        "_find_executable",
+        lambda name, extra_candidates=(): "/tmp/unhwp",
+    )
 
     result = run_unhwp_backend(
         sample,
@@ -765,7 +863,9 @@ def test_run_unhwp_backend_uses_markdown_text_and_json_subcommands(tmp_path: Pat
     assert result.table_count >= 1
 
 
-def test_run_libreoffice_pdf_backend_records_converted_pdf(tmp_path: Path, monkeypatch) -> None:
+def test_run_libreoffice_pdf_backend_records_converted_pdf(
+    tmp_path: Path, monkeypatch
+) -> None:
     sample = BakeoffSample(
         doc_id="doc:012",
         csv_row_id="012",
@@ -786,7 +886,9 @@ def test_run_libreoffice_pdf_backend_records_converted_pdf(tmp_path: Path, monke
     monkeypatch.setattr(
         parser_bakeoff,
         "_find_executable",
-        lambda name, extra_candidates=(): "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        lambda name, extra_candidates=(): (
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+        ),
     )
 
     def fake_run(command, **kwargs):
@@ -807,7 +909,9 @@ def test_run_libreoffice_pdf_backend_records_converted_pdf(tmp_path: Path, monke
     assert Path(result.rendered_pdf_path).name == "doc_012.pdf"
 
 
-def test_run_backend_for_sample_routes_hwpkit_as_optional_hwp_backend(tmp_path: Path) -> None:
+def test_run_backend_for_sample_routes_hwpkit_as_optional_hwp_backend(
+    tmp_path: Path,
+) -> None:
     sample = BakeoffSample(
         doc_id="doc:013",
         csv_row_id="013",
@@ -822,7 +926,9 @@ def test_run_backend_for_sample_routes_hwpkit_as_optional_hwp_backend(tmp_path: 
         selection_reasons=["large_text"],
     )
 
-    result = run_backend_for_sample(sample, backend="hwpkit", out_dir=tmp_path / "out", timeout_seconds=5)
+    result = run_backend_for_sample(
+        sample, backend="hwpkit", out_dir=tmp_path / "out", timeout_seconds=5
+    )
 
     assert result.status in {BAKEOFF_MISSING_DEPENDENCY, BAKEOFF_BACKEND_ERROR}
     assert result.backend == "hwpkit"
@@ -862,8 +968,12 @@ def test_run_command_backend_counts_html_tables_and_images(tmp_path: Path) -> No
     )
 
     assert result.status == BAKEOFF_OK
-    assert result.html_path == str(tmp_path / "out" / "backends" / "hwp5html" / "doc_006.html")
-    assert result.html_length == len("<html><table></table><TABLE></TABLE><img src='a'></html>")
+    assert result.html_path == str(
+        tmp_path / "out" / "backends" / "hwp5html" / "doc_006.html"
+    )
+    assert result.html_length == len(
+        "<html><table></table><TABLE></TABLE><img src='a'></html>"
+    )
     assert result.table_count == 2
     assert result.image_count == 1
 
@@ -884,7 +994,9 @@ def test_run_command_backend_records_errors_without_files(tmp_path: Path) -> Non
     )
 
     def runner(*args, **kwargs):
-        return subprocess.CompletedProcess(args=args[0], returncode=2, stdout="", stderr="boom")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=2, stdout="", stderr="boom"
+        )
 
     result = run_command_backend(
         sample,
@@ -918,7 +1030,9 @@ def test_run_command_backend_records_empty_output(tmp_path: Path) -> None:
     )
 
     def runner(*args, **kwargs):
-        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=" \n", stderr="")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout=" \n", stderr=""
+        )
 
     result = run_command_backend(
         sample,
@@ -935,7 +1049,9 @@ def test_run_command_backend_records_empty_output(tmp_path: Path) -> None:
     assert result.text_path is None
 
 
-def test_run_command_backend_records_timeout_and_missing_dependency(tmp_path: Path) -> None:
+def test_run_command_backend_records_timeout_and_missing_dependency(
+    tmp_path: Path,
+) -> None:
     sample = BakeoffSample(
         doc_id="doc:002",
         csv_row_id="002",
@@ -951,7 +1067,9 @@ def test_run_command_backend_records_timeout_and_missing_dependency(tmp_path: Pa
     )
 
     def timeout_runner(*args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd=args[0], timeout=3, output="partial", stderr="slow")
+        raise subprocess.TimeoutExpired(
+            cmd=args[0], timeout=3, output="partial", stderr="slow"
+        )
 
     timeout_result = run_command_backend(
         sample,
@@ -1010,7 +1128,9 @@ def test_run_optional_import_backend_missing_dependency(tmp_path: Path) -> None:
     assert result.error_reason == "definitely_missing_rhwp_module not installed"
 
 
-def test_run_backend_for_sample_routes_hwp5txt_and_rejects_pdf(tmp_path: Path, monkeypatch) -> None:
+def test_run_backend_for_sample_routes_hwp5txt_and_rejects_pdf(
+    tmp_path: Path, monkeypatch
+) -> None:
     hwp_sample = BakeoffSample(
         doc_id="doc:004",
         csv_row_id="004",
@@ -1038,7 +1158,16 @@ def test_run_backend_for_sample_routes_hwp5txt_and_rejects_pdf(tmp_path: Path, m
         selection_reasons=["pdf_reference"],
     )
 
-    def fake_command(sample, *, backend, command, out_dir, timeout_seconds, output_kind, runner=subprocess.run):
+    def fake_command(
+        sample,
+        *,
+        backend,
+        command,
+        out_dir,
+        timeout_seconds,
+        output_kind,
+        runner=subprocess.run,
+    ):
         return BakeoffResult(
             doc_id=sample.doc_id,
             source_path=sample.source_path,
@@ -1068,15 +1197,21 @@ def test_run_backend_for_sample_routes_hwp5txt_and_rejects_pdf(tmp_path: Path, m
 
     monkeypatch.setattr("rfp_rag.parser_bakeoff.run_command_backend", fake_command)
 
-    hwp_result = run_backend_for_sample(hwp_sample, backend="hwp5txt", out_dir=tmp_path / "out", timeout_seconds=5)
-    pdf_result = run_backend_for_sample(pdf_sample, backend="hwp5txt", out_dir=tmp_path / "out", timeout_seconds=5)
+    hwp_result = run_backend_for_sample(
+        hwp_sample, backend="hwp5txt", out_dir=tmp_path / "out", timeout_seconds=5
+    )
+    pdf_result = run_backend_for_sample(
+        pdf_sample, backend="hwp5txt", out_dir=tmp_path / "out", timeout_seconds=5
+    )
 
     assert hwp_result.status == BAKEOFF_OK
     assert pdf_result.status == BAKEOFF_UNSUPPORTED_FORMAT
     assert pdf_result.error_reason == "hwp5txt supports only .hwp"
 
 
-def test_run_backend_for_sample_rejects_pdf_for_optional_hwp_backends(tmp_path: Path) -> None:
+def test_run_backend_for_sample_rejects_pdf_for_optional_hwp_backends(
+    tmp_path: Path,
+) -> None:
     pdf_sample = BakeoffSample(
         doc_id="doc:007",
         csv_row_id="007",
@@ -1092,12 +1227,16 @@ def test_run_backend_for_sample_rejects_pdf_for_optional_hwp_backends(tmp_path: 
     )
 
     for backend in ["rhwp", "unhwp", "hwpxkit"]:
-        result = run_backend_for_sample(pdf_sample, backend=backend, out_dir=tmp_path / "out", timeout_seconds=5)
+        result = run_backend_for_sample(
+            pdf_sample, backend=backend, out_dir=tmp_path / "out", timeout_seconds=5
+        )
         assert result.status == BAKEOFF_UNSUPPORTED_FORMAT
         assert result.error_reason == f"{backend} supports only .hwp/.hwpx"
 
 
-def test_run_backend_for_sample_routes_hwp5odt_as_xml_text_artifact(tmp_path: Path, monkeypatch) -> None:
+def test_run_backend_for_sample_routes_hwp5odt_as_xml_text_artifact(
+    tmp_path: Path, monkeypatch
+) -> None:
     hwp_sample = BakeoffSample(
         doc_id="doc:008",
         csv_row_id="008",
@@ -1113,8 +1252,19 @@ def test_run_backend_for_sample_routes_hwp5odt_as_xml_text_artifact(tmp_path: Pa
     )
     calls: list[dict[str, object]] = []
 
-    def fake_command(sample, *, backend, command, out_dir, timeout_seconds, output_kind, runner=subprocess.run):
-        calls.append({"backend": backend, "command": command, "output_kind": output_kind})
+    def fake_command(
+        sample,
+        *,
+        backend,
+        command,
+        out_dir,
+        timeout_seconds,
+        output_kind,
+        runner=subprocess.run,
+    ):
+        calls.append(
+            {"backend": backend, "command": command, "output_kind": output_kind}
+        )
         return BakeoffResult(
             doc_id=sample.doc_id,
             source_path=sample.source_path,
@@ -1144,7 +1294,9 @@ def test_run_backend_for_sample_routes_hwp5odt_as_xml_text_artifact(tmp_path: Pa
 
     monkeypatch.setattr("rfp_rag.parser_bakeoff.run_command_backend", fake_command)
 
-    result = run_backend_for_sample(hwp_sample, backend="hwp5odt", out_dir=tmp_path / "out", timeout_seconds=5)
+    result = run_backend_for_sample(
+        hwp_sample, backend="hwp5odt", out_dir=tmp_path / "out", timeout_seconds=5
+    )
 
     assert result.status == BAKEOFF_OK
     assert calls == [

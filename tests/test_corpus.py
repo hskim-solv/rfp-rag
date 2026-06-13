@@ -30,7 +30,9 @@ def _write_csv(path: Path, rows: list[dict[str, str]]) -> None:
             writer.writerow(row)
 
 
-def test_load_corpus_pins_row_ids_and_resolves_unicode_filenames(tmp_path: Path) -> None:
+def test_load_corpus_pins_row_ids_and_resolves_unicode_filenames(
+    tmp_path: Path,
+) -> None:
     files_dir = tmp_path / "files"
     files_dir.mkdir()
     nfc_name = "기관_한글제안요청서.hwp"
@@ -61,7 +63,8 @@ def test_load_corpus_pins_row_ids_and_resolves_unicode_filenames(tmp_path: Path)
 
     assert [doc.csv_row_id for doc in docs] == ["000"]
     assert docs[0].doc_id == "doc:000"
-    assert docs[0].text == "본문 텍스트"
+    assert docs[0].text == ""
+    assert docs[0].metadata["텍스트"] == "본문 텍스트"
     assert docs[0].metadata["budget_krw_int"] == 130000000
     assert docs[0].metadata["notice_round_int"] == 0
     assert docs[0].metadata["published_at_iso"] == "2024-10-04T13:51:23"

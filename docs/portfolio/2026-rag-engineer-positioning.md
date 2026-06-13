@@ -81,27 +81,26 @@ Resume bullet:
 > PDF/SVG/PNG rendering to quantify table, image, and layout fidelity before
 > source-aware indexing.
 
-### 2. Source-Aware Indexing With Fallback
+### 2. Source-First Indexing Without CSV Body Fallback
 
 Why it matters:
 
-Senior RAG candidates should show source selection and fallback discipline, not
-silently swap corpus text.
+Senior RAG candidates should show source-lineage discipline and fail-closed
+indexing, not silently swap source-document text with registry text.
 
 Project evidence to produce:
 
-- `--source csv`
-- `--source parsed`
-- `--source parsed-with-csv-fallback`
-- index manifest records source mode, parser manifest, parsed count, fallback
-  count, empty parse count, and unsupported count
-- compare retrieval metrics by source mode
+- `--parse-manifest artifacts/parsed_docs/manifest.jsonl`
+- index manifest records `text_source=parsed`, parser manifest path, parsed
+  count, and parser lineage copied onto chunks
+- indexing fails when parsed source text is unavailable
+- compare retrieval metrics after parser quality changes
 
 Resume bullet:
 
-> Implemented source-aware indexing with CSV fallback, recording parser manifest
-> lineage and measuring retrieval quality deltas between CSV text, parsed HWP
-> text, and parsed-with-fallback modes.
+> Implemented source-first indexing over parsed HWP/PDF artifacts, recording
+> parser manifest lineage on every chunk and failing closed when source text is
+> unavailable so CSV remains metadata-only.
 
 ### 3. Hybrid Retrieval And Reranking Ablation
 
@@ -174,7 +173,7 @@ Resume bullet:
 ## Recommended Roadmap Order
 
 1. Parser/render bakeoff
-2. Source-aware indexing with CSV fallback
+2. Source-first indexing without CSV body fallback
 3. Section-aware chunking
 4. Reranker and retrieval ablation
 5. Evaluation set expansion and regression gate
@@ -187,7 +186,7 @@ retrieval strategy selection, answer verification, and HITL report approval.
 
 ## Final Portfolio Sentence
 
-> Built a source-aware RAG system for Korean public RFP documents, including HWP
-> parser/render bakeoff, CSV fallback indexing, section-aware chunking, hybrid
+> Built a source-first RAG system for Korean public RFP documents, including HWP
+> parser/render bakeoff, parsed-artifact indexing, section-aware chunking, hybrid
 > retrieval, reranking, visual citation evidence, and a labeled evaluation gate
 > for Recall@k, MRR, faithfulness, citation accuracy, latency, and cost.

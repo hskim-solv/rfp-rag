@@ -77,7 +77,11 @@ class BakeoffResult:
 
 def load_parse_manifest(path: Path | str) -> list[dict[str, Any]]:
     manifest_path = Path(path)
-    return [json.loads(line) for line in manifest_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line)
+        for line in manifest_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _manifest_by_doc_id(rows: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -98,10 +102,16 @@ def _sample_from_doc(
         source_suffix=suffix,
         project_name=str(doc.metadata.get("project_name") or ""),
         issuer=str(doc.metadata.get("issuer") or ""),
-        csv_text_length=len(doc.text or ""),
-        prior_parse_status=None if manifest_row is None else str(manifest_row.get("parse_status") or ""),
-        prior_text_length=None if manifest_row is None else int(manifest_row.get("text_length") or 0),
-        prior_ratio=None if manifest_row is None else manifest_row.get("parsed_to_csv_length_ratio"),
+        csv_text_length=len(str(doc.metadata.get("텍스트") or doc.text or "")),
+        prior_parse_status=None
+        if manifest_row is None
+        else str(manifest_row.get("parse_status") or ""),
+        prior_text_length=None
+        if manifest_row is None
+        else int(manifest_row.get("text_length") or 0),
+        prior_ratio=None
+        if manifest_row is None
+        else manifest_row.get("parsed_to_csv_length_ratio"),
         selection_reasons=sorted(reasons),
     )
 
@@ -120,12 +130,16 @@ def select_bakeoff_samples(
     hwp_docs = [
         doc
         for doc in doc_list
-        if str(doc.metadata.get("resolved_filesystem_path") or "").lower().endswith(".hwp")
+        if str(doc.metadata.get("resolved_filesystem_path") or "")
+        .lower()
+        .endswith(".hwp")
     ]
     pdf_docs = [
         doc
         for doc in doc_list
-        if str(doc.metadata.get("resolved_filesystem_path") or "").lower().endswith(".pdf")
+        if str(doc.metadata.get("resolved_filesystem_path") or "")
+        .lower()
+        .endswith(".pdf")
     ]
 
     for doc in hwp_docs:
@@ -152,7 +166,11 @@ def select_bakeoff_samples(
     )[:4]:
         reasons_by_doc[doc.doc_id].add("high_ratio")
 
-    parsed_hwp_docs = [doc for doc in hwp_docs if manifest.get(doc.doc_id, {}).get("parse_status") == "parsed"]
+    parsed_hwp_docs = [
+        doc
+        for doc in hwp_docs
+        if manifest.get(doc.doc_id, {}).get("parse_status") == "parsed"
+    ]
     parsed_hwp_docs = sorted(
         parsed_hwp_docs,
         key=lambda item: int(manifest.get(item.doc_id, {}).get("text_length") or 0),
@@ -164,7 +182,13 @@ def select_bakeoff_samples(
 
     selected_hwp_ids = sorted(reasons_by_doc)
     if len(selected_hwp_ids) > hwp_limit:
-        priority = {"empty_text": 0, "parser_error": 0, "large_text": 1, "high_ratio": 2, "median_text": 3}
+        priority = {
+            "empty_text": 0,
+            "parser_error": 0,
+            "large_text": 1,
+            "high_ratio": 2,
+            "median_text": 3,
+        }
 
         def rank(doc_id: str) -> tuple[int, str]:
             reasons = reasons_by_doc[doc_id]
@@ -175,18 +199,24 @@ def select_bakeoff_samples(
 
     selected_docs = {doc.doc_id: doc for doc in hwp_docs}
     samples = [
-        _sample_from_doc(selected_docs[doc_id], manifest.get(doc_id), reasons_by_doc[doc_id])
+        _sample_from_doc(
+            selected_docs[doc_id], manifest.get(doc_id), reasons_by_doc[doc_id]
+        )
         for doc_id in selected_hwp_ids
     ]
 
     if include_pdfs:
         for doc in sorted(pdf_docs, key=lambda item: item.doc_id):
-            samples.append(_sample_from_doc(doc, manifest.get(doc.doc_id), {"pdf_reference"}))
+            samples.append(
+                _sample_from_doc(doc, manifest.get(doc.doc_id), {"pdf_reference"})
+            )
 
     return sorted(samples, key=lambda sample: sample.doc_id)
 
 
-def _distribution(values: Iterable[int | float | None]) -> dict[str, int | float | None]:
+def _distribution(
+    values: Iterable[int | float | None],
+) -> dict[str, int | float | None]:
     numbers = [value for value in values if value is not None]
     if not numbers:
         return {"min": None, "median": None, "max": None}
@@ -197,7 +227,9 @@ def _safe_doc_stem(doc_id: str) -> str:
     return doc_id.replace(":", "_")
 
 
-def _find_executable(name: str, *, extra_candidates: Iterable[Path | str] = ()) -> str | None:
+def _find_executable(
+    name: str, *, extra_candidates: Iterable[Path | str] = ()
+) -> str | None:
     found = shutil.which(name)
     if found:
         return found
@@ -272,7 +304,13 @@ def run_command_backend(
 ) -> BakeoffResult:
     started = time.perf_counter()
     try:
-        completed = runner(command, capture_output=True, text=True, timeout=timeout_seconds, check=False)
+        completed = runner(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
     except subprocess.TimeoutExpired as exc:
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         return _empty_result(
@@ -329,7 +367,13 @@ def run_command_backend(
 
     backend_dir = Path(out_dir) / "backends" / backend
     backend_dir.mkdir(parents=True, exist_ok=True)
-    suffix_by_kind = {"text": ".txt", "markdown": ".md", "html": ".html", "json": ".json", "xml": ".xml"}
+    suffix_by_kind = {
+        "text": ".txt",
+        "markdown": ".md",
+        "html": ".html",
+        "json": ".json",
+        "xml": ".xml",
+    }
     extension = suffix_by_kind.get(output_kind, ".txt")
     output_path = backend_dir / f"{_safe_doc_stem(sample.doc_id)}{extension}"
     output_path.write_text(stdout.rstrip("\n") + "\n", encoding="utf-8")
@@ -395,8 +439,15 @@ def run_optional_import_backend(
 
 def _count_markers(*values: str) -> tuple[int, int]:
     joined = "\n".join(values).lower()
-    table_count = joined.count("<table") + joined.count('"tables"') + joined.count("'tables'")
-    image_count = joined.count("<img") + joined.count("<image") + joined.count('"images"') + joined.count("'images'")
+    table_count = (
+        joined.count("<table") + joined.count('"tables"') + joined.count("'tables'")
+    )
+    image_count = (
+        joined.count("<img")
+        + joined.count("<image")
+        + joined.count('"images"')
+        + joined.count("'images'")
+    )
     return table_count, image_count
 
 
@@ -430,7 +481,9 @@ def _build_result_from_artifacts(
     svg_paths = list(rendered_svg_paths)
     svg_values = [_read_artifact_text(path) for path in svg_paths]
     png_paths = list(rendered_png_paths)
-    table_count, image_count = _count_markers(text_value, markdown_value, html_value, json_value, *svg_values)
+    table_count, image_count = _count_markers(
+        text_value, markdown_value, html_value, json_value, *svg_values
+    )
     stdout_text = _stringify(stdout)
     stderr_text = _stringify(stderr)
     return BakeoffResult(
@@ -477,7 +530,10 @@ def _redirect_standard_output(stdout_log: Any, stderr_log: Any):
     try:
         os.dup2(stdout_log.fileno(), 1)
         os.dup2(stderr_log.fileno(), 2)
-        with contextlib.redirect_stdout(stdout_log), contextlib.redirect_stderr(stderr_log):
+        with (
+            contextlib.redirect_stdout(stdout_log),
+            contextlib.redirect_stderr(stderr_log),
+        ):
             yield
     finally:
         sys.stdout.flush()
@@ -498,9 +554,16 @@ def _run_rhwp_backend_direct(
 ) -> BakeoffResult:
     started = time.perf_counter()
     try:
-        module = rhwp_module if rhwp_module is not None else importlib.import_module("rhwp")
+        module = (
+            rhwp_module if rhwp_module is not None else importlib.import_module("rhwp")
+        )
     except ImportError:
-        return _empty_result(sample, backend="rhwp", status=BAKEOFF_MISSING_DEPENDENCY, error_reason="rhwp not installed")
+        return _empty_result(
+            sample,
+            backend="rhwp",
+            status=BAKEOFF_MISSING_DEPENDENCY,
+            error_reason="rhwp not installed",
+        )
 
     backend_dir = Path(out_dir) / "backends" / "rhwp"
     backend_dir.mkdir(parents=True, exist_ok=True)
@@ -525,13 +588,23 @@ def _run_rhwp_backend_direct(
             )
         text_path.write_text(text.rstrip("\n") + "\n", encoding="utf-8")
         if hasattr(doc, "to_ir_json"):
-            json_path.write_text(doc.to_ir_json(indent=2).rstrip("\n") + "\n", encoding="utf-8")
+            json_path.write_text(
+                doc.to_ir_json(indent=2).rstrip("\n") + "\n", encoding="utf-8"
+            )
         rendered_pdf_path = None
         if hasattr(doc, "export_pdf"):
             doc.export_pdf(str(pdf_path))
             rendered_pdf_path = pdf_path if pdf_path.is_file() else None
-        svg_paths = [Path(path) for path in doc.export_svg(str(render_dir), prefix=stem)] if hasattr(doc, "export_svg") else []
-        png_paths = [Path(path) for path in doc.export_png(str(render_dir), prefix=stem)] if hasattr(doc, "export_png") else []
+        svg_paths = (
+            [Path(path) for path in doc.export_svg(str(render_dir), prefix=stem)]
+            if hasattr(doc, "export_svg")
+            else []
+        )
+        png_paths = (
+            [Path(path) for path in doc.export_png(str(render_dir), prefix=stem)]
+            if hasattr(doc, "export_png")
+            else []
+        )
     except Exception as exc:
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         return _empty_result(
@@ -556,7 +629,9 @@ def _run_rhwp_backend_direct(
     )
 
 
-def _rhwp_backend_worker(sample: BakeoffSample, out_dir: str, result_queue: Any) -> None:
+def _rhwp_backend_worker(
+    sample: BakeoffSample, out_dir: str, result_queue: Any
+) -> None:
     stdout_log_path, stderr_log_path = _rhwp_log_paths(sample, out_dir)
     with stdout_log_path.open("w", encoding="utf-8", buffering=1) as stdout_log:
         with stderr_log_path.open("w", encoding="utf-8", buffering=1) as stderr_log:
@@ -595,9 +670,13 @@ def _run_rhwp_backend_with_timeout(
     process_context: Any | None = None,
 ) -> BakeoffResult:
     started = time.perf_counter()
-    context = process_context if process_context is not None else mp.get_context("spawn")
+    context = (
+        process_context if process_context is not None else mp.get_context("spawn")
+    )
     result_queue = context.Queue()
-    process = context.Process(target=_rhwp_backend_worker, args=(sample, str(out_dir), result_queue))
+    process = context.Process(
+        target=_rhwp_backend_worker, args=(sample, str(out_dir), result_queue)
+    )
     process.start()
     process.join(timeout_seconds)
     if process.is_alive():
@@ -644,7 +723,9 @@ def run_rhwp_backend(
     process_context: Any | None = None,
 ) -> BakeoffResult:
     if rhwp_module is not None:
-        return _run_rhwp_backend_direct(sample, out_dir=out_dir, rhwp_module=rhwp_module)
+        return _run_rhwp_backend_direct(
+            sample, out_dir=out_dir, rhwp_module=rhwp_module
+        )
     return _run_rhwp_backend_with_timeout(
         sample,
         out_dir=out_dir,
@@ -660,15 +741,26 @@ def run_unhwp_backend(
     timeout_seconds: int,
     runner: Runner = subprocess.run,
 ) -> BakeoffResult:
-    executable = _find_executable("unhwp", extra_candidates=[Path.home() / ".cargo" / "bin" / "unhwp"])
+    executable = _find_executable(
+        "unhwp", extra_candidates=[Path.home() / ".cargo" / "bin" / "unhwp"]
+    )
     if executable is None:
-        return _empty_result(sample, backend="unhwp", status=BAKEOFF_MISSING_DEPENDENCY, error_reason="unhwp not found")
+        return _empty_result(
+            sample,
+            backend="unhwp",
+            status=BAKEOFF_MISSING_DEPENDENCY,
+            error_reason="unhwp not found",
+        )
 
     started = time.perf_counter()
     outputs: dict[str, str] = {}
     stderr_parts: list[str] = []
     try:
-        for kind, subcommand in [("markdown", "markdown"), ("text", "text"), ("json", "json")]:
+        for kind, subcommand in [
+            ("markdown", "markdown"),
+            ("text", "text"),
+            ("json", "json"),
+        ]:
             completed = runner(
                 [executable, subcommand, sample.source_path],
                 capture_output=True,
@@ -717,7 +809,9 @@ def run_unhwp_backend(
     markdown_path = backend_dir / f"{stem}.md"
     text_path = backend_dir / f"{stem}.txt"
     json_path = backend_dir / f"{stem}.json"
-    markdown_path.write_text(outputs.get("markdown", "").rstrip("\n") + "\n", encoding="utf-8")
+    markdown_path.write_text(
+        outputs.get("markdown", "").rstrip("\n") + "\n", encoding="utf-8"
+    )
     text_path.write_text(outputs.get("text", "").rstrip("\n") + "\n", encoding="utf-8")
     if outputs.get("json"):
         json_path.write_text(outputs["json"].rstrip("\n") + "\n", encoding="utf-8")
@@ -761,7 +855,15 @@ def run_libreoffice_pdf_backend(
     work_dir.mkdir(parents=True, exist_ok=True)
     try:
         completed = runner(
-            [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(work_dir), sample.source_path],
+            [
+                soffice,
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(work_dir),
+                sample.source_path,
+            ],
             capture_output=True,
             text=True,
             timeout=timeout_seconds,
@@ -828,7 +930,10 @@ def run_backend_for_sample(
             status=BAKEOFF_UNSUPPORTED_FORMAT,
             error_reason=f"{backend} supports only .hwp",
         )
-    if backend in {"rhwp", "unhwp", "hwpxkit", "hwpkit"} and suffix not in {".hwp", ".hwpx"}:
+    if backend in {"rhwp", "unhwp", "hwpxkit", "hwpkit"} and suffix not in {
+        ".hwp",
+        ".hwpx",
+    }:
         return _empty_result(
             sample,
             backend=backend,
@@ -871,15 +976,25 @@ def run_backend_for_sample(
             output_kind="xml",
         )
     if backend == "rhwp":
-        return run_rhwp_backend(sample, out_dir=out_dir, timeout_seconds=timeout_seconds)
+        return run_rhwp_backend(
+            sample, out_dir=out_dir, timeout_seconds=timeout_seconds
+        )
     if backend == "unhwp":
-        return run_unhwp_backend(sample, out_dir=out_dir, timeout_seconds=timeout_seconds)
+        return run_unhwp_backend(
+            sample, out_dir=out_dir, timeout_seconds=timeout_seconds
+        )
     if backend == "hwpxkit":
-        return run_optional_import_backend(sample, backend=backend, module_name="hwpxkit", out_dir=out_dir)
+        return run_optional_import_backend(
+            sample, backend=backend, module_name="hwpxkit", out_dir=out_dir
+        )
     if backend == "hwpkit":
-        return run_optional_import_backend(sample, backend=backend, module_name="hwpkit", out_dir=out_dir)
+        return run_optional_import_backend(
+            sample, backend=backend, module_name="hwpkit", out_dir=out_dir
+        )
     if backend == "libreoffice_pdf":
-        return run_libreoffice_pdf_backend(sample, out_dir=out_dir, timeout_seconds=timeout_seconds)
+        return run_libreoffice_pdf_backend(
+            sample, out_dir=out_dir, timeout_seconds=timeout_seconds
+        )
     return _empty_result(
         sample,
         backend=backend,
@@ -896,7 +1011,11 @@ def _fallback_recommendations(rows: list[BakeoffResult]) -> list[dict[str, Any]]
     recommendations: list[dict[str, Any]] = []
     for doc_id, doc_rows in sorted(by_doc.items()):
         failed_rhwp = next(
-            (row for row in doc_rows if row.backend == "rhwp" and row.status != BAKEOFF_OK),
+            (
+                row
+                for row in doc_rows
+                if row.backend == "rhwp" and row.status != BAKEOFF_OK
+            ),
             None,
         )
         if failed_rhwp is None:
@@ -904,7 +1023,9 @@ def _fallback_recommendations(rows: list[BakeoffResult]) -> list[dict[str, Any]]
         text_fallback = next(
             (
                 row
-                for row in sorted(doc_rows, key=lambda item: (item.backend != "unhwp", item.backend))
+                for row in sorted(
+                    doc_rows, key=lambda item: (item.backend != "unhwp", item.backend)
+                )
                 if row.status == BAKEOFF_OK and row.text_length > 0
             ),
             None,
@@ -912,7 +1033,10 @@ def _fallback_recommendations(rows: list[BakeoffResult]) -> list[dict[str, Any]]
         visual_fallback = next(
             (
                 row
-                for row in sorted(doc_rows, key=lambda item: (item.backend != "libreoffice_pdf", item.backend))
+                for row in sorted(
+                    doc_rows,
+                    key=lambda item: (item.backend != "libreoffice_pdf", item.backend),
+                )
                 if row.status == BAKEOFF_OK and row.rendered_pdf_path
             ),
             None,
@@ -922,10 +1046,18 @@ def _fallback_recommendations(rows: list[BakeoffResult]) -> list[dict[str, Any]]
                 "doc_id": doc_id,
                 "failed_backend": "rhwp",
                 "failed_error_reason": failed_rhwp.error_reason,
-                "text_fallback_backend": None if text_fallback is None else text_fallback.backend,
-                "text_fallback_text_length": 0 if text_fallback is None else text_fallback.text_length,
-                "visual_fallback_backend": None if visual_fallback is None else visual_fallback.backend,
-                "visual_fallback_rendered_pdf_path": None if visual_fallback is None else visual_fallback.rendered_pdf_path,
+                "text_fallback_backend": None
+                if text_fallback is None
+                else text_fallback.backend,
+                "text_fallback_text_length": 0
+                if text_fallback is None
+                else text_fallback.text_length,
+                "visual_fallback_backend": None
+                if visual_fallback is None
+                else visual_fallback.backend,
+                "visual_fallback_rendered_pdf_path": None
+                if visual_fallback is None
+                else visual_fallback.rendered_pdf_path,
             }
         )
     return recommendations
@@ -937,9 +1069,7 @@ def _eligible_backends(
     predicate: Callable[[BakeoffResult], bool],
 ) -> list[str]:
     eligible = {
-        row.backend
-        for row in rows
-        if row.status == BAKEOFF_OK and predicate(row)
+        row.backend for row in rows if row.status == BAKEOFF_OK and predicate(row)
     }
     return [backend for backend in priority if backend in eligible]
 
@@ -960,9 +1090,10 @@ def _ingestion_recommendation(rows: list[BakeoffResult]) -> dict[str, Any]:
     experimental_backends = [
         backend
         for backend in EXPERIMENTAL_BACKENDS
-        if any(row.backend == backend for row in rows) and backend not in {default_text_backend, default_visual_backend}
+        if any(row.backend == backend for row in rows)
+        and backend not in {default_text_backend, default_visual_backend}
     ]
-    text_part = default_text_backend or "csv"
+    text_part = default_text_backend or "no"
     visual_part = default_visual_backend or "no_visual"
     return {
         "default_text_backend": default_text_backend,
@@ -991,7 +1122,10 @@ def summarize_bakeoff_results(results: Iterable[BakeoffResult]) -> dict[str, Any
             for backend, backend_rows in sorted(by_backend.items())
         },
         "backend_success_rate": {
-            backend: (sum(1 for row in backend_rows if row.status == BAKEOFF_OK) / len(backend_rows))
+            backend: (
+                sum(1 for row in backend_rows if row.status == BAKEOFF_OK)
+                / len(backend_rows)
+            )
             for backend, backend_rows in sorted(by_backend.items())
         },
         "elapsed_ms_by_backend": {

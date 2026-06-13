@@ -1,7 +1,7 @@
 [project]
 name = "rfp-rag"
 version = "0.2.0"
-description = "CSV-first RFP RAG baseline with LangChain real provider quality lane"
+description = "Source-first RFP RAG baseline with parsed HWP/PDF artifacts and LangChain real provider quality lane"
 requires-python = ">=3.11"
 dependencies = [
     "langchain-core>=1.3",

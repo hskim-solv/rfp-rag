@@ -1,6 +1,6 @@
 # rfp-rag
 
-입찰 RFP 100건 CSV(`텍스트` 컬럼)를 source of truth로 쓰는 RAG + LangGraph agent. 상세 명세·명령어는 README.md, 사이클 결과·보정 근거는 REPORT.md.
+입찰 RFP 100건의 원본 HWP/PDF 파싱 artifacts를 RAG 본문 source of truth로 쓰는 RAG + LangGraph agent. CSV는 사업명·발주기관·예산·마감일·파일명 metadata registry로만 사용한다. 상세 명세·명령어는 README.md, 사이클 결과·보정 근거는 REPORT.md.
 
 ## Lanes & gates (핵심 불변식)
 
@@ -8,7 +8,7 @@
 - **real lane은 비용 발생** (풀 사이클 ~$5, judge가 지배적): `--provider real_openai` 평가, `pytest -m real`, real 인덱스 빌드는 사용자가 명시적으로 요청할 때만 실행한다.
 - 게이트 위치: `artifacts/eval/metrics.json` → `offline_scaffold_complete` / `artifacts/eval_real/metrics.json` → `rag_quality_complete` / `artifacts/eval_agent/metrics.json` → `agent_lane_complete`. 실행·판정 절차는 `/eval-lane` 스킬 참조.
 - **artifacts/ 는 게이트 증거**: 손으로 편집하지 않는다. 항상 파이프라인 재실행으로 갱신한다 (gitignore 대상이지만 로컬 증거로 보존).
-- `--min-score` 는 lane별 보정값 (offline 0.15 / real 0.47). 변경하려면 `metrics.json`의 `score_distribution` 근거를 REPORT.md에 기록한다.
+- `--min-score` 는 lane별 보정값 (source-first offline 0.23 / real 0.47). 변경하려면 `metrics.json`의 `score_distribution` 근거를 REPORT.md에 기록한다.
 
 ## Architecture
 
@@ -29,3 +29,11 @@
 - 도구·라이브러리·아키텍처를 채택(또는 의도적 미채택)할 때는 **비교를 선행**하고 `docs/adr/NNNN-<slug>.md`로 남긴다: 선택 기준(가중치), 검증된 비교표, 선택 이유·탈락 사유, 재검토 조건 (템플릿: `docs/adr/TEMPLATE.md`).
 - 비교표의 사실은 출처로 검증하고 미검증 항목은 "(미검증)" 표기. 사실상 표준인 trivial 선택은 "기본값 채택 + 한 줄 사유"로 충분.
 - trade-off가 비자명한 최종 선택은 단독 결정하지 않고 사용자에게 옵션을 제시한다.
+
+## Agentic hardening
+
+- handoff_contract: `/eval-lane`, `eval-gate-analyst`, `langgraph-reviewer` handoff는 destination, input payload, input filter, return contract를 명시한 경우에만 실행한다.
+- guardrail tripwires: destructive artifact 삭제, `real_openai` 비용 실행, external-production 호출, credential 접근, scope broadening은 실행 직전 범위와 증거 파일을 확인한다.
+- sensitive_trace_policy: raw model/tool inputs, 원문 RFP, API 응답, 개인정보는 persistent capture 대상에서 제외하고 redaction된 요약과 metrics 근거만 남긴다.
+- skill_quality_contract: repo-local skill은 trigger-focused frontmatter, progressive disclosure, lack of surprise, negative/non-trigger 조건을 포함한다.
+- memory daemons, telemetry, cloud/API-key 서비스, vector DB, background worker는 storage location, retention, user/project/entity scope가 명시되기 전에는 추가하지 않는다.

@@ -197,7 +197,7 @@ Portfolio signal:
 The order should stay retrieval-first, then agent/service:
 
 1. parser/render bakeoff
-2. source-aware indexing with CSV fallback
+2. source-first indexing without CSV body fallback
 3. section-aware chunking
 4. hybrid retrieval + reranking ablation
 5. agentic RAG workflow

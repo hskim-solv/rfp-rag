@@ -488,7 +488,7 @@ def evaluate_index(
     provider: str = "fake_offline",
     top_k: int = 5,
     max_docs: int = 10,
-    # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
+    # Source-first offline lane is calibrated at 0.23 (see score_distribution in metrics.json);
     # pass min_score explicitly per lane (real lane calibrates in its own run).
     min_score: float = 0.05,
     retrieval_mode: str = RETRIEVAL_VECTOR,
@@ -661,7 +661,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--provider", default=None)
     parser.add_argument("--top-k", default=5, type=int)
     parser.add_argument("--max-docs", default=10, type=int)
-    # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
+    # Source-first offline lane is calibrated at 0.23 (see score_distribution in metrics.json);
     # pass --min-score explicitly per lane.
     parser.add_argument("--min-score", default=0.05, type=float)
     parser.add_argument(
