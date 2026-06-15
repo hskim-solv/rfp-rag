@@ -27,7 +27,21 @@ def parsed_manifest_factory(tmp_path: Path) -> Callable[[Path], Path]:
             for idx, row in enumerate(reader):
                 doc_id = f"doc:{idx:03d}"
                 text_path = text_dir / f"doc_{idx:03d}.txt"
-                text_path.write_text(row.get("텍스트", ""), encoding="utf-8")
+                source_text = "\n".join(
+                    [
+                        "Ⅰ",
+                        "사업 안내",
+                        "1",
+                        "사업개요",
+                        row.get("텍스트", ""),
+                        "Ⅳ",
+                        "제안안내 사항",
+                        "2",
+                        "제안서 평가방법",
+                        "평가 기준은 기술능력평가와 가격평가로 구성한다.",
+                    ]
+                )
+                text_path.write_text(source_text, encoding="utf-8")
                 suffix = Path(row.get("파일명", "")).suffix.lower()
                 rows.append(
                     {

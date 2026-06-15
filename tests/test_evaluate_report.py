@@ -39,30 +39,40 @@ def test_evaluate_index_writes_offline_contract_artifacts(
         provider="fake_offline",  # legacy alias, normalized to the offline lane
         top_k=5,
         max_docs=3,
-        min_score=0.23,  # calibrated offline cutoff; rationale recorded in score_distribution
+        min_score=0.34,  # calibrated offline cutoff; rationale recorded in score_distribution
     )
 
     assert metrics["retrieval_mode"] == "vector"
+    assert metrics["reranker"] == "none"
+    assert metrics["rerank_candidate_k"] == 5
     saved_metrics = json.loads((eval_dir / "metrics.json").read_text(encoding="utf-8"))
     assert saved_metrics["retrieval_mode"] == "vector"
+    assert saved_metrics["reranker"] == "none"
+    assert saved_metrics["rerank_candidate_k"] == 5
     report = (eval_dir / "report.md").read_text(encoding="utf-8")
     assert "- retrieval_mode: vector" in report
+    assert "- reranker: none" in report
+    assert "- rerank_candidate_k: 5" in report
     assert metrics["provider_lane"] == "offline"
-    assert metrics["min_score"] == 0.23
+    assert metrics["min_score"] == 0.34
     assert metrics["evaluation_valid"] is True
     assert metrics["error_rate"] == 0.0
     assert metrics["offline_scaffold_complete"] is True
     assert metrics["rag_quality_complete"] is False
     assert metrics["thresholds_applied"] is False
     assert metrics["query_set_counts"]["abstention"] == 10
+    assert metrics["query_set_counts"]["section_lookup"] >= 1
     assert metrics["score_distribution"]["abstention_top_scores"]
     assert metrics["score_distribution"]["in_domain_top_scores"]
     assert metrics["aggregate"]["citation_presence"] >= 0.95
     assert metrics["aggregate"]["citation_validity"] >= 0.90
     assert metrics["aggregate"]["abstention_pass"] >= 0.90
+    assert metrics["aggregate"]["section_hit_rate"] is not None
+    assert "section_lookup" in metrics["per_type"]
     for name in [
         "golden_metadata.jsonl",
         "curated_text_questions.jsonl",
+        "section_lookup_questions.jsonl",
         "abstention_questions.jsonl",
         "metrics.json",
         "predictions.jsonl",
@@ -72,7 +82,7 @@ def test_evaluate_index_writes_offline_contract_artifacts(
         assert (eval_dir / name).exists(), name
     contract = json.loads((eval_dir / "contract.json").read_text(encoding="utf-8"))
     assert saved_metrics == metrics
-    assert contract["contract_version"] == "rfp-rag-offline-v1"
+    assert contract["contract_version"] == "rfp-rag-offline-v2"
     assert contract["quality_semantics"]["offline"]["claims_semantic_quality"] is False
 
 
@@ -91,7 +101,7 @@ def test_evaluate_index_writes_hybrid_retrieval_mode_artifacts(
         provider="fake_offline",
         top_k=5,
         max_docs=3,
-        min_score=0.23,
+        min_score=0.34,
         retrieval_mode="hybrid",
     )
 
@@ -116,7 +126,7 @@ def test_evaluate_index_rejects_unknown_retrieval_mode_before_queries(
     def fail_answer_query(*args: object, **kwargs: object) -> dict[str, object]:
         raise AssertionError("answer_query should not run for invalid retrieval_mode")
 
-    monkeypatch.setattr("rfp_rag.evaluate.answer_query", fail_answer_query)
+    monkeypatch.setattr("rfp_rag.evaluate.answer_with_store", fail_answer_query)
     with pytest.raises(ValueError, match="unknown retrieval_mode"):
         evaluate_index(
             data_path=Path("data/data_list.csv"),
@@ -126,12 +136,34 @@ def test_evaluate_index_rejects_unknown_retrieval_mode_before_queries(
         )
 
 
+def test_evaluate_index_rejects_offline_llm_reranker_before_queries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, parsed_manifest_factory
+) -> None:
+    index_dir = _build_fake_index(
+        tmp_path, parsed_manifest_factory(Path("data/data_list.csv"))
+    )
+
+    def fail_answer_query(*args: object, **kwargs: object) -> dict[str, object]:
+        raise AssertionError("answer_query should not run for invalid reranker lane")
+
+    monkeypatch.setattr("rfp_rag.evaluate.answer_with_store", fail_answer_query)
+    with pytest.raises(ValueError, match="LLM reranker requires real_openai or open"):
+        evaluate_index(
+            data_path=Path("data/data_list.csv"),
+            index_dir=index_dir,
+            out_dir=tmp_path / "eval",
+            provider="offline",
+            reranker="llm",
+        )
+
+
 def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) -> None:
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()
     for name in [
         "golden_metadata.jsonl",
         "curated_text_questions.jsonl",
+        "section_lookup_questions.jsonl",
         "abstention_questions.jsonl",
         "metrics.json",
         "predictions.jsonl",
@@ -153,17 +185,17 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
     (eval_dir / "contract.json").write_text(
         json.dumps(
             {
-                "contract_version": "rfp-rag-offline-v1",
+                "contract_version": "rfp-rag-offline-v2",
                 "required_commands": [
                     "python3 -m pytest",
                     "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json",
                     "python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs",
                     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-                    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.23",
+                    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34",
                     "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
                 ],
                 "readme_markers": [
-                    "rfp-rag-offline-v1",
+                    "rfp-rag-offline-v2",
                     "does not claim semantic quality",
                 ],
                 "quality_semantics": {"offline": {"claims_semantic_quality": False}},
@@ -175,15 +207,15 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
     readme.write_text(
         "\n".join(
             [
-                "rfp-rag-offline-v1",
+                "rfp-rag-offline-v2",
                 "python3 -m pytest",
                 "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json",
                 "python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs",
                 "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.23",
+                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34",
                 "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
                 "The offline lane is an offline contract gate and does not claim semantic quality.",
-                "Real provider quality lane (rfp-rag-real-v2)",
+                "Real provider quality lane (rfp-rag-real-v3)",
             ]
         ),
         encoding="utf-8",
@@ -227,7 +259,7 @@ def test_report_check_flags_real_lane_eval_dir_as_unsupported(tmp_path: Path) ->
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()
     (eval_dir / "contract.json").write_text(
-        json.dumps({"contract_version": "rfp-rag-real-v2"}), encoding="utf-8"
+        json.dumps({"contract_version": "rfp-rag-real-v3"}), encoding="utf-8"
     )
     readme = tmp_path / "README.md"
     readme.write_text("", encoding="utf-8")

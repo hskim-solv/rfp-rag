@@ -27,7 +27,9 @@ def _store():
             },
         )
     ]
-    return build_vector_store(chunks, LexicalHashEmbeddings(dim=512), qdrant_path=None, lane="offline")
+    return build_vector_store(
+        chunks, LexicalHashEmbeddings(dim=512), qdrant_path=None, lane="offline"
+    )
 
 
 def test_in_domain_question_returns_cited_answer() -> None:
@@ -48,7 +50,10 @@ def test_in_domain_question_returns_cited_answer() -> None:
     assert response["source_texts"]
     # 생성기 프롬프트와 RAGAS judge가 같은 컨텍스트를 봐야 한다: 메타데이터 라인 + 본문
     assert "발주기관: 한영대학" in response["source_texts"][0]
-    assert "한영대학교 트랙운영 학사정보시스템 고도화 사업 제안요청서 본문" in response["source_texts"][0]
+    assert (
+        "한영대학교 트랙운영 학사정보시스템 고도화 사업 제안요청서 본문"
+        in response["source_texts"][0]
+    )
 
 
 def test_generator_abstention_sentinel_forces_abstain_despite_high_score() -> None:
@@ -90,7 +95,9 @@ def test_unrelated_question_abstains() -> None:
 def test_answer_query_rejects_lane_mismatch(tmp_path: Path) -> None:
     d = tmp_path / "idx"
     d.mkdir()
-    (d / "manifest.json").write_text(json.dumps({"embedding_provider": "real_openai"}), encoding="utf-8")
+    (d / "manifest.json").write_text(
+        json.dumps({"embedding_provider": "real_openai"}), encoding="utf-8"
+    )
 
     with pytest.raises(ValueError, match="rebuild the index"):
         answer_query(d, "질문", provider="offline")
@@ -109,3 +116,61 @@ def test_answer_with_store_rejects_hybrid_without_index_dir() -> None:
             "한영대학교 학사정보시스템",
             retrieval_mode="hybrid",
         )
+
+
+def test_answer_with_store_can_rerank_more_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_results = [
+        SearchResult(
+            chunk_id="doc:000:chunk:0",
+            doc_id="doc:000",
+            csv_row_id="000",
+            score=0.91,
+            text="일반 유지보수",
+            metadata={"project_name": "일반 유지보수", "issuer": "기관"},
+        ),
+        SearchResult(
+            chunk_id="doc:001:chunk:0",
+            doc_id="doc:001",
+            csv_row_id="001",
+            score=0.89,
+            text="AI LMS 추천 엔진",
+            metadata={"project_name": "AI LMS 고도화", "issuer": "기관"},
+        ),
+    ]
+
+    def fake_search(*args, **kwargs):
+        assert kwargs["top_k"] == 10
+        return raw_results
+
+    class _Reranker:
+        name = "test"
+
+        def rerank(
+            self, query: str, results: list[SearchResult], top_k: int
+        ) -> list[SearchResult]:
+            assert query == "AI LMS 추천 엔진"
+            assert top_k == 1
+            return [results[1]]
+
+    class _Generator:
+        def generate(self, query: str, results: list[SearchResult]) -> str:
+            assert [result.chunk_id for result in results] == ["doc:001:chunk:0"]
+            return "AI LMS 고도화 근거 답변"
+
+    monkeypatch.setattr("rfp_rag.rag_chain.search", fake_search)
+
+    response = answer_with_store(
+        object(),
+        _Generator(),
+        "AI LMS 추천 엔진",
+        top_k=1,
+        min_score=0.1,
+        reranker=_Reranker(),
+        rerank_candidate_k=10,
+    )
+
+    assert response["retrieved_chunk_ids"] == ["doc:001:chunk:0"]
+    assert response["reranker"] == "test"
+    assert response["rerank_candidate_k"] == 10

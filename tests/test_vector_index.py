@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from rfp_rag.chunking import Chunk
-from rfp_rag.index_store import save_index
+from rfp_rag.index_store import SearchResult, save_index
 from rfp_rag.providers import LexicalHashEmbeddings
 from rfp_rag.vector_index import (
     RETRIEVAL_HYBRID,
@@ -23,14 +23,20 @@ def _chunks() -> list[Chunk]:
             doc_id="doc:000",
             csv_row_id="000",
             text="한영대학교 트랙운영 학사정보시스템 고도화 사업 본문",
-            metadata={"project_name": "한영대학교 트랙운영 학사정보시스템 고도화", "issuer": "한영대학"},
+            metadata={
+                "project_name": "한영대학교 트랙운영 학사정보시스템 고도화",
+                "issuer": "한영대학",
+            },
         ),
         Chunk(
             chunk_id="doc:001:chunk:0",
             doc_id="doc:001",
             csv_row_id="001",
             text="국립중앙도서관 자료보존 환경 개선 사업 본문",
-            metadata={"project_name": "국립중앙도서관 자료보존 환경 개선", "issuer": "국립중앙도서관"},
+            metadata={
+                "project_name": "국립중앙도서관 자료보존 환경 개선",
+                "issuer": "국립중앙도서관",
+            },
         ),
     ]
 
@@ -53,7 +59,9 @@ def test_persist_and_reload_roundtrip(tmp_path: Path) -> None:
     emb = LexicalHashEmbeddings(dim=512)
     qdrant_path = tmp_path / "qdrant"
     store = build_vector_store(_chunks(), emb, qdrant_path=qdrant_path, lane="offline")
-    del store  # drops the only ref; CPython refcounting closes the Qdrant lock immediately
+    del (
+        store
+    )  # drops the only ref; CPython refcounting closes the Qdrant lock immediately
 
     reloaded = load_vector_store(qdrant_path, emb, lane="offline")
     results = search(reloaded, "국립중앙도서관 자료보존", top_k=1)
@@ -67,6 +75,65 @@ def test_search_returns_at_most_top_k() -> None:
 
     assert len(search(store, "사업", top_k=1)) == 1
     assert len(search(store, "사업", top_k=1, retrieval_mode=RETRIEVAL_VECTOR)) == 1
+
+
+def test_vector_search_with_index_dir_injects_exact_section_title_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    chunks = [
+        Chunk(
+            chunk_id="doc:000:chunk:0",
+            doc_id="doc:000",
+            csv_row_id="000",
+            text="일반 본문",
+            metadata={
+                "project_name": "테스트 사업",
+                "issuer": "테스트기관",
+                "section_title": "일반",
+                "section_type": "general",
+            },
+        ),
+        Chunk(
+            chunk_id="doc:000:chunk:1",
+            doc_id="doc:000",
+            csv_row_id="000",
+            text="입찰 참가자격과 입찰방식 본문",
+            metadata={
+                "project_name": "테스트 사업",
+                "issuer": "테스트기관",
+                "section_title": "입찰방식",
+                "section_type": "submission",
+                "section_path": ["입찰 및 계약", "입찰방식"],
+            },
+        ),
+    ]
+    index_dir = tmp_path / "index"
+    save_index(index_dir, {"embedding_provider": "offline"}, chunks)
+
+    def fake_vector_search(store: object, query: str, top_k: int = 5):
+        return [
+            SearchResult(
+                chunk_id="doc:000:chunk:0",
+                doc_id="doc:000",
+                csv_row_id="000",
+                score=0.7,
+                text="일반 본문",
+                metadata=chunks[0].metadata,
+            )
+        ]
+
+    monkeypatch.setattr("rfp_rag.vector_index._vector_search", fake_vector_search)
+
+    results = search(
+        object(),
+        "테스트 사업의 입찰방식 섹션 내용을 알려줘",
+        top_k=1,
+        retrieval_mode=RETRIEVAL_VECTOR,
+        index_dir=index_dir,
+    )
+
+    assert results[0].chunk_id == "doc:000:chunk:1"
+    assert results[0].metadata["section_title"] == "입찰방식"
 
 
 def test_search_rejects_unknown_retrieval_mode() -> None:
@@ -126,14 +193,18 @@ def test_hybrid_search_promotes_keyword_candidate(tmp_path: Path) -> None:
     assert results[0].score > 0
 
 
-def test_hybrid_search_without_bm25_match_preserves_vector_scores(tmp_path: Path) -> None:
+def test_hybrid_search_without_bm25_match_preserves_vector_scores(
+    tmp_path: Path,
+) -> None:
     chunks = _chunks()
     emb = LexicalHashEmbeddings(dim=512)
     index_dir = tmp_path / "index"
     save_index(index_dir, {"embedding_provider": "offline"}, chunks)
     store = build_vector_store(chunks, emb, qdrant_path=None, lane="offline")
 
-    vector_results = search(store, "우주정거장", top_k=2, retrieval_mode=RETRIEVAL_VECTOR)
+    vector_results = search(
+        store, "우주정거장", top_k=2, retrieval_mode=RETRIEVAL_VECTOR
+    )
     hybrid_results = search(
         store,
         "우주정거장",
@@ -145,3 +216,46 @@ def test_hybrid_search_without_bm25_match_preserves_vector_scores(tmp_path: Path
     assert [(r.chunk_id, r.score) for r in hybrid_results] == [
         (r.chunk_id, r.score) for r in vector_results
     ]
+
+
+def test_hybrid_search_reuses_bm25_index_for_same_index_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    chunks = _chunks()
+    emb = LexicalHashEmbeddings(dim=512)
+    index_dir = tmp_path / "index"
+    save_index(index_dir, {"embedding_provider": "offline"}, chunks)
+    store = build_vector_store(chunks, emb, qdrant_path=None, lane="offline")
+
+    from rfp_rag.hybrid_retrieval import BM25Index
+
+    calls = 0
+    original = BM25Index.from_index_dir.__func__
+
+    def counting_from_index_dir(cls, path: Path | str) -> BM25Index:
+        nonlocal calls
+        calls += 1
+        return original(cls, path)
+
+    monkeypatch.setattr(
+        BM25Index,
+        "from_index_dir",
+        classmethod(counting_from_index_dir),
+    )
+
+    search(
+        store,
+        "학사정보시스템",
+        top_k=1,
+        retrieval_mode=RETRIEVAL_HYBRID,
+        index_dir=index_dir,
+    )
+    search(
+        store,
+        "사업",
+        top_k=1,
+        retrieval_mode=RETRIEVAL_HYBRID,
+        index_dir=index_dir,
+    )
+
+    assert calls == 1

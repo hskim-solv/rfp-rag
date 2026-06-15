@@ -146,6 +146,16 @@ def chunk_context_block(result: SearchResult) -> str:
     summary = (md.get("summary") or "").strip()
     if summary:
         lines.append(f"공고요약: {summary}")
+    section_path = md.get("section_path") or []
+    if section_path:
+        lines.append(f"섹션: {' > '.join(str(part) for part in section_path)}")
+    elif md.get("section_title"):
+        lines.append(f"섹션: {md['section_title']}")
+    if md.get("section_page_start") is not None:
+        page = str(md["section_page_start"])
+        if md.get("section_page_end") not in (None, md.get("section_page_start")):
+            page = f"{page}-{md['section_page_end']}"
+        lines.append(f"페이지: {page}")
     lines.append(f"본문: {result.text}")
     return "\n".join(lines)
 

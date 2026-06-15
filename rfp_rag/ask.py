@@ -6,11 +6,14 @@ from pathlib import Path
 from typing import Iterable
 
 from .rag_chain import DEFAULT_MIN_SCORE, answer_query
+from .rerank import RERANKER_NONE, RERANKERS
 from .vector_index import RETRIEVAL_MODES, RETRIEVAL_VECTOR
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Answer a Korean RFP question from a local index with citations.")
+    parser = argparse.ArgumentParser(
+        description="Answer a Korean RFP question from a local index with citations."
+    )
     parser.add_argument("--index", required=True, type=Path, help="Index directory")
     parser.add_argument("--query", required=True, help="Question to answer")
     parser.add_argument("--top-k", default=5, type=int)
@@ -20,7 +23,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         choices=sorted(RETRIEVAL_MODES),
         default=RETRIEVAL_VECTOR,
     )
-    parser.add_argument("--provider", default=None, help="offline | real_openai (default: index lane)")
+    parser.add_argument("--reranker", choices=sorted(RERANKERS), default=RERANKER_NONE)
+    parser.add_argument("--rerank-candidate-k", default=None, type=int)
+    parser.add_argument(
+        "--provider", default=None, help="offline | real_openai (default: index lane)"
+    )
     parser.add_argument("--out", type=Path, help="Optional JSON output path")
     return parser
 
@@ -35,6 +42,8 @@ def main(argv: Iterable[str] | None = None) -> int:
         min_score=args.min_score,
         provider=args.provider,
         retrieval_mode=args.retrieval_mode,
+        reranker=args.reranker,
+        rerank_candidate_k=args.rerank_candidate_k,
     )
     payload = json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if args.out:

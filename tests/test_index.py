@@ -54,6 +54,58 @@ def test_chunk_document_uses_doc_and_chunk_ids() -> None:
     assert chunks[0].metadata["chunk_overlap"] == 10
 
 
+def test_chunk_document_adds_section_metadata_and_requirement_ids() -> None:
+    doc = CorpusDocument(
+        csv_row_id="007",
+        doc_id="doc:007",
+        text="\n".join(
+            [
+                "[PAGE 3]",
+                "Ⅳ",
+                "제안안내 사항",
+                "2",
+                "제안서 평가방법",
+                "REQ-101 평가 기준은 기술능력평가와 가격평가로 구성한다.",
+            ]
+        ),
+        metadata={"project_name": "테스트", "issuer": "기관"},
+    )
+
+    chunks = chunk_document(doc, chunk_size=200, chunk_overlap=20)
+
+    assert chunks[0].metadata["section_title"] == "제안서 평가방법"
+    assert chunks[0].metadata["section_type"] == "evaluation_criteria"
+    assert chunks[0].metadata["section_path"] == ["제안안내 사항", "제안서 평가방법"]
+    assert chunks[0].metadata["section_page_start"] == 3
+    assert chunks[0].metadata["requirement_ids"] == ["REQ-101"]
+
+
+def test_chunk_document_preserves_unsectioned_preamble_and_footer() -> None:
+    doc = CorpusDocument(
+        csv_row_id="008",
+        doc_id="doc:008",
+        text="\n".join(
+            [
+                "입찰공고 일반 안내 문장",
+                "Ⅰ",
+                "사업 안내",
+                "1",
+                "사업개요",
+                "섹션 본문",
+                "첨부 서식은 별도 파일을 참조한다.",
+            ]
+        ),
+        metadata={"project_name": "테스트", "issuer": "기관"},
+    )
+
+    chunks = chunk_document(doc, chunk_size=50, chunk_overlap=10)
+    combined = "\n".join(chunk.text for chunk in chunks)
+
+    assert "입찰공고 일반 안내 문장" in combined
+    assert "첨부 서식은 별도 파일을 참조한다." in combined
+    assert any(chunk.metadata["section_title"] == "사업개요" for chunk in chunks)
+
+
 def test_build_index_writes_manifest_and_retrieves_reference_doc(
     tmp_path: Path, parsed_manifest_factory
 ) -> None:
@@ -225,6 +277,7 @@ def test_build_index_uses_parsed_manifest_text(tmp_path: Path) -> None:
     assert by_doc["doc:000"]["metadata"]["index_text_source"] == "parsed"
     assert by_doc["doc:000"]["metadata"]["source_parser_backend"] == "unhwp"
     assert by_doc["doc:000"]["metadata"]["source_content_source"] == "source_hwp_text"
+    assert "section_title" in by_doc["doc:000"]["metadata"]
     assert by_doc["doc:001"]["text"] == "PARSED B 원문 본문"
     assert by_doc["doc:001"]["metadata"]["index_text_source"] == "parsed"
     assert by_doc["doc:001"]["metadata"]["source_parse_status"] == "parsed"

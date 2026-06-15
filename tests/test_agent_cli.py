@@ -53,7 +53,7 @@ def test_cli_answers_question_offline(
             "--thread-id",
             "cli-t1",
             "--min-score",
-            "0.23",
+            "0.34",
             "--artifacts",
             str(tmp_path / "agent_artifacts"),
         ]

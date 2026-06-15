@@ -81,9 +81,9 @@ def test_open_lane_aggregate_includes_judge_scores() -> None:
 def test_contract_for_lane_selects_matching_contract() -> None:
     from rfp_rag.evaluate import _contract_for
 
-    assert _contract_for("offline")["contract_version"] == "rfp-rag-offline-v1"
-    assert _contract_for("real_openai")["contract_version"] == "rfp-rag-real-v2"
-    assert _contract_for("open")["contract_version"] == "rfp-rag-open-v1"
+    assert _contract_for("offline")["contract_version"] == "rfp-rag-offline-v2"
+    assert _contract_for("real_openai")["contract_version"] == "rfp-rag-real-v3"
+    assert _contract_for("open")["contract_version"] == "rfp-rag-open-v2"
 
 
 def test_open_contract_does_not_claim_gates() -> None:
@@ -149,7 +149,7 @@ def test_real_contract_version_bumped_for_coverage_gate() -> None:
     # 게이트 시맨틱 변경(judge coverage 추가)은 contract 버전 bump가 필수 (CLAUDE.md)
     from rfp_rag.contracts import REAL_CONTRACT_VERSION
 
-    assert REAL_CONTRACT_VERSION == "rfp-rag-real-v2"
+    assert REAL_CONTRACT_VERSION == "rfp-rag-real-v3"
 
 
 def test_thresholds_cover_ragas_metrics() -> None:
