@@ -42,7 +42,21 @@ def _source_from_result(result: SearchResult) -> dict[str, Any]:
     }
 
 
-def abstention_response(query: str, results: list[SearchResult]) -> dict[str, Any]:
+def _reranker_scores(results: list[SearchResult]) -> list[Any]:
+    return [
+        result.metadata.get("reranker_score")
+        for result in results
+        if "reranker_score" in result.metadata
+    ]
+
+
+def abstention_response(
+    query: str,
+    results: list[SearchResult],
+    *,
+    reranker: str = RERANKER_NONE,
+    rerank_candidate_k: int | None = None,
+) -> dict[str, Any]:
     return {
         "query": query,
         "answer": ABSTAIN_ANSWER,
@@ -53,6 +67,9 @@ def abstention_response(query: str, results: list[SearchResult]) -> dict[str, An
         "retrieved_doc_ids": [r.doc_id for r in results],
         "retrieved_chunk_ids": [r.chunk_id for r in results],
         "scores": [r.score for r in results],
+        "reranker": reranker,
+        "rerank_candidate_k": rerank_candidate_k,
+        "reranker_scores": _reranker_scores(results),
     }
 
 
@@ -69,6 +86,7 @@ def answer_with_store(
     rerank_candidate_k: int | None = None,
 ) -> dict[str, Any]:
     candidate_k = max(top_k, rerank_candidate_k or top_k)
+    reranker_name = reranker.name if reranker else RERANKER_NONE
     results = search(
         store,
         query,
@@ -77,7 +95,12 @@ def answer_with_store(
         index_dir=index_dir,
     )
     if not results or results[0].score < min_score:
-        return abstention_response(query, results)
+        return abstention_response(
+            query,
+            results,
+            reranker=reranker_name,
+            rerank_candidate_k=candidate_k,
+        )
     if reranker is not None:
         results = reranker.rerank(query, results, top_k=top_k)
     else:
@@ -88,7 +111,12 @@ def answer_with_store(
     # LLMAnswerGenerator on insufficient_context). A grounded answer merely
     # quoting this phrase is a known, accepted false-abstain risk.
     if "없는 정보" in answer:
-        return abstention_response(query, results)
+        return abstention_response(
+            query,
+            results,
+            reranker=reranker_name,
+            rerank_candidate_k=candidate_k,
+        )
 
     top_score = results[0].score
     return {
@@ -104,13 +132,9 @@ def answer_with_store(
         "retrieved_doc_ids": [r.doc_id for r in results],
         "retrieved_chunk_ids": [r.chunk_id for r in results],
         "scores": [r.score for r in results],
-        "reranker": reranker.name if reranker else RERANKER_NONE,
+        "reranker": reranker_name,
         "rerank_candidate_k": candidate_k,
-        "reranker_scores": [
-            r.metadata.get("reranker_score")
-            for r in results
-            if "reranker_score" in r.metadata
-        ],
+        "reranker_scores": _reranker_scores(results),
     }
 
 

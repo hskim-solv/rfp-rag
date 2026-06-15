@@ -623,6 +623,8 @@ def evaluate_index(
     store = load_vector_store(index_dir / "qdrant", build_embeddings(lane), lane=lane)
     generator = build_generator(lane)
     reranker_impl = build_reranker(lane, reranker)
+    response_reranker = reranker_impl.name if reranker_impl else RERANKER_NONE
+    response_rerank_candidate_k = rerank_candidate_k or top_k
 
     predictions: list[dict[str, Any]] = []
     error_count = 0
@@ -650,6 +652,9 @@ def evaluate_index(
                 "retrieved_doc_ids": [],
                 "retrieved_chunk_ids": [],
                 "scores": [],
+                "reranker": response_reranker,
+                "rerank_candidate_k": response_rerank_candidate_k,
+                "reranker_scores": [],
             }
         pass_fail = _score_prediction(record, response, top_k=top_k)
         predictions.append(

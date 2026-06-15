@@ -157,6 +157,43 @@ def test_evaluate_index_rejects_offline_llm_reranker_before_queries(
         )
 
 
+def test_evaluate_index_preserves_reranker_metadata_on_answer_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, parsed_manifest_factory
+) -> None:
+    index_dir = _build_fake_index(
+        tmp_path, parsed_manifest_factory(Path("data/data_list.csv"))
+    )
+    eval_dir = tmp_path / "eval"
+
+    class _Reranker:
+        name = "llm"
+
+    def fail_answer_query(*args: object, **kwargs: object) -> dict[str, object]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("rfp_rag.evaluate.build_reranker", lambda *args: _Reranker())
+    monkeypatch.setattr("rfp_rag.evaluate.answer_with_store", fail_answer_query)
+
+    metrics = evaluate_index(
+        data_path=Path("data/data_list.csv"),
+        index_dir=index_dir,
+        out_dir=eval_dir,
+        provider="offline",
+        max_docs=1,
+        reranker="llm",
+        rerank_candidate_k=10,
+    )
+
+    first_prediction = json.loads(
+        (eval_dir / "predictions.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert metrics["reranker"] == "llm"
+    assert first_prediction["reranker"] == "llm"
+    assert first_prediction["rerank_candidate_k"] == 10
+    assert first_prediction["reranker_scores"] == []
+    assert first_prediction["warnings"] == ["answer_error:RuntimeError"]
+
+
 def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) -> None:
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()

@@ -136,6 +136,77 @@ def test_vector_search_with_index_dir_injects_exact_section_title_candidate(
     assert results[0].metadata["section_title"] == "입찰방식"
 
 
+def test_vector_section_candidate_cache_refreshes_when_chunks_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    index_dir = tmp_path / "index"
+
+    def fake_vector_search(store: object, query: str, top_k: int = 5):
+        return [
+            SearchResult(
+                chunk_id="doc:999:chunk:0",
+                doc_id="doc:999",
+                csv_row_id="999",
+                score=0.1,
+                text="fallback",
+                metadata={"project_name": "fallback", "issuer": "기관"},
+            )
+        ]
+
+    monkeypatch.setattr("rfp_rag.vector_index._vector_search", fake_vector_search)
+
+    save_index(
+        index_dir,
+        {"embedding_provider": "offline"},
+        [
+            Chunk(
+                chunk_id="doc:000:chunk:0",
+                doc_id="doc:000",
+                csv_row_id="000",
+                text="입찰방식 본문",
+                metadata={
+                    "project_name": "테스트 사업",
+                    "issuer": "기관",
+                    "section_title": "입찰방식",
+                },
+            )
+        ],
+    )
+    first = search(
+        object(),
+        "테스트 사업의 입찰방식 섹션 내용을 알려줘",
+        top_k=1,
+        index_dir=index_dir,
+    )
+
+    save_index(
+        index_dir,
+        {"embedding_provider": "offline"},
+        [
+            Chunk(
+                chunk_id="doc:001:chunk:0",
+                doc_id="doc:001",
+                csv_row_id="001",
+                text="평가방법 본문이 더 길어져서 chunks.jsonl size도 달라진다",
+                metadata={
+                    "project_name": "테스트 사업",
+                    "issuer": "기관",
+                    "section_title": "평가방법",
+                },
+            )
+        ],
+    )
+    second = search(
+        object(),
+        "테스트 사업의 평가방법 섹션 내용을 알려줘",
+        top_k=1,
+        index_dir=index_dir,
+    )
+
+    assert first[0].chunk_id == "doc:000:chunk:0"
+    assert second[0].chunk_id == "doc:001:chunk:0"
+
+
 def test_search_rejects_unknown_retrieval_mode() -> None:
     emb = LexicalHashEmbeddings(dim=512)
     store = build_vector_store(_chunks(), emb, qdrant_path=None, lane="offline")

@@ -174,3 +174,61 @@ def test_answer_with_store_can_rerank_more_candidates(
     assert response["retrieved_chunk_ids"] == ["doc:001:chunk:0"]
     assert response["reranker"] == "test"
     assert response["rerank_candidate_k"] == 10
+
+
+def test_answer_with_store_preserves_reranker_metadata_on_abstention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_results = [
+        SearchResult(
+            chunk_id="doc:000:chunk:0",
+            doc_id="doc:000",
+            csv_row_id="000",
+            score=0.91,
+            text="일반 유지보수",
+            metadata={"project_name": "일반 유지보수", "issuer": "기관"},
+        )
+    ]
+
+    class _Reranker:
+        name = "test"
+
+        def rerank(
+            self, query: str, results: list[SearchResult], top_k: int
+        ) -> list[SearchResult]:
+            metadata = dict(results[0].metadata)
+            metadata["reranker_score"] = 0.42
+            return [
+                SearchResult(
+                    chunk_id=results[0].chunk_id,
+                    doc_id=results[0].doc_id,
+                    csv_row_id=results[0].csv_row_id,
+                    score=results[0].score,
+                    text=results[0].text,
+                    metadata=metadata,
+                )
+            ]
+
+    class _AbstainingGenerator:
+        def generate(self, query: str, results: list[SearchResult]) -> str:
+            return "없는 정보"
+
+    monkeypatch.setattr(
+        "rfp_rag.rag_chain.search",
+        lambda *args, **kwargs: raw_results,
+    )
+
+    response = answer_with_store(
+        object(),
+        _AbstainingGenerator(),
+        "AI LMS 추천 엔진",
+        top_k=1,
+        min_score=0.1,
+        reranker=_Reranker(),
+        rerank_candidate_k=10,
+    )
+
+    assert response["warnings"] == ["insufficient_context"]
+    assert response["reranker"] == "test"
+    assert response["rerank_candidate_k"] == 10
+    assert response["reranker_scores"] == [0.42]

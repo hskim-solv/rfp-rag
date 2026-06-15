@@ -131,7 +131,11 @@ def _vector_search(
 
 
 @lru_cache(maxsize=8)
-def _load_chunk_records(index_dir: str) -> tuple[dict[str, object], ...]:
+def _load_chunk_records_cached(
+    index_dir: str, chunks_mtime_ns: int, chunks_size: int
+) -> tuple[dict[str, object], ...]:
+    del chunks_mtime_ns, chunks_size
+
     chunks_path = Path(index_dir) / "chunks.jsonl"
     if not chunks_path.exists():
         return ()
@@ -143,6 +147,16 @@ def _load_chunk_records(index_dir: str) -> tuple[dict[str, object], ...]:
     return tuple(records)
 
 
+def _load_chunk_records(index_dir: Path) -> tuple[dict[str, object], ...]:
+    chunks_path = index_dir / "chunks.jsonl"
+    if not chunks_path.exists():
+        return ()
+    stat = chunks_path.stat()
+    return _load_chunk_records_cached(
+        str(index_dir.resolve()), stat.st_mtime_ns, stat.st_size
+    )
+
+
 def _section_metadata_candidates(
     index_dir: Path,
     query: str,
@@ -151,7 +165,7 @@ def _section_metadata_candidates(
     if limit <= 0 or "섹션" not in query:
         return []
     candidates: list[SearchResult] = []
-    for record in _load_chunk_records(str(index_dir)):
+    for record in _load_chunk_records(index_dir):
         metadata = dict(record.get("metadata") or {})
         section_title = str(metadata.get("section_title") or "").strip()
         if not section_title or section_title not in query:
