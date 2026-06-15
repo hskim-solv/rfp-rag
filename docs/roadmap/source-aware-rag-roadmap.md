@@ -1,12 +1,12 @@
-# Source-Aware RFP RAG Roadmap
+# Source-First RFP RAG Roadmap
 
 ## Current State
 
-The project is a CSV-first RAG baseline.
+The project is a source-first RAG baseline.
 
-- Primary text source: `data/data_list.csv` column `텍스트`
-- Source files are resolved and validated, but original HWP/PDF contents are not parsed into the corpus yet.
-- Current retrieval, real/open/offline evaluation, agent lane, and hybrid retrieval experiments should be interpreted as CSV-baseline evidence.
+- Primary text source: parsed HWP/PDF artifacts under `artifacts/parsed_docs`.
+- `data/data_list.csv` is the metadata registry for project names, issuers, budgets, deadlines, and source filenames.
+- Current retrieval, real/open/offline evaluation, agent lane, and hybrid retrieval experiments must be interpreted with their recorded source mode; new gate runs should not use CSV body text as an index source.
 
 Observed source-file distribution on 2026-06-12:
 
@@ -15,7 +15,7 @@ Observed source-file distribution on 2026-06-12:
 | `.hwp` | 96 |
 | `.pdf` | 4 |
 
-Local parser availability on 2026-06-12:
+Local parser availability originally checked on 2026-06-12:
 
 | tool/library | status |
 |---|---|
@@ -38,12 +38,10 @@ One sampled HWP file parsed with `hwp5txt` successfully:
 
 ### 1. Source Parsing Lane
 
-Create `feature/source-parsing-lane`.
-
 Goal:
 
 - Parse original `data/files` HWP/PDF files into structured parse artifacts.
-- Keep CSV text as fallback, not as the only source.
+- Treat CSV as metadata only; never use CSV `텍스트` as a body-text fallback.
 - Produce parser EDA and failure diagnostics.
 
 Primary output:
@@ -67,23 +65,20 @@ Per-document manifest fields:
 - `csv_text_length`
 - `parsed_to_csv_length_ratio`
 
-### 2. Source-Aware Indexing
+### 2. Source-First Indexing
 
-Add source selection to index construction:
+Index construction must read text from the parse manifest:
 
-- `--source csv`
-- `--source parsed`
-- `--source parsed-with-csv-fallback`
+- `--parse-manifest artifacts/parsed_docs/manifest.jsonl`
+- fail closed when a document has no parsed source text
+- do not provide a CSV text fallback mode
 
 Index manifest should record:
 
-- `source_mode`
-- `parsed_success_count`
-- `csv_fallback_count`
-- `empty_parse_count`
-- `parser_manifest_path`
-
-Default should remain `csv` until parsed artifacts are available and evaluated.
+- `text_source`
+- `parse_manifest_path`
+- `index_text_source_counts`
+- parser lineage metadata copied onto chunks
 
 ### 3. Parsing EDA
 
@@ -93,7 +88,7 @@ Report:
 - parse success rate
 - empty parse count
 - text length distribution
-- CSV-vs-parsed length ratio
+- parsed text length distribution
 - top failure reasons
 - sample parser warnings
 
@@ -105,7 +100,7 @@ After source parsing works, add section metadata:
 - `section_type`
 - `page_start`
 - `page_end`
-- `source_mode`
+- `index_text_source`
 
 Target section types:
 
@@ -118,13 +113,12 @@ Target section types:
 
 ### 5. Retrieval Recalibration
 
-Re-run vector, hybrid, and later reranker experiments by source mode:
+Re-run vector, hybrid, and later reranker experiments against parsed source artifacts:
 
-| source mode | retrieval mode | purpose |
+| text source | retrieval mode | purpose |
 |---|---|---|
-| csv | vector | baseline continuity |
-| parsed-with-csv-fallback | vector | source parsing impact |
-| parsed-with-csv-fallback | hybrid | keyword recall experiment |
+| parsed | vector | source-first gate baseline |
+| parsed | hybrid | keyword recall experiment |
 
 Hybrid retrieval must keep its current limitation explicit: it improved recall in the CSV baseline but reduced abstention accuracy at the vector-calibrated cutoff. Do not use hybrid as a gate until it has a source-specific no-answer strategy or calibrated cutoff.
 
@@ -132,6 +126,6 @@ Hybrid retrieval must keep its current limitation explicit: it improved recall i
 
 The project should be described as:
 
-> Public RFP source-document processing and source-aware RAG evaluation, starting from a CSV baseline and progressing toward HWP/PDF parsing, parser diagnostics, fallback indexing, retrieval experiments, and grounded answer generation.
+> Public RFP source-document processing and source-first RAG evaluation over parsed HWP/PDF artifacts, with CSV limited to metadata, parser diagnostics, retrieval experiments, and grounded answer generation.
 
-Avoid claiming original RFP source parsing is complete until the parser manifest and source-aware index/evaluation artifacts exist.
+Avoid using CSV body text as a substitute for failed parsing. If source parsing fails, fix or diagnose the parser path before indexing.

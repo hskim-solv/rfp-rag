@@ -14,11 +14,14 @@ from .providers import (
     chunk_context_block,
     normalize_lane,
 )
+from .rerank import RERANKER_NONE, Reranker, build_reranker
 from .vector_index import RETRIEVAL_VECTOR, load_vector_store, search
 
 ABSTAIN_ANSWER = "검색된 제안요청서 근거만으로는 답할 수 없는 정보입니다. 없는 정보"
 
-DEFAULT_MIN_SCORE = 0.05
+# Section-aware source-first offline retrieval is calibrated at 0.34; callers can lower this
+# explicitly for focused unit tests or lane-specific experiments.
+DEFAULT_MIN_SCORE = 0.34
 
 
 def _source_from_result(result: SearchResult) -> dict[str, Any]:
@@ -31,10 +34,29 @@ def _source_from_result(result: SearchResult) -> dict[str, Any]:
         "project_name": md.get("project_name", ""),
         "issuer": md.get("issuer", ""),
         "filename": md.get("csv_filename_raw", ""),
+        "section_title": md.get("section_title"),
+        "section_type": md.get("section_type"),
+        "section_path": md.get("section_path") or [],
+        "page_start": md.get("section_page_start"),
+        "page_end": md.get("section_page_end"),
     }
 
 
-def abstention_response(query: str, results: list[SearchResult]) -> dict[str, Any]:
+def _reranker_scores(results: list[SearchResult]) -> list[Any]:
+    return [
+        result.metadata.get("reranker_score")
+        for result in results
+        if "reranker_score" in result.metadata
+    ]
+
+
+def abstention_response(
+    query: str,
+    results: list[SearchResult],
+    *,
+    reranker: str = RERANKER_NONE,
+    rerank_candidate_k: int | None = None,
+) -> dict[str, Any]:
     return {
         "query": query,
         "answer": ABSTAIN_ANSWER,
@@ -45,6 +67,9 @@ def abstention_response(query: str, results: list[SearchResult]) -> dict[str, An
         "retrieved_doc_ids": [r.doc_id for r in results],
         "retrieved_chunk_ids": [r.chunk_id for r in results],
         "scores": [r.score for r in results],
+        "reranker": reranker,
+        "rerank_candidate_k": rerank_candidate_k,
+        "reranker_scores": _reranker_scores(results),
     }
 
 
@@ -57,23 +82,41 @@ def answer_with_store(
     *,
     retrieval_mode: str = RETRIEVAL_VECTOR,
     index_dir: Path | None = None,
+    reranker: Reranker | None = None,
+    rerank_candidate_k: int | None = None,
 ) -> dict[str, Any]:
+    candidate_k = max(top_k, rerank_candidate_k or top_k)
+    reranker_name = reranker.name if reranker else RERANKER_NONE
     results = search(
         store,
         query,
-        top_k=top_k,
+        top_k=candidate_k,
         retrieval_mode=retrieval_mode,
         index_dir=index_dir,
     )
     if not results or results[0].score < min_score:
-        return abstention_response(query, results)
+        return abstention_response(
+            query,
+            results,
+            reranker=reranker_name,
+            rerank_candidate_k=candidate_k,
+        )
+    if reranker is not None:
+        results = reranker.rerank(query, results, top_k=top_k)
+    else:
+        results = results[:top_k]
 
     answer = generator.generate(query, results)
     # "없는 정보" is the abstention sentinel produced by generators (e.g.
     # LLMAnswerGenerator on insufficient_context). A grounded answer merely
     # quoting this phrase is a known, accepted false-abstain risk.
     if "없는 정보" in answer:
-        return abstention_response(query, results)
+        return abstention_response(
+            query,
+            results,
+            reranker=reranker_name,
+            rerank_candidate_k=candidate_k,
+        )
 
     top_score = results[0].score
     return {
@@ -89,6 +132,9 @@ def answer_with_store(
         "retrieved_doc_ids": [r.doc_id for r in results],
         "retrieved_chunk_ids": [r.chunk_id for r in results],
         "scores": [r.score for r in results],
+        "reranker": reranker_name,
+        "rerank_candidate_k": candidate_k,
+        "reranker_scores": _reranker_scores(results),
     }
 
 
@@ -107,6 +153,8 @@ def answer_query(
     provider: str | None = None,
     *,
     retrieval_mode: str = RETRIEVAL_VECTOR,
+    reranker: str = RERANKER_NONE,
+    rerank_candidate_k: int | None = None,
 ) -> dict[str, Any]:
     index_dir = Path(index_dir)
     manifest = _load_manifest(index_dir)
@@ -119,6 +167,7 @@ def answer_query(
     embeddings = build_embeddings(lane)
     store = load_vector_store(index_dir / "qdrant", embeddings, lane=lane)
     generator = build_generator(lane)
+    reranker_impl = build_reranker(lane, reranker)
     return answer_with_store(
         store,
         generator,
@@ -127,4 +176,6 @@ def answer_query(
         min_score=min_score,
         retrieval_mode=retrieval_mode,
         index_dir=index_dir,
+        reranker=reranker_impl,
+        rerank_candidate_k=rerank_candidate_k,
     )

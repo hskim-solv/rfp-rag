@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write|write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/pretooluse_env_guard.py\"",
+            "statusMessage": "Checking protected env files"
+          }
+        ]
+      }
+    ]
+  }
+}

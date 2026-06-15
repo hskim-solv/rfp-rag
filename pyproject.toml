@@ -1,7 +1,7 @@
 [project]
 name = "rfp-rag"
 version = "0.2.0"
-description = "CSV-first RFP RAG baseline with LangChain real provider quality lane"
+description = "Source-first RFP RAG baseline with parsed HWP/PDF artifacts and LangChain real provider quality lane"
 requires-python = ">=3.11"
 dependencies = [
     "langchain-core>=1.3",
@@ -13,6 +13,8 @@ dependencies = [
     "langgraph>=1.0",
     "langgraph-checkpoint-sqlite",
     "langfuse>=3",  # optional tracing — LANGFUSE_* 키 없으면 no-op (rfp_rag/tracing.py)
+    "pymupdf>=1.26",
+    "rhwp-python>=0.7.0",
 ]
 
 [dependency-groups]

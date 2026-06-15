@@ -36,7 +36,9 @@ class CorpusDocument:
     metadata: dict[str, Any]
 
 
-def normalize_filename(value: str, form: Literal["NFC", "NFD", "NFKC", "NFKD"] = "NFC") -> str:
+def normalize_filename(
+    value: str, form: Literal["NFC", "NFD", "NFKC", "NFKD"] = "NFC"
+) -> str:
     return unicodedata.normalize(form, value or "")
 
 
@@ -79,7 +81,11 @@ def resolve_filename_map(files_dir: Path) -> dict[str, Path]:
     for path in files_dir.iterdir():
         if not path.is_file():
             continue
-        for key in {path.name, normalize_filename(path.name, "NFC"), normalize_filename(path.name, "NFD")}:
+        for key in {
+            path.name,
+            normalize_filename(path.name, "NFC"),
+            normalize_filename(path.name, "NFD"),
+        }:
             mapping.setdefault(key, path)
     return mapping
 
@@ -91,7 +97,9 @@ def _read_rows(csv_path: Path) -> tuple[list[str], list[dict[str, str]]]:
         return list(reader.fieldnames or []), rows
 
 
-def _metadata_for(row: dict[str, str], row_index: int, resolved_path: Path | None) -> dict[str, Any]:
+def _metadata_for(
+    row: dict[str, str], row_index: int, resolved_path: Path | None
+) -> dict[str, Any]:
     csv_filename = row.get("파일명", "")
     round_int = _safe_int_from_float_string(row.get("공고 차수", ""))
     metadata: dict[str, Any] = {
@@ -142,31 +150,44 @@ def load_corpus(csv_path: Path | str, files_dir: Path | str) -> list[CorpusDocum
             CorpusDocument(
                 csv_row_id=csv_row_id,
                 doc_id=f"doc:{csv_row_id}",
-                text=row.get("텍스트", ""),
+                text="",
                 metadata=_metadata_for(row, idx, resolved),
             )
         )
     return docs
 
 
-def inspect_corpus(csv_path: Path | str, files_dir: Path | str, out: Path | str | None = None) -> dict[str, Any]:
+def inspect_corpus(
+    csv_path: Path | str, files_dir: Path | str, out: Path | str | None = None
+) -> dict[str, Any]:
     csv_path = Path(csv_path)
     files_dir = Path(files_dir)
     columns, rows = _read_rows(csv_path)
-    raw_file_names = {p.name for p in files_dir.iterdir() if p.is_file()} if files_dir.exists() else set()
+    raw_file_names = (
+        {p.name for p in files_dir.iterdir() if p.is_file()}
+        if files_dir.exists()
+        else set()
+    )
     docs = load_corpus(csv_path, files_dir)
 
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in columns]
     text_nonempty_count = sum(1 for row in rows if row.get("텍스트", "").strip())
     raw_file_matches = sum(1 for row in rows if row.get("파일명", "") in raw_file_names)
-    normalized_file_matches = sum(1 for doc in docs if doc.metadata.get("resolved_filesystem_path"))
+    normalized_file_matches = sum(
+        1 for doc in docs if doc.metadata.get("resolved_filesystem_path")
+    )
     suffix_counts = Counter(Path(row.get("파일명", "")).suffix.lower() for row in rows)
     suffix_counts.pop("", None)
 
     warnings: list[str] = []
     if missing_columns:
         warnings.append(f"missing_required_columns:{','.join(missing_columns)}")
-    empty_required = [f"row:{idx:03d}:{col}" for idx, row in enumerate(rows) for col in REQUIRED_COLUMNS if not row.get(col, "").strip()]
+    empty_required = [
+        f"row:{idx:03d}:{col}"
+        for idx, row in enumerate(rows)
+        for col in REQUIRED_COLUMNS
+        if not row.get(col, "").strip()
+    ]
     if empty_required:
         warnings.append(f"empty_required_values:{len(empty_required)}")
     if normalized_file_matches != len(rows):
@@ -191,15 +212,26 @@ def inspect_corpus(csv_path: Path | str, files_dir: Path | str, out: Path | str 
     if out is not None:
         out_path = Path(out)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        out_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     return manifest
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Inspect the CSV-first RFP corpus.")
-    parser.add_argument("--data", required=True, type=Path, help="Path to data_list.csv")
-    parser.add_argument("--files", required=True, type=Path, help="Path to source file directory")
-    parser.add_argument("--out", required=True, type=Path, help="Manifest JSON output path")
+    parser = argparse.ArgumentParser(
+        description="Inspect the RFP CSV metadata registry."
+    )
+    parser.add_argument(
+        "--data", required=True, type=Path, help="Path to data_list.csv"
+    )
+    parser.add_argument(
+        "--files", required=True, type=Path, help="Path to source file directory"
+    )
+    parser.add_argument(
+        "--out", required=True, type=Path, help="Manifest JSON output path"
+    )
     return parser
 
 

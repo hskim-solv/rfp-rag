@@ -6,7 +6,7 @@ from rfp_rag.rag_chain import answer_query
 from rfp_rag.build_index import build_index
 
 
-def _index(tmp_path: Path) -> Path:
+def _index(tmp_path: Path, parse_manifest_path: Path) -> Path:
     out = tmp_path / "index"
     build_index(
         data_path=Path("data/data_list.csv"),
@@ -15,17 +15,22 @@ def _index(tmp_path: Path) -> Path:
         chunk_size=500,
         chunk_overlap=80,
         embedding_provider="fake",
+        parse_manifest_path=parse_manifest_path,
     )
     return out
 
 
-def test_answer_query_uses_retrieved_context_and_cites_doc_chunk(tmp_path: Path) -> None:
-    index_dir = _index(tmp_path)
+def test_answer_query_uses_retrieved_context_and_cites_doc_chunk(
+    tmp_path: Path, parsed_manifest_factory
+) -> None:
+    index_dir = _index(tmp_path, parsed_manifest_factory(Path("data/data_list.csv")))
 
     # Hash embeddings lack the legacy exact-substring bonus (see tests/test_index.py),
     # so the in-domain query uses the full project title to rank doc:000 first.
     response = answer_query(
-        index_dir, "한영대학교 특성화 맞춤형 교육환경 구축 트랙운영 학사정보시스템 고도화 사업을 요약해줘", top_k=3
+        index_dir,
+        "한영대학교 특성화 맞춤형 교육환경 구축 트랙운영 학사정보시스템 고도화 사업을 요약해줘",
+        top_k=3,
     )
 
     assert response["answer"]
@@ -37,8 +42,10 @@ def test_answer_query_uses_retrieved_context_and_cites_doc_chunk(tmp_path: Path)
     assert response["warnings"] == []
 
 
-def test_answer_query_abstains_when_context_is_insufficient(tmp_path: Path) -> None:
-    index_dir = _index(tmp_path)
+def test_answer_query_abstains_when_context_is_insufficient(
+    tmp_path: Path, parsed_manifest_factory
+) -> None:
+    index_dir = _index(tmp_path, parsed_manifest_factory(Path("data/data_list.csv")))
 
     response = answer_query(index_dir, "화성 이주선 산소탱크 발사일은 언제야?", top_k=3)
 

@@ -18,7 +18,24 @@ def tokenize(text: str) -> list[str]:
 
 
 def _embedding_style_text(text: str, metadata: dict[str, Any]) -> str:
-    header = f"사업명: {metadata.get('project_name', '')}\n발주기관: {metadata.get('issuer', '')}"
+    lines = [
+        f"사업명: {metadata.get('project_name', '')}",
+        f"발주기관: {metadata.get('issuer', '')}",
+    ]
+    section_path = metadata.get("section_path") or []
+    if section_path:
+        lines.append(f"섹션: {' > '.join(str(part) for part in section_path)}")
+    elif metadata.get("section_title"):
+        lines.append(f"섹션: {metadata['section_title']}")
+    if metadata.get("section_page_start") is not None:
+        page = str(metadata["section_page_start"])
+        if metadata.get("section_page_end") not in (
+            None,
+            metadata.get("section_page_start"),
+        ):
+            page = f"{page}-{metadata['section_page_end']}"
+        lines.append(f"페이지: {page}")
+    header = "\n".join(lines)
     return f"{header}\n{text}" if text else header
 
 

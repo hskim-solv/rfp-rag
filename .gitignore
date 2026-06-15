@@ -11,6 +11,7 @@ node_modules/
 .ruff_cache/
 outputs/
 package.json
+graphify-out/
 
 # plugin local cache
 .serena/

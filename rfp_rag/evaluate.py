@@ -9,10 +9,15 @@ from typing import Any, Iterable
 
 from .contracts import offline_contract, open_contract, real_contract
 from .corpus import CorpusDocument, load_corpus
-from .providers import normalize_lane
-from .rag_chain import answer_query
+from .providers import build_embeddings, build_generator, normalize_lane
+from .rag_chain import answer_with_store
+from .rerank import RERANKER_NONE, RERANKERS, build_reranker
 from .tracing import flush_tracing
-from .vector_index import RETRIEVAL_MODES, RETRIEVAL_VECTOR
+from .vector_index import (
+    RETRIEVAL_MODES,
+    RETRIEVAL_VECTOR,
+    load_vector_store,
+)
 
 REAL_QUALITY_THRESHOLDS = {
     "recall@3": 0.85,
@@ -200,6 +205,72 @@ def generate_curated_text_questions(
     return records
 
 
+def _load_index_chunk_records(index_dir: Path) -> list[dict[str, Any]]:
+    chunks_path = index_dir / "chunks.jsonl"
+    if not chunks_path.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    with chunks_path.open(encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                records.append(json.loads(line))
+    return records
+
+
+def _section_lookup_title_matches_type(section_title: str, section_type: str) -> bool:
+    if re.fullmatch(r"(?:-+\s*|-?\s*\d+\s*-?)", section_title.strip()):
+        return False
+    keywords = {
+        "project_overview": ("사업", "개요", "목적", "추진", "배경"),
+        "evaluation_criteria": ("평가", "배점", "심사"),
+        "submission": ("제출", "접수", "제안", "입찰"),
+        "eligibility": ("참가", "자격", "입찰참가"),
+        "requirements": ("요구", "과업", "범위", "기능", "구축"),
+        "contract": ("계약", "납품", "산출물"),
+        "security": ("보안", "개인정보", "암호화"),
+    }
+    expected = keywords.get(section_type)
+    if expected is None:
+        return False
+    return any(keyword in section_title for keyword in expected)
+
+
+def generate_section_lookup_questions(
+    chunks: list[dict[str, Any]], max_docs: int = 10
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for chunk in chunks:
+        metadata = dict(chunk.get("metadata") or {})
+        section_title = metadata.get("section_title")
+        section_type = metadata.get("section_type")
+        if not section_title or not section_type or section_type == "general":
+            continue
+        if not _section_lookup_title_matches_type(
+            str(section_title), str(section_type)
+        ):
+            continue
+        key = (str(chunk.get("doc_id")), str(section_type))
+        if key in seen:
+            continue
+        seen.add(key)
+        project = metadata.get("project_name") or chunk.get("doc_id")
+        records.append(
+            {
+                "id": f"section_{section_type}_{chunk.get('csv_row_id')}",
+                "query": f"{project}의 {section_title} 섹션 내용을 알려줘",
+                "query_type": "section_lookup",
+                "expected_doc_ids": [chunk["doc_id"]],
+                "expected_section_types": [section_type],
+                "expected_section_titles": [section_title],
+                "label_source": "section_metadata",
+            }
+        )
+        if len(records) >= max_docs:
+            break
+    return records
+
+
 def generate_abstention_questions() -> list[dict[str, Any]]:
     questions = [
         "화성 이주선 산소탱크 발사일은 언제야?",
@@ -301,6 +372,27 @@ def _score_prediction(
             )
             else 0.0
         )
+    section_hit_rate = None
+    expected_section_types = set(record.get("expected_section_types") or [])
+    expected_section_titles = set(record.get("expected_section_titles") or [])
+    if expected_section_types or expected_section_titles:
+        expected_doc_set = set(expected_docs)
+        hit = False
+        for source in sources:
+            if expected_doc_set and source.get("doc_id") not in expected_doc_set:
+                continue
+            source_path = set(source.get("section_path") or [])
+            title_hit = source.get("section_title") in expected_section_titles or bool(
+                source_path.intersection(expected_section_titles)
+            )
+            type_hit = (
+                not expected_section_titles
+                and source.get("section_type") in expected_section_types
+            )
+            if title_hit or type_hit:
+                hit = True
+                break
+        section_hit_rate = 1.0 if hit else 0.0
 
     return {
         "recall@3": recall3,
@@ -310,6 +402,7 @@ def _score_prediction(
         "citation_validity": citation_validity,
         "metadata_exact_match": metadata_exact,
         "abstention_pass": abstention_pass,
+        "section_hit_rate": section_hit_rate,
     }
 
 
@@ -412,6 +505,7 @@ def _aggregate(scored_predictions: list[dict[str, Any]]) -> dict[str, Any]:
         "citation_validity": _mean(m.get("citation_validity") for m in metrics),
         "metadata_exact_match": _mean(m.get("metadata_exact_match") for m in metrics),
         "abstention_pass": _mean(m.get("abstention_pass") for m in metrics),
+        "section_hit_rate": _mean(m.get("section_hit_rate") for m in metrics),
     }
 
 
@@ -434,6 +528,8 @@ def _render_report(metrics: dict[str, Any], predictions: list[dict[str, Any]]) -
         f"- {metrics['quality_note']}",
         f"- provider_lane: {metrics['provider_lane']}",
         f"- retrieval_mode: {metrics['retrieval_mode']}",
+        f"- reranker: {metrics['reranker']}",
+        f"- rerank_candidate_k: {metrics['rerank_candidate_k']}",
         f"- min_score: {metrics['min_score']}",
         f"- error_rate: {metrics['error_rate']}",
         f"- evaluation_valid: {metrics['evaluation_valid']}",
@@ -481,6 +577,14 @@ def _files_path_from_index(index_dir: Path) -> Path:
     return Path(files_path)
 
 
+def _index_embedding_lane(index_dir: Path) -> str:
+    manifest_path = index_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"index manifest not found: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return normalize_lane(manifest.get("embedding_provider", "offline"))
+
+
 def evaluate_index(
     data_path: Path | str,
     index_dir: Path | str,
@@ -488,13 +592,17 @@ def evaluate_index(
     provider: str = "fake_offline",
     top_k: int = 5,
     max_docs: int = 10,
-    # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
+    # Section-aware source-first offline lane is calibrated at 0.34 (see score_distribution in metrics.json);
     # pass min_score explicitly per lane (real lane calibrates in its own run).
-    min_score: float = 0.05,
+    min_score: float = 0.34,
     retrieval_mode: str = RETRIEVAL_VECTOR,
+    reranker: str = RERANKER_NONE,
+    rerank_candidate_k: int | None = None,
 ) -> dict[str, Any]:
     if retrieval_mode not in RETRIEVAL_MODES:
         raise ValueError(f"unknown retrieval_mode: {retrieval_mode}")
+    if reranker not in RERANKERS:
+        raise ValueError(f"unknown reranker: {reranker}")
     lane = normalize_lane(provider)
     data_path = Path(data_path)
     index_dir = Path(index_dir)
@@ -502,19 +610,36 @@ def evaluate_index(
     docs = load_corpus(data_path, _files_path_from_index(index_dir))
     golden = generate_golden_metadata(docs, max_docs=max_docs)
     curated = generate_curated_text_questions(docs, max_docs=min(max_docs, 10))
+    section_lookup = generate_section_lookup_questions(
+        _load_index_chunk_records(index_dir), max_docs=min(max_docs, 10)
+    )
     abstentions = generate_abstention_questions()
-    queries = golden + curated + abstentions
+    queries = golden + curated + section_lookup + abstentions
+    index_lane = _index_embedding_lane(index_dir)
+    if lane != index_lane:
+        raise ValueError(
+            f"provider lane {lane!r} does not match index embedding lane {index_lane!r}; rebuild the index"
+        )
+    store = load_vector_store(index_dir / "qdrant", build_embeddings(lane), lane=lane)
+    generator = build_generator(lane)
+    reranker_impl = build_reranker(lane, reranker)
+    response_reranker = reranker_impl.name if reranker_impl else RERANKER_NONE
+    response_rerank_candidate_k = rerank_candidate_k or top_k
 
     predictions: list[dict[str, Any]] = []
     error_count = 0
     for record in queries:
         try:
-            response = answer_query(
-                index_dir,
+            response = answer_with_store(
+                store,
+                generator,
                 record["query"],
                 top_k=top_k,
                 min_score=min_score,
                 retrieval_mode=retrieval_mode,
+                index_dir=index_dir,
+                reranker=reranker_impl,
+                rerank_candidate_k=rerank_candidate_k,
             )
         except Exception as exc:  # noqa: BLE001 - isolate per-question API failures
             error_count += 1
@@ -527,6 +652,9 @@ def evaluate_index(
                 "retrieved_doc_ids": [],
                 "retrieved_chunk_ids": [],
                 "scores": [],
+                "reranker": response_reranker,
+                "rerank_candidate_k": response_rerank_candidate_k,
+                "reranker_scores": [],
             }
         pass_fail = _score_prediction(record, response, top_k=top_k)
         predictions.append(
@@ -535,6 +663,8 @@ def evaluate_index(
                 "query": record["query"],
                 "query_type": record["query_type"],
                 "expected_doc_ids": record.get("expected_doc_ids", []),
+                "expected_section_types": record.get("expected_section_types", []),
+                "expected_section_titles": record.get("expected_section_titles", []),
                 "retrieved_doc_ids": response.get("retrieved_doc_ids", []),
                 "retrieved_chunk_ids": response.get("retrieved_chunk_ids", []),
                 "answer": response.get("answer", ""),
@@ -542,6 +672,9 @@ def evaluate_index(
                 "source_texts": response.get("source_texts", []),
                 "warnings": response.get("warnings", []),
                 "scores": response.get("scores", []),
+                "reranker": response.get("reranker", RERANKER_NONE),
+                "rerank_candidate_k": response.get("rerank_candidate_k"),
+                "reranker_scores": response.get("reranker_scores", []),
                 "pass_fail": pass_fail,
             }
         )
@@ -561,12 +694,15 @@ def evaluate_index(
         "top_k": top_k,
         "min_score": min_score,
         "retrieval_mode": retrieval_mode,
+        "reranker": reranker,
+        "rerank_candidate_k": rerank_candidate_k or top_k,
         "error_rate": error_rate,
         "evaluation_valid": evaluation_valid,
         "score_distribution": score_distribution,
         "query_set_counts": {
             "golden_metadata": len(golden),
             "curated_text": len(curated),
+            "section_lookup": len(section_lookup),
             "abstention": len(abstentions),
             "total": len(queries),
         },
@@ -579,6 +715,7 @@ def evaluate_index(
 
     _write_jsonl(out_dir / "golden_metadata.jsonl", golden)
     _write_jsonl(out_dir / "curated_text_questions.jsonl", curated)
+    _write_jsonl(out_dir / "section_lookup_questions.jsonl", section_lookup)
     _write_jsonl(out_dir / "abstention_questions.jsonl", abstentions)
     _write_json(out_dir / "contract.json", _contract_for(lane))
     _write_json(out_dir / "metrics.json", metrics)
@@ -630,6 +767,8 @@ def reaggregate_metrics(
         "top_k": previous.get("top_k"),
         "min_score": previous.get("min_score"),
         "retrieval_mode": previous.get("retrieval_mode", RETRIEVAL_VECTOR),
+        "reranker": previous.get("reranker", RERANKER_NONE),
+        "rerank_candidate_k": previous.get("rerank_candidate_k", previous.get("top_k")),
         "error_rate": error_rate,
         "evaluation_valid": evaluation_valid,
         "score_distribution": _score_distribution(predictions),
@@ -661,14 +800,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--provider", default=None)
     parser.add_argument("--top-k", default=5, type=int)
     parser.add_argument("--max-docs", default=10, type=int)
-    # Offline lane is calibrated at 0.15 (see score_distribution in metrics.json);
+    # Section-aware source-first offline lane is calibrated at 0.34 (see score_distribution in metrics.json);
     # pass --min-score explicitly per lane.
-    parser.add_argument("--min-score", default=0.05, type=float)
+    parser.add_argument("--min-score", default=0.34, type=float)
     parser.add_argument(
         "--retrieval-mode",
         choices=sorted(RETRIEVAL_MODES),
         default=RETRIEVAL_VECTOR,
     )
+    parser.add_argument("--reranker", choices=sorted(RERANKERS), default=RERANKER_NONE)
+    parser.add_argument("--rerank-candidate-k", default=None, type=int)
     parser.add_argument(
         "--reaggregate",
         action="store_true",
@@ -696,6 +837,8 @@ def main(argv: Iterable[str] | None = None) -> int:
             max_docs=args.max_docs,
             min_score=args.min_score,
             retrieval_mode=args.retrieval_mode,
+            reranker=args.reranker,
+            rerank_candidate_k=args.rerank_candidate_k,
         )
     finally:
         flush_tracing()  # 예외 경로 포함 — 단명 CLI에서 배치 전송 보장
