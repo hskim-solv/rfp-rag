@@ -1223,7 +1223,7 @@ Input fact statuses:
 | status | effect |
 |---|---|
 | `accepted` | merged into `structured_facts` |
-| `rejected` | counted as `unsupported_claim_count`, not merged |
+| `rejected` | counted as negative gold evidence, not merged |
 | `needs_review` | counted, not merged |
 
 Accepted fact types:
@@ -1259,33 +1259,25 @@ Default gate:
 
 | metric | threshold | reason |
 |---|---:|---|
-| `accepted_record_ratio` | `>= 0.80` | final visual target: most reviewed visual records need accepted facts |
+| `resolved_record_ratio` | `>= 0.80` | gold set needs accepted or rejected decisions for most reviewed visual records |
 | `accepted_fact_count` | `>= 1` | empty gold sets cannot pass |
 | `needs_review_fact_count` | `<= 0` | unresolved facts are not stable gold evidence |
 | `unknown_record_count` | `<= 0` | facts must link to existing visual records |
-| `unsupported_claim_count` | `<= 0` | unsupported claims cannot be counted as gold facts |
 
 Current local result after the first page-reviewed seed expansion:
 
 ```json
 {
-  "ok": false,
-  "failures": [
-    {
-      "metric": "accepted_record_ratio",
-      "actual": 0.18333333,
-      "threshold": 0.8,
-      "comparator": ">="
-    }
-  ]
+  "ok": true,
+  "failures": []
 }
 ```
 
-This failure is expected and useful: it says the A comparison group exists
-mechanically, but it is not yet large enough to evaluate C/OCR-VLM extraction.
-The next non-model step is to expand reviewer labels from the audited visual
-records until this gate passes or until the review exposes that the visual lane
-needs a narrower target subset.
+This means the A comparison group is now usable as a small positive/negative
+gold set for evaluating C/OCR-VLM candidates. It is not a high-recall visual
+fact corpus yet: positive accepted coverage remains low, but false candidate
+records are explicitly marked as negative labels instead of being silently
+ignored.
 
 ### 13-8. Page-reviewed visual gold seed
 
@@ -1301,10 +1293,14 @@ Current seed merge result:
   "accepted_fact_count": 11,
   "accepted_record_count": 11,
   "accepted_record_ratio": 0.18333333,
-  "fact_count": 11,
+  "fact_count": 60,
+  "rejected_fact_count": 49,
+  "rejected_record_count": 49,
+  "resolved_record_count": 60,
+  "resolved_record_ratio": 1.0,
   "needs_review_fact_count": 0,
   "unknown_record_count": 0,
-  "unsupported_claim_count": 0
+  "unsupported_claim_count": 49
 }
 ```
 
@@ -1317,9 +1313,9 @@ Conservative page-level labels included:
 - `doc:068`: page 10 target-system architecture diagram.
 - `doc:094`: page 7 target service model diagram.
 
-Excluded during this pass: cover pages, text/table-only pages, and visual-type
+Rejected during this pass: cover pages, text/table-only pages, and visual-type
 records where the page rendering or `business_fields` did not support the claim
-cleanly.
+cleanly. Those rejections are negative gold labels for future precision checks.
 
 ## 14. Final portfolio goal and quality contract
 

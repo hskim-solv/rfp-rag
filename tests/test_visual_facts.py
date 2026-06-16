@@ -103,6 +103,10 @@ def test_merge_visual_facts_adds_only_accepted_structured_facts() -> None:
     assert summary["reviewed_needs_extraction_count"] == 1
     assert summary["accepted_record_count"] == 1
     assert summary["accepted_record_ratio"] == 1.0
+    assert summary["rejected_record_count"] == 1
+    assert summary["needs_review_record_count"] == 1
+    assert summary["resolved_record_count"] == 1
+    assert summary["resolved_record_ratio"] == 1.0
     assert summary["fact_count"] == 3
     assert summary["accepted_fact_count"] == 1
     assert summary["rejected_fact_count"] == 1

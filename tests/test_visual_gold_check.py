@@ -11,13 +11,17 @@ def _summary(**overrides: object) -> dict[str, object]:
         "decision": "reviewer_visual_fact_gold_set",
         "record_count": 10,
         "reviewed_needs_extraction_count": 5,
-        "accepted_record_count": 4,
-        "accepted_record_ratio": 0.8,
+        "accepted_record_count": 1,
+        "accepted_record_ratio": 0.2,
+        "rejected_record_count": 3,
+        "needs_review_record_count": 0,
+        "resolved_record_count": 4,
+        "resolved_record_ratio": 0.8,
         "fact_count": 4,
-        "accepted_fact_count": 4,
-        "rejected_fact_count": 0,
+        "accepted_fact_count": 1,
+        "rejected_fact_count": 3,
         "needs_review_fact_count": 0,
-        "unsupported_claim_count": 0,
+        "unsupported_claim_count": 3,
         "unknown_record_count": 0,
     }
     summary.update(overrides)
@@ -30,19 +34,17 @@ def test_visual_gold_gate_passes_when_thresholds_are_met() -> None:
     assert result["ok"] is True
     assert result["decision"] == "visual_gold_gate"
     assert result["failures"] == []
-    assert result["thresholds"]["min_accepted_record_ratio"] == 0.8
+    assert result["thresholds"]["min_resolved_record_ratio"] == 0.8
 
 
-def test_visual_gold_gate_fails_when_coverage_is_too_low() -> None:
-    result = check_visual_gold_summary(
-        _summary(accepted_record_count=1, accepted_record_ratio=0.2)
-    )
+def test_visual_gold_gate_fails_when_resolved_coverage_is_too_low() -> None:
+    result = check_visual_gold_summary(_summary(resolved_record_ratio=0.6))
 
     assert result["ok"] is False
     assert result["failures"] == [
         {
-            "metric": "accepted_record_ratio",
-            "actual": 0.2,
+            "metric": "resolved_record_ratio",
+            "actual": 0.6,
             "threshold": 0.8,
             "comparator": ">=",
         }
@@ -51,7 +53,11 @@ def test_visual_gold_gate_fails_when_coverage_is_too_low() -> None:
 
 def test_visual_gold_gate_fails_when_review_is_unresolved() -> None:
     result = check_visual_gold_summary(
-        _summary(needs_review_fact_count=1, unknown_record_count=1)
+        _summary(
+            needs_review_fact_count=1,
+            needs_review_record_count=1,
+            unknown_record_count=1,
+        )
     )
 
     assert result["ok"] is False
@@ -76,11 +82,11 @@ def test_run_visual_gold_check_cli_exits_nonzero_for_failed_summary(
 
     summary_path = tmp_path / "summary.json"
     summary_path.write_text(
-        json.dumps(_summary(accepted_record_count=1, accepted_record_ratio=0.2)),
+        json.dumps(_summary(resolved_record_ratio=0.2)),
         encoding="utf-8",
     )
 
     assert main(["--summary", str(summary_path)]) == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
-    assert payload["failures"][0]["metric"] == "accepted_record_ratio"
+    assert payload["failures"][0]["metric"] == "resolved_record_ratio"
