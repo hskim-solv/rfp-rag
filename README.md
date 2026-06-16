@@ -169,6 +169,21 @@ The seed lane emits page/type records with `doc_id`, `page`, `visual_type`,
 `review_status`. `structured_facts` intentionally starts empty until a targeted
 extractor or reviewer fills facts for each queued visual record.
 
+Reviewer facts are merged through a separate gold-set lane:
+
+```bash
+python3 -m rfp_rag.run_visual_fact_review \
+  --records artifacts/visual_structure/records.jsonl \
+  --facts docs/evidence/visual-structure-review-facts.example.jsonl \
+  --out artifacts/visual_structure_reviewed
+```
+
+This is the A-first path for visual facts. The reviewer fact JSONL is the gold
+set for later OCR/VLM comparison: accepted facts are merged into
+`structured_facts`, rejected facts are counted as unsupported visual claims, and
+needs-review facts remain unmerged. OCR/VLM extraction stays deferred until a
+candidate extractor can be scored against this reviewer gold set.
+
 ## Section-aware indexing
 
 `build_index` detects coarse RFP sections before chunking. Each chunk carries
