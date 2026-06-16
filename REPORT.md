@@ -1395,22 +1395,22 @@ Candidate-vs-gold result:
 |---|---:|
 | positive_gold_count | `25` |
 | negative_gold_count | `85` |
-| true_positive_count | `19` |
-| false_positive_count | `91` |
-| false_negative_count | `6` |
+| true_positive_count | `21` |
+| false_positive_count | `89` |
+| false_negative_count | `4` |
 | negative_violation_count | `52` |
-| unknown_candidate_count | `39` |
-| precision | `0.17272727` |
-| recall | `0.76` |
-| f1 | `0.28148148` |
+| unknown_candidate_count | `37` |
+| precision | `0.19090909` |
+| recall | `0.84` |
+| f1 | `0.31111111` |
 
 Interpretation: the local baseline is deliberately simple. It mostly tests
 whether the visual-structure queue itself can recover accepted gold keys. It
-does recover 19/25 accepted keys, but it also produces many unsupported visual
-claims: 52 rejected-label hits and 39 unknown claims. This remains useful
+does recover 21/25 accepted keys, but it also produces many unsupported visual
+claims: 52 rejected-label hits and 37 unknown claims. This remains useful
 because the next OCR/VLM or OCR+layout candidate must show a non-trivial
-precision/F1 improvement over `precision=0.17272727` and `f1=0.28148148`, while
-explaining any recall trade-off against the baseline `recall=0.76`.
+precision/F1 improvement over `precision=0.19090909` and `f1=0.31111111`, while
+explaining any recall trade-off against the baseline `recall=0.84`.
 
 Decision record: `docs/adr/0009-visual-local-baseline-before-ocr-vlm.md`.
 
@@ -1454,9 +1454,9 @@ Tesseract generation summary:
 | source_record_count | `110` |
 | review_status_filter | `needs_page_review, reviewed_needs_extraction` |
 | ocr_text_record_count | `110` |
-| candidate_fact_count | `20` |
-| candidate_emitted_count | `20` |
-| insufficient_ocr_evidence_count | `55` |
+| candidate_fact_count | `26` |
+| candidate_emitted_count | `26` |
+| insufficient_ocr_evidence_count | `49` |
 | empty_ocr_text_count | `0` |
 | no_keyword_match_count | `30` |
 | ocr_error_count | `0` |
@@ -1470,24 +1470,27 @@ Candidate-vs-gold result:
 
 | metric | local record baseline | Tesseract OCR candidate |
 |---|---:|---:|
-| candidate_fact_count | `110` | `20` |
-| true_positive_count | `19` | `14` |
-| false_positive_count | `91` | `6` |
-| false_negative_count | `6` | `11` |
+| candidate_fact_count | `110` | `26` |
+| true_positive_count | `21` | `20` |
+| false_positive_count | `89` | `6` |
+| false_negative_count | `4` | `5` |
 | negative_violation_count | `52` | `3` |
-| unknown_candidate_count | `39` | `3` |
-| precision | `0.17272727` | `0.7` |
-| recall | `0.76` | `0.56` |
-| f1 | `0.28148148` | `0.62222222` |
+| unknown_candidate_count | `37` | `3` |
+| precision | `0.19090909` | `0.76923077` |
+| recall | `0.84` | `0.8` |
+| f1 | `0.31111111` | `0.78431373` |
 
 Interpretation: Tesseract is not a final visual-understanding solution, but it
 is a useful first OCR candidate. On the expanded 110-record gold set it improves
 precision, F1, and rejected-label violations sharply, reducing negative
-violations from `52` to `3`. It does not preserve the local baseline's recall:
-`0.56` vs `0.76`. The misses are now keyword/evidence-gate coverage gaps rather
-than execution failures, because the local run produced `ocr_error_count=0` and
-`empty_ocr_text_count=0`. Treat this as a precision-hardened candidate lane, not
-as final visual extraction quality.
+violations from `52` to `3`. The recall-recovery pass also brings recall to
+`0.8`, close to the local baseline's `0.84`, by normalizing organization-chart
+page-level gold keys and emitting requirements-table candidates only with strong
+keyword evidence. The remaining misses are keyword/evidence-gate coverage gaps
+rather than execution failures, because the local run produced
+`ocr_error_count=0` and `empty_ocr_text_count=0`. Treat this as a
+precision-hardened local OCR candidate lane, not as final visual extraction
+quality.
 
 Decision record: `docs/adr/0011-local-tesseract-visual-candidate.md`.
 
@@ -1559,8 +1562,8 @@ Result:
 
 | check | result |
 |---|---:|
-| offline tests | `266 passed, 5 deselected` |
-| runtime | `90.69s` |
+| offline tests | `267 passed, 5 deselected` |
+| runtime | `139.20s` |
 
 ```bash
 uv run python -m rfp_rag.report_check --eval artifacts/eval --readme README.md
@@ -1592,8 +1595,8 @@ Final quality targets:
 
 Next milestone order:
 
-1. M3 Visual MVP follow-up: recover visual candidate recall on the 110-record
-   gold set without relaxing the current negative-violation control.
+1. M3 Visual MVP closeout: expose the 110-record visual candidate gate in
+   reportable artifacts before integrating visual facts into retrieval/generation.
 2. M4 Retrieval Ablation: compare dense, BM25, hybrid RRF, and reranked
    retrieval with quality, latency, and cost trade-offs.
 3. M5 Real Quality Gate: rerun only after explicit cost approval.

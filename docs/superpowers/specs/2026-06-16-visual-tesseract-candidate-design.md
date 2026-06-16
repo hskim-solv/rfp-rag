@@ -36,11 +36,12 @@ Candidate keys are intentionally aligned to the reviewer gold contract:
 
 - `system_architecture_diagram` emits `(record_id, visual_type_present, system_architecture)`.
 - `gantt_schedule` emits `(record_id, visual_type_present, schedule)`.
-- `organization_chart` emits `(record_id, business_field_affected, requirements)`.
-- `requirements_table` emits `(record_id, business_field_affected, requirements)`.
+- `organization_chart` emits `(record_id, visual_type_present, requirements)`.
+- `requirements_table` emits `(record_id, visual_type_present, requirements)` when OCR has at least 4 table/requirements keywords.
 
-A candidate is emitted only when OCR text contains at least one visual-type
-keyword. Empty OCR text and missing keyword evidence produce no candidate.
+A candidate is emitted only when OCR text passes the visual-type evidence gate.
+Empty OCR text and missing or insufficient keyword evidence produce no
+candidate.
 
 ## Error Handling
 

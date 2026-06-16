@@ -89,12 +89,17 @@ def test_build_visual_tesseract_candidates_maps_keywords_to_gold_contract() -> N
         ),
         (
             "doc:003:p7:organization_chart",
-            "business_field_affected",
+            "visual_type_present",
+            "requirements",
+        ),
+        (
+            "doc:004:p9:requirements_table",
+            "visual_type_present",
             "requirements",
         ),
     ]
     assert {c["extractor"] for c in candidates} == {"visual_tesseract_ocr_candidate_v2"}
-    assert summary["candidate_fact_count"] == 3
+    assert summary["candidate_fact_count"] == 4
     assert summary["skipped_record_count"] == 1
     assert summary["ocr_text_record_count"] == 5
     assert observations[0]["matched_keywords"]
@@ -114,7 +119,7 @@ def test_build_visual_tesseract_candidates_skips_empty_or_keywordless_ocr() -> N
     assert [(c["record_id"], c["fact_type"], c["field"]) for c in candidates] == [
         (
             "doc:003:p7:organization_chart",
-            "business_field_affected",
+            "visual_type_present",
             "requirements",
         ),
     ]
@@ -212,9 +217,10 @@ def test_build_visual_tesseract_candidates_filters_weak_ocr_evidence() -> None:
         ("doc:102:p2:system_architecture_diagram", "system_architecture"),
         ("doc:102:p3:system_architecture_diagram", "system_architecture"),
         ("doc:103:p2:organization_chart", "requirements"),
+        ("doc:104:p1:requirements_table", "requirements"),
     ]
-    assert summary["candidate_fact_count"] == 4
-    assert summary["insufficient_ocr_evidence_count"] == 4
+    assert summary["candidate_fact_count"] == 5
+    assert summary["insufficient_ocr_evidence_count"] == 3
     assert [
         observation["record_id"]
         for observation in observations
@@ -223,7 +229,6 @@ def test_build_visual_tesseract_candidates_filters_weak_ocr_evidence() -> None:
         "doc:101:p1:gantt_schedule",
         "doc:102:p1:system_architecture_diagram",
         "doc:103:p1:organization_chart",
-        "doc:104:p1:requirements_table",
     ]
 
 

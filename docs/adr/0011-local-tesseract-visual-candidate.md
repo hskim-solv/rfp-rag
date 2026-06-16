@@ -57,9 +57,9 @@ Candidate fact policy:
 - `system_architecture_diagram` + architecture keywords -> `visual_type_present`,
   field `system_architecture`
 - `gantt_schedule` + schedule keywords -> `visual_type_present`, field `schedule`
-- `organization_chart` + organization keywords -> `business_field_affected`,
+- `organization_chart` + organization keywords -> `visual_type_present`,
   field `requirements`
-- `requirements_table` + requirements keywords -> `business_field_affected`,
+- `requirements_table` + 4+ requirements/table keywords -> `visual_type_present`,
   field `requirements`
 - OCR text가 비거나 visual type별 keyword가 없으면 candidate를 내지 않는다.
 
@@ -98,11 +98,11 @@ Precision hardening 이후 실행 결과 (`--dpi 120 --timeout-seconds 15`):
 | recall | `0.81818182` | `0.90909091` |
 | f1 | `0.25352113` | `0.83333333` |
 
-Hardening 규칙은 extractor `visual_tesseract_ocr_candidate_v2`로 기록한다. schedule
-3-keyword 이상, organization chart의 `조직`/`수행체계` 필수, system architecture의
-high-signal keyword 또는 단독 `연계`, requirements table candidate 보류로 구성된다. 이
-결과는 같은 작은 reviewer gold set에 맞춘 후보 lane 성능이므로, production visual
-extraction 품질로 직접 일반화하지 않는다.
+초기 hardening 규칙은 extractor `visual_tesseract_ocr_candidate_v2`로 기록했다.
+Schedule 3-keyword 이상, organization chart의 `조직`/`수행체계` 필수,
+system architecture의 high-signal keyword 또는 단독 `연계`, requirements table
+candidate 보류로 구성됐다. 이 결과는 같은 작은 reviewer gold set에 맞춘 후보 lane
+성능이므로, production visual extraction 품질로 직접 일반화하지 않는다.
 
 확장 gold 후속 실행 결과: 같은 날 `needs_page_review` 50 records를 page-review해 gold
 set을 110 records로 확장하고, baseline과 Tesseract 모두
@@ -111,20 +111,21 @@ set을 110 records로 확장하고, baseline과 Tesseract 모두
 
 | metric | local record baseline | Tesseract OCR candidate |
 |---|---:|---:|
-| candidate_fact_count | `110` | `20` |
-| true_positive_count | `19` | `14` |
-| false_positive_count | `91` | `6` |
-| false_negative_count | `6` | `11` |
+| candidate_fact_count | `110` | `26` |
+| true_positive_count | `21` | `20` |
+| false_positive_count | `89` | `6` |
+| false_negative_count | `4` | `5` |
 | negative_violation_count | `52` | `3` |
-| unknown_candidate_count | `39` | `3` |
-| precision | `0.17272727` | `0.7` |
-| recall | `0.76` | `0.56` |
-| f1 | `0.28148148` | `0.62222222` |
+| unknown_candidate_count | `37` | `3` |
+| precision | `0.19090909` | `0.76923077` |
+| recall | `0.84` | `0.8` |
+| f1 | `0.31111111` | `0.78431373` |
 
 해석: 확장 gold에서도 Tesseract는 local baseline 대비 precision, F1, negative violation을
-명확히 개선한다. 다만 recall은 `0.76`에서 `0.56`으로 낮아졌다. 따라서 현재
-Tesseract lane은 production visual extractor가 아니라 precision-hardened local OCR
-candidate이며, 다음 후보는 recall recovery를 명시 목표로 삼아야 한다.
+명확히 개선한다. Recall recovery hardening 이후 recall도 `0.8`까지 회복되어 현재
+visual-candidate target인 precision/recall/F1 `>=0.70`과 negative violation `<=3`을
+만족한다. 따라서 현재 Tesseract lane은 production visual extractor가 아니라 목표
+게이트를 통과한 precision-hardened local OCR candidate이다.
 
 ## 탈락 사유
 
