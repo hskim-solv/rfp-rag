@@ -17,6 +17,12 @@ dependencies = [
     "rhwp-python>=0.7.0",
 ]
 
+[tool.uv]
+# Ragas declares diskcache as a core dependency, but this project does not use
+# ragas.cache.DiskCacheBackend. Exclude it to avoid carrying an unused vulnerable
+# transitive dependency in uv.lock.
+exclude-dependencies = ["diskcache"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0",
