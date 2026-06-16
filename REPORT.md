@@ -1402,6 +1402,78 @@ over `precision=0.15` while preserving most of `recall=0.81818182`.
 
 Decision record: `docs/adr/0009-visual-local-baseline-before-ocr-vlm.md`.
 
+### 13-11. Local Tesseract visual OCR candidate
+
+The first OCR candidate uses local `pdftoppm` plus Tesseract CLI. It does not add
+a Python OCR/ML dependency and does not call hosted VLM APIs. The lane renders
+each reviewed visual page to PPM, streams the bytes to Tesseract with
+`kor+eng --psm 11`, applies visual-type keyword rules, and emits candidate facts
+compatible with the §13-9 evaluator.
+
+Implementation detail: local Tesseract 5.5.2 failed to read the temporary
+PNG/PPM by path through Leptonica, but succeeded when the same PPM bytes were
+passed through `stdin`. The lane therefore uses `tesseract stdin stdout`.
+
+Generation command:
+
+```bash
+python3 -m rfp_rag.run_visual_tesseract_candidate \
+  --records artifacts/visual_structure/records.jsonl \
+  --out artifacts/visual_tesseract_candidate \
+  --dpi 120 \
+  --timeout-seconds 15
+```
+
+Evaluation command:
+
+```bash
+python3 -m rfp_rag.run_visual_gold_eval \
+  --gold docs/evidence/visual-structure-review-facts.seed.jsonl \
+  --candidate artifacts/visual_tesseract_candidate/candidate_facts.jsonl \
+  --out artifacts/visual_tesseract_candidate_eval
+```
+
+Tesseract generation summary:
+
+| field | value |
+|---|---:|
+| source_record_count | `110` |
+| reviewed record count | `60` |
+| unique rendered pages | `30` |
+| candidate_fact_count | `43` |
+| candidate_emitted_count | `43` |
+| empty_ocr_text_count | `4` |
+| no_keyword_match_count | `13` |
+| ocr_error_count | `4` |
+| timeout_seconds | `15` |
+| dpi | `120` |
+| lang | `kor+eng` |
+| psm | `11` |
+
+Candidate-vs-gold result:
+
+| metric | local record baseline | Tesseract OCR candidate |
+|---|---:|---:|
+| candidate_fact_count | `60` | `43` |
+| true_positive_count | `9` | `10` |
+| false_positive_count | `51` | `33` |
+| false_negative_count | `2` | `1` |
+| negative_violation_count | `32` | `16` |
+| unknown_candidate_count | `19` | `17` |
+| precision | `0.15` | `0.23255814` |
+| recall | `0.81818182` | `0.90909091` |
+| f1 | `0.25352113` | `0.37037037` |
+
+Interpretation: Tesseract is not a final visual-understanding solution, but it
+is a useful first OCR candidate. Compared with the record-level baseline, it
+improves recall, precision, F1, and cuts rejected-label violations in half. The
+remaining false negative is `doc:002:p8:system_architecture_diagram`, caused by
+a Tesseract timeout. The remaining precision problem is mostly broad system
+architecture keywords such as `시스템` firing on pages that contain system text
+but are rejected as visual-structure gold.
+
+Decision record: `docs/adr/0011-local-tesseract-visual-candidate.md`.
+
 ## 14. Final portfolio goal and quality contract
 
 The final portfolio target is now recorded in
