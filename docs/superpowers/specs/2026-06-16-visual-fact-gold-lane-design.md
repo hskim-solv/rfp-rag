@@ -52,7 +52,7 @@ Input fact JSONL record:
 Accepted statuses:
 
 - `accepted`: merged into `structured_facts`.
-- `rejected`: counted as an unsupported claim candidate, not merged.
+- `rejected`: counted as negative gold evidence, not merged.
 - `needs_review`: counted, not merged.
 
 Accepted fact types:
@@ -87,6 +87,10 @@ Summary metrics:
 - `reviewed_needs_extraction_count`
 - `accepted_record_count`
 - `accepted_record_ratio`
+- `rejected_record_count`
+- `needs_review_record_count`
+- `resolved_record_count`
+- `resolved_record_ratio`
 - `fact_count`
 - `accepted_fact_count`
 - `rejected_fact_count`

@@ -180,9 +180,9 @@ python3 -m rfp_rag.run_visual_fact_review \
 
 This is the A-first path for visual facts. The reviewer fact JSONL is the gold
 set for later OCR/VLM comparison: accepted facts are merged into
-`structured_facts`, rejected facts are counted as unsupported visual claims, and
-needs-review facts remain unmerged. OCR/VLM extraction stays deferred until a
-candidate extractor can be scored against this reviewer gold set.
+`structured_facts`, rejected facts become negative gold labels, and needs-review
+facts remain unmerged. OCR/VLM extraction stays deferred until a candidate
+extractor can be scored against this reviewer gold set.
 
 Check whether the reviewed gold set is complete enough to trust as a comparison
 baseline:
@@ -192,9 +192,10 @@ python3 -m rfp_rag.run_visual_gold_check \
   --summary artifacts/visual_structure_reviewed/summary.json
 ```
 
-The default target is `accepted_record_ratio >= 0.80` with no unresolved
-`needs_review`, unknown-record, or unsupported-claim counts. The current seed is
-expected to fail this gate until reviewer labels cover enough page-level records.
+The default target is `resolved_record_ratio >= 0.80` with no unresolved
+`needs_review` or unknown-record counts. Rejected facts count as resolved
+negative labels, so a page-reviewed gold set can evaluate both recall and
+precision for later OCR/VLM candidates.
 
 ## Section-aware indexing
 

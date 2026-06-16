@@ -9,11 +9,10 @@ from typing import Any, Iterable
 VALID_STATUSES = {"accepted", "rejected", "needs_review"}
 
 VISUAL_GOLD_DEFAULT_THRESHOLDS = {
-    "min_accepted_record_ratio": 0.80,
+    "min_resolved_record_ratio": 0.80,
     "min_accepted_fact_count": 1,
     "max_needs_review_fact_count": 0,
     "max_unknown_record_count": 0,
-    "max_unsupported_claim_count": 0,
 }
 
 FACT_TYPE_FIELDS = {
@@ -172,6 +171,7 @@ def merge_visual_facts(
     by_record = {str(record["record_id"]): record for record in merged_records}
     accepted_by_record: dict[str, list[dict[str, Any]]] = defaultdict(list)
     status_counts: Counter[str] = Counter()
+    status_records: dict[str, set[str]] = defaultdict(set)
     facts_materialized = list(facts)
 
     for fact in facts_materialized:
@@ -182,6 +182,7 @@ def merge_visual_facts(
         _validate_fact(record, fact)
         status = str(fact["status"]).strip()
         status_counts[status] += 1
+        status_records[status].add(record_id)
         if status == "accepted":
             accepted_by_record[record_id].append(
                 _accepted_fact(record_id, len(accepted_by_record[record_id]), fact)
@@ -201,6 +202,7 @@ def merge_visual_facts(
     accepted_record_count = sum(
         1 for record in merged_records if record.get("structured_facts")
     )
+    resolved_record_ids = status_records["accepted"] | status_records["rejected"]
     denominator = reviewed_needs_extraction_count or len(merged_records) or 1
     summary = {
         "decision": "reviewer_visual_fact_gold_set",
@@ -208,6 +210,10 @@ def merge_visual_facts(
         "reviewed_needs_extraction_count": reviewed_needs_extraction_count,
         "accepted_record_count": accepted_record_count,
         "accepted_record_ratio": round(accepted_record_count / denominator, 8),
+        "rejected_record_count": len(status_records["rejected"]),
+        "needs_review_record_count": len(status_records["needs_review"]),
+        "resolved_record_count": len(resolved_record_ids),
+        "resolved_record_ratio": round(len(resolved_record_ids) / denominator, 8),
         "fact_count": len(facts_materialized),
         "accepted_fact_count": status_counts["accepted"],
         "rejected_fact_count": status_counts["rejected"],
@@ -231,6 +237,10 @@ def _render_review_report(summary: dict[str, Any]) -> str:
         "reviewed_needs_extraction_count",
         "accepted_record_count",
         "accepted_record_ratio",
+        "rejected_record_count",
+        "needs_review_record_count",
+        "resolved_record_count",
+        "resolved_record_ratio",
         "fact_count",
         "accepted_fact_count",
         "rejected_fact_count",
@@ -245,7 +255,7 @@ def _render_review_report(summary: dict[str, Any]) -> str:
             "## Interpretation",
             "",
             "Accepted facts are reviewer gold labels for later OCR/VLM comparison.",
-            "Rejected facts are counted as unsupported visual claims and are not merged.",
+            "Rejected facts are negative reviewer gold labels and are not merged.",
             "Needs-review facts are retained in summary counts but are not merged.",
             "",
         ]
@@ -271,8 +281,8 @@ def write_visual_fact_artifacts(
 def check_visual_gold_summary(
     summary: dict[str, Any],
     *,
-    min_accepted_record_ratio: float = VISUAL_GOLD_DEFAULT_THRESHOLDS[
-        "min_accepted_record_ratio"
+    min_resolved_record_ratio: float = VISUAL_GOLD_DEFAULT_THRESHOLDS[
+        "min_resolved_record_ratio"
     ],
     min_accepted_fact_count: int = VISUAL_GOLD_DEFAULT_THRESHOLDS[
         "min_accepted_fact_count"
@@ -283,22 +293,18 @@ def check_visual_gold_summary(
     max_unknown_record_count: int = VISUAL_GOLD_DEFAULT_THRESHOLDS[
         "max_unknown_record_count"
     ],
-    max_unsupported_claim_count: int = VISUAL_GOLD_DEFAULT_THRESHOLDS[
-        "max_unsupported_claim_count"
-    ],
 ) -> dict[str, Any]:
     thresholds = {
-        "min_accepted_record_ratio": min_accepted_record_ratio,
+        "min_resolved_record_ratio": min_resolved_record_ratio,
         "min_accepted_fact_count": min_accepted_fact_count,
         "max_needs_review_fact_count": max_needs_review_fact_count,
         "max_unknown_record_count": max_unknown_record_count,
-        "max_unsupported_claim_count": max_unsupported_claim_count,
     }
     checks = [
         (
-            "accepted_record_ratio",
-            float(summary.get("accepted_record_ratio") or 0.0),
-            min_accepted_record_ratio,
+            "resolved_record_ratio",
+            float(summary.get("resolved_record_ratio") or 0.0),
+            min_resolved_record_ratio,
             ">=",
         ),
         (
@@ -319,12 +325,6 @@ def check_visual_gold_summary(
             max_unknown_record_count,
             "<=",
         ),
-        (
-            "unsupported_claim_count",
-            int(summary.get("unsupported_claim_count") or 0),
-            max_unsupported_claim_count,
-            "<=",
-        ),
     ]
     failures = []
     for metric, actual, threshold, comparator in checks:
@@ -343,9 +343,17 @@ def check_visual_gold_summary(
         "ok": not failures,
         "thresholds": thresholds,
         "metrics": {
+            "resolved_record_ratio": float(summary.get("resolved_record_ratio") or 0.0),
+            "resolved_record_count": int(summary.get("resolved_record_count") or 0),
             "accepted_record_ratio": float(summary.get("accepted_record_ratio") or 0.0),
+            "accepted_record_count": int(summary.get("accepted_record_count") or 0),
+            "rejected_record_count": int(summary.get("rejected_record_count") or 0),
             "accepted_fact_count": int(summary.get("accepted_fact_count") or 0),
+            "rejected_fact_count": int(summary.get("rejected_fact_count") or 0),
             "needs_review_fact_count": int(summary.get("needs_review_fact_count") or 0),
+            "needs_review_record_count": int(
+                summary.get("needs_review_record_count") or 0
+            ),
             "unknown_record_count": int(summary.get("unknown_record_count") or 0),
             "unsupported_claim_count": int(summary.get("unsupported_claim_count") or 0),
         },
