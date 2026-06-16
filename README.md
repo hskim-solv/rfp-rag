@@ -230,6 +230,27 @@ Current local baseline result: `candidate_fact_count=60`,
 floor comparison group for later OCR/VLM or OCR+layout candidates, not a
 production-quality visual extractor.
 
+Generate the first local OCR candidate with Tesseract:
+
+```bash
+python3 -m rfp_rag.run_visual_tesseract_candidate \
+  --records artifacts/visual_structure/records.jsonl \
+  --out artifacts/visual_tesseract_candidate \
+  --dpi 120 \
+  --timeout-seconds 15
+
+python3 -m rfp_rag.run_visual_gold_eval \
+  --gold docs/evidence/visual-structure-review-facts.seed.jsonl \
+  --candidate artifacts/visual_tesseract_candidate/candidate_facts.jsonl \
+  --out artifacts/visual_tesseract_candidate_eval
+```
+
+Current Tesseract candidate result: `candidate_fact_count=43`,
+`precision=0.23255814`, `recall=0.90909091`, `f1=0.37037037`,
+`negative_violation_count=16`, and `unknown_candidate_count=17`. This improves
+the no-model baseline on precision, recall, F1, and rejected-label violations,
+but remains a local OCR candidate rather than final visual understanding.
+
 ## Section-aware indexing
 
 `build_index` detects coarse RFP sections before chunking. Each chunk carries
