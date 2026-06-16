@@ -71,7 +71,7 @@ def test_build_visual_tesseract_candidates_maps_keywords_to_gold_contract() -> N
     ocr_text_by_record = {
         "doc:001:p3:gantt_schedule": "착수 완료 일정 계획 1개월 2개월",
         "doc:002:p5:system_architecture_diagram": "시스템 구성 서버 DB 연계",
-        "doc:003:p7:organization_chart": "추진체계 PM 사업관리팀 역할",
+        "doc:003:p7:organization_chart": "수행체계 PM 사업관리팀 역할",
         "doc:004:p9:requirements_table": "요구사항 기능 항목 세부 내용",
         "doc:005:p1:gantt_schedule": "일정",
     }
@@ -92,9 +92,9 @@ def test_build_visual_tesseract_candidates_maps_keywords_to_gold_contract() -> N
             "business_field_affected",
             "requirements",
         ),
-        ("doc:004:p9:requirements_table", "business_field_affected", "requirements"),
     ]
-    assert summary["candidate_fact_count"] == 4
+    assert {c["extractor"] for c in candidates} == {"visual_tesseract_ocr_candidate_v2"}
+    assert summary["candidate_fact_count"] == 3
     assert summary["skipped_record_count"] == 1
     assert summary["ocr_text_record_count"] == 5
     assert observations[0]["matched_keywords"]
@@ -117,12 +117,114 @@ def test_build_visual_tesseract_candidates_skips_empty_or_keywordless_ocr() -> N
             "business_field_affected",
             "requirements",
         ),
-        ("doc:004:p9:requirements_table", "business_field_affected", "requirements"),
     ]
-    assert summary["candidate_fact_count"] == 2
+    assert summary["candidate_fact_count"] == 1
     assert summary["no_keyword_match_count"] == 1
     assert summary["empty_ocr_text_count"] == 1
+    assert summary["insufficient_ocr_evidence_count"] == 1
     assert observations[0]["status"] == "empty_ocr_text"
+
+
+def test_build_visual_tesseract_candidates_filters_weak_ocr_evidence() -> None:
+    records = [
+        {
+            "record_id": "doc:101:p1:gantt_schedule",
+            "doc_id": "doc:101",
+            "page": 1,
+            "visual_type": "gantt_schedule",
+            "review_status": "reviewed_needs_extraction",
+            "evidence_ref": {"pdf_path": "artifacts/parsed_docs/pdf/doc_101.pdf"},
+        },
+        {
+            "record_id": "doc:101:p2:gantt_schedule",
+            "doc_id": "doc:101",
+            "page": 2,
+            "visual_type": "gantt_schedule",
+            "review_status": "reviewed_needs_extraction",
+            "evidence_ref": {"pdf_path": "artifacts/parsed_docs/pdf/doc_101.pdf"},
+        },
+        {
+            "record_id": "doc:102:p1:system_architecture_diagram",
+            "doc_id": "doc:102",
+            "page": 1,
+            "visual_type": "system_architecture_diagram",
+            "review_status": "reviewed_needs_extraction",
+            "evidence_ref": {"pdf_path": "artifacts/parsed_docs/pdf/doc_102.pdf"},
+        },
+        {
+            "record_id": "doc:102:p2:system_architecture_diagram",
+            "doc_id": "doc:102",
+            "page": 2,
+            "visual_type": "system_architecture_diagram",
+            "review_status": "reviewed_needs_extraction",
+            "evidence_ref": {"pdf_path": "artifacts/parsed_docs/pdf/doc_102.pdf"},
+        },
+        {
+            "record_id": "doc:102:p3:system_architecture_diagram",
+            "doc_id": "doc:102",
+            "page": 3,
+            "visual_type": "system_architecture_diagram",
+            "review_status": "reviewed_needs_extraction",
+            "evidence_ref": {"pdf_path": "artifacts/parsed_docs/pdf/doc_102.pdf"},
+        },
+        {
+            "record_id": "doc:103:p1:organization_chart",
+            "doc_id": "doc:103",
+            "page": 1,
+            "visual_type": "organization_chart",
+            "review_status": "reviewed_needs_extraction",
+            "evidence_ref": {"pdf_path": "artifacts/parsed_docs/pdf/doc_103.pdf"},
+        },
+        {
+            "record_id": "doc:103:p2:organization_chart",
+            "doc_id": "doc:103",
+            "page": 2,
+            "visual_type": "organization_chart",
+            "review_status": "reviewed_needs_extraction",
+            "evidence_ref": {"pdf_path": "artifacts/parsed_docs/pdf/doc_103.pdf"},
+        },
+        {
+            "record_id": "doc:104:p1:requirements_table",
+            "doc_id": "doc:104",
+            "page": 1,
+            "visual_type": "requirements_table",
+            "review_status": "reviewed_needs_extraction",
+            "evidence_ref": {"pdf_path": "artifacts/parsed_docs/pdf/doc_104.pdf"},
+        },
+    ]
+
+    candidates, summary, observations = build_visual_tesseract_candidates(
+        records,
+        {
+            "doc:101:p1:gantt_schedule": "일정 추진일정",
+            "doc:101:p2:gantt_schedule": "일정 추진일정 계획",
+            "doc:102:p1:system_architecture_diagram": "시스템 구성",
+            "doc:102:p2:system_architecture_diagram": "시스템 구성 서버",
+            "doc:102:p3:system_architecture_diagram": "연계",
+            "doc:103:p1:organization_chart": "추진체계 PM 팀",
+            "doc:103:p2:organization_chart": "수행체계 PM",
+            "doc:104:p1:requirements_table": "요구사항 기능 항목 세부 내용",
+        },
+    )
+
+    assert [(c["record_id"], c["field"]) for c in candidates] == [
+        ("doc:101:p2:gantt_schedule", "schedule"),
+        ("doc:102:p2:system_architecture_diagram", "system_architecture"),
+        ("doc:102:p3:system_architecture_diagram", "system_architecture"),
+        ("doc:103:p2:organization_chart", "requirements"),
+    ]
+    assert summary["candidate_fact_count"] == 4
+    assert summary["insufficient_ocr_evidence_count"] == 4
+    assert [
+        observation["record_id"]
+        for observation in observations
+        if observation["status"] == "insufficient_ocr_evidence"
+    ] == [
+        "doc:101:p1:gantt_schedule",
+        "doc:102:p1:system_architecture_diagram",
+        "doc:103:p1:organization_chart",
+        "doc:104:p1:requirements_table",
+    ]
 
 
 def test_run_visual_tesseract_candidate_writes_artifacts_from_ocr_text_fixture(
@@ -141,7 +243,7 @@ def test_run_visual_tesseract_candidate_writes_artifacts_from_ocr_text_fixture(
             },
             {
                 "record_id": "doc:003:p7:organization_chart",
-                "text": "추진체계 PM 역할",
+                "text": "수행체계 PM 역할",
             },
         ],
     )
@@ -225,7 +327,7 @@ def test_run_visual_tesseract_candidate_cli_accepts_ocr_text_fixture(
         [
             {
                 "record_id": "doc:002:p5:system_architecture_diagram",
-                "text": "시스템 구성",
+                "text": "시스템 구성 서버",
             }
         ],
     )
