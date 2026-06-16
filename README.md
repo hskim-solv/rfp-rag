@@ -197,6 +197,20 @@ The default target is `resolved_record_ratio >= 0.80` with no unresolved
 negative labels, so a page-reviewed gold set can evaluate both recall and
 precision for later OCR/VLM candidates.
 
+Evaluate a candidate extractor output against the reviewer gold set:
+
+```bash
+python3 -m rfp_rag.run_visual_gold_eval \
+  --gold docs/evidence/visual-structure-review-facts.seed.jsonl \
+  --candidate docs/evidence/visual-structure-candidate-facts.example.jsonl \
+  --out artifacts/visual_gold_eval
+```
+
+The evaluator scores candidate facts by `(record_id, fact_type, field)` and
+reports precision, recall, F1, negative-label violations, and unknown candidate
+claims. The checked-in candidate file is only a smoke fixture, not an OCR/VLM
+result.
+
 ## Section-aware indexing
 
 `build_index` detects coarse RFP sections before chunking. Each chunk carries
