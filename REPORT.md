@@ -1243,6 +1243,50 @@ deeper business facts are extracted. Later OCR/VLM extraction should be treated
 as a candidate lane and evaluated against this gold set with recall, precision,
 field accuracy, citation alignment, and unsupported visual claim rate.
 
+### 13-7. Reviewer visual-gold quality gate
+
+The reviewer fact lane now has a separate quality gate so the project does not
+silently treat a tiny example seed as a complete comparison set.
+
+Command shape:
+
+```bash
+python3 -m rfp_rag.run_visual_gold_check \
+  --summary artifacts/visual_structure_reviewed/summary.json
+```
+
+Default gate:
+
+| metric | threshold | reason |
+|---|---:|---|
+| `accepted_record_ratio` | `>= 0.80` | final visual target: most reviewed visual records need accepted facts |
+| `accepted_fact_count` | `>= 1` | empty gold sets cannot pass |
+| `needs_review_fact_count` | `<= 0` | unresolved facts are not stable gold evidence |
+| `unknown_record_count` | `<= 0` | facts must link to existing visual records |
+| `unsupported_claim_count` | `<= 0` | unsupported claims cannot be counted as gold facts |
+
+Current local result after the example fact seed:
+
+```json
+{
+  "ok": false,
+  "failures": [
+    {
+      "metric": "accepted_record_ratio",
+      "actual": 0.01666667,
+      "threshold": 0.8,
+      "comparator": ">="
+    }
+  ]
+}
+```
+
+This failure is expected and useful: it says the A comparison group exists
+mechanically, but it is not yet large enough to evaluate C/OCR-VLM extraction.
+The next non-model step is to expand reviewer labels from the audited visual
+records until this gate passes or until the review exposes that the visual lane
+needs a narrower target subset.
+
 ## 14. Final portfolio goal and quality contract
 
 The final portfolio target is now recorded in

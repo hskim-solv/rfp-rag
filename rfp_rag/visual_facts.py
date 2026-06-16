@@ -8,6 +8,14 @@ from typing import Any, Iterable
 
 VALID_STATUSES = {"accepted", "rejected", "needs_review"}
 
+VISUAL_GOLD_DEFAULT_THRESHOLDS = {
+    "min_accepted_record_ratio": 0.80,
+    "min_accepted_fact_count": 1,
+    "max_needs_review_fact_count": 0,
+    "max_unknown_record_count": 0,
+    "max_unsupported_claim_count": 0,
+}
+
 FACT_TYPE_FIELDS = {
     "visual_type_present": {
         "schedule",
@@ -258,6 +266,91 @@ def write_visual_fact_artifacts(
         _render_review_report(summary), encoding="utf-8"
     )
     return summary
+
+
+def check_visual_gold_summary(
+    summary: dict[str, Any],
+    *,
+    min_accepted_record_ratio: float = VISUAL_GOLD_DEFAULT_THRESHOLDS[
+        "min_accepted_record_ratio"
+    ],
+    min_accepted_fact_count: int = VISUAL_GOLD_DEFAULT_THRESHOLDS[
+        "min_accepted_fact_count"
+    ],
+    max_needs_review_fact_count: int = VISUAL_GOLD_DEFAULT_THRESHOLDS[
+        "max_needs_review_fact_count"
+    ],
+    max_unknown_record_count: int = VISUAL_GOLD_DEFAULT_THRESHOLDS[
+        "max_unknown_record_count"
+    ],
+    max_unsupported_claim_count: int = VISUAL_GOLD_DEFAULT_THRESHOLDS[
+        "max_unsupported_claim_count"
+    ],
+) -> dict[str, Any]:
+    thresholds = {
+        "min_accepted_record_ratio": min_accepted_record_ratio,
+        "min_accepted_fact_count": min_accepted_fact_count,
+        "max_needs_review_fact_count": max_needs_review_fact_count,
+        "max_unknown_record_count": max_unknown_record_count,
+        "max_unsupported_claim_count": max_unsupported_claim_count,
+    }
+    checks = [
+        (
+            "accepted_record_ratio",
+            float(summary.get("accepted_record_ratio") or 0.0),
+            min_accepted_record_ratio,
+            ">=",
+        ),
+        (
+            "accepted_fact_count",
+            int(summary.get("accepted_fact_count") or 0),
+            min_accepted_fact_count,
+            ">=",
+        ),
+        (
+            "needs_review_fact_count",
+            int(summary.get("needs_review_fact_count") or 0),
+            max_needs_review_fact_count,
+            "<=",
+        ),
+        (
+            "unknown_record_count",
+            int(summary.get("unknown_record_count") or 0),
+            max_unknown_record_count,
+            "<=",
+        ),
+        (
+            "unsupported_claim_count",
+            int(summary.get("unsupported_claim_count") or 0),
+            max_unsupported_claim_count,
+            "<=",
+        ),
+    ]
+    failures = []
+    for metric, actual, threshold, comparator in checks:
+        passed = actual >= threshold if comparator == ">=" else actual <= threshold
+        if not passed:
+            failures.append(
+                {
+                    "metric": metric,
+                    "actual": actual,
+                    "threshold": threshold,
+                    "comparator": comparator,
+                }
+            )
+    return {
+        "decision": "visual_gold_gate",
+        "ok": not failures,
+        "thresholds": thresholds,
+        "metrics": {
+            "accepted_record_ratio": float(summary.get("accepted_record_ratio") or 0.0),
+            "accepted_fact_count": int(summary.get("accepted_fact_count") or 0),
+            "needs_review_fact_count": int(summary.get("needs_review_fact_count") or 0),
+            "unknown_record_count": int(summary.get("unknown_record_count") or 0),
+            "unsupported_claim_count": int(summary.get("unsupported_claim_count") or 0),
+        },
+        "failures": failures,
+    }
 
 
 def run_visual_fact_review(
