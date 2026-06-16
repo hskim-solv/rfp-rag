@@ -211,6 +211,25 @@ reports precision, recall, F1, negative-label violations, and unknown candidate
 claims. The checked-in candidate file is only a smoke fixture, not an OCR/VLM
 result.
 
+Generate the deterministic no-model local baseline before adopting OCR/VLM:
+
+```bash
+python3 -m rfp_rag.run_visual_local_baseline \
+  --records artifacts/visual_structure/records.jsonl \
+  --out artifacts/visual_local_baseline
+
+python3 -m rfp_rag.run_visual_gold_eval \
+  --gold docs/evidence/visual-structure-review-facts.seed.jsonl \
+  --candidate artifacts/visual_local_baseline/candidate_facts.jsonl \
+  --out artifacts/visual_local_baseline_eval
+```
+
+Current local baseline result: `candidate_fact_count=60`,
+`precision=0.15`, `recall=0.81818182`, `f1=0.25352113`,
+`negative_violation_count=32`, and `unknown_candidate_count=19`. This is the
+floor comparison group for later OCR/VLM or OCR+layout candidates, not a
+production-quality visual extractor.
+
 ## Section-aware indexing
 
 `build_index` detects coarse RFP sections before chunking. Each chunk carries
