@@ -184,6 +184,19 @@ set for later OCR/VLM comparison: accepted facts are merged into
 needs-review facts remain unmerged. OCR/VLM extraction stays deferred until a
 candidate extractor can be scored against this reviewer gold set.
 
+Check whether the reviewed gold set is complete enough to trust as a comparison
+baseline:
+
+```bash
+python3 -m rfp_rag.run_visual_gold_check \
+  --summary artifacts/visual_structure_reviewed/summary.json
+```
+
+The default target is `accepted_record_ratio >= 0.80` with no unresolved
+`needs_review`, unknown-record, or unsupported-claim counts. The current example
+seed is expected to fail this gate until reviewer labels are expanded beyond the
+single illustrative fact.
+
 ## Section-aware indexing
 
 `build_index` detects coarse RFP sections before chunking. Each chunk carries
