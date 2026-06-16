@@ -174,7 +174,7 @@ Reviewer facts are merged through a separate gold-set lane:
 ```bash
 python3 -m rfp_rag.run_visual_fact_review \
   --records artifacts/visual_structure/records.jsonl \
-  --facts docs/evidence/visual-structure-review-facts.example.jsonl \
+  --facts docs/evidence/visual-structure-review-facts.seed.jsonl \
   --out artifacts/visual_structure_reviewed
 ```
 
@@ -193,9 +193,8 @@ python3 -m rfp_rag.run_visual_gold_check \
 ```
 
 The default target is `accepted_record_ratio >= 0.80` with no unresolved
-`needs_review`, unknown-record, or unsupported-claim counts. The current example
-seed is expected to fail this gate until reviewer labels are expanded beyond the
-single illustrative fact.
+`needs_review`, unknown-record, or unsupported-claim counts. The current seed is
+expected to fail this gate until reviewer labels cover enough page-level records.
 
 ## Section-aware indexing
 

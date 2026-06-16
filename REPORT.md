@@ -1214,7 +1214,7 @@ Command shape:
 ```bash
 python3 -m rfp_rag.run_visual_fact_review \
   --records artifacts/visual_structure/records.jsonl \
-  --facts docs/evidence/visual-structure-review-facts.example.jsonl \
+  --facts docs/evidence/visual-structure-review-facts.seed.jsonl \
   --out artifacts/visual_structure_reviewed
 ```
 
@@ -1265,7 +1265,7 @@ Default gate:
 | `unknown_record_count` | `<= 0` | facts must link to existing visual records |
 | `unsupported_claim_count` | `<= 0` | unsupported claims cannot be counted as gold facts |
 
-Current local result after the example fact seed:
+Current local result after the first page-reviewed seed expansion:
 
 ```json
 {
@@ -1273,7 +1273,7 @@ Current local result after the example fact seed:
   "failures": [
     {
       "metric": "accepted_record_ratio",
-      "actual": 0.01666667,
+      "actual": 0.18333333,
       "threshold": 0.8,
       "comparator": ">="
     }
@@ -1286,6 +1286,40 @@ mechanically, but it is not yet large enough to evaluate C/OCR-VLM extraction.
 The next non-model step is to expand reviewer labels from the audited visual
 records until this gate passes or until the review exposes that the visual lane
 needs a narrower target subset.
+
+### 13-8. Page-reviewed visual gold seed
+
+The initial illustrative fact was replaced because page rendering showed that
+`doc:034:p1:gantt_schedule` points to a cover page, not a Gantt schedule. The
+seed file is now `docs/evidence/visual-structure-review-facts.seed.jsonl` and
+contains only accepted facts checked against rendered PDF pages.
+
+Current seed merge result:
+
+```json
+{
+  "accepted_fact_count": 11,
+  "accepted_record_count": 11,
+  "accepted_record_ratio": 0.18333333,
+  "fact_count": 11,
+  "needs_review_fact_count": 0,
+  "unknown_record_count": 0,
+  "unsupported_claim_count": 0
+}
+```
+
+Conservative page-level labels included:
+
+- `doc:002`: page 6 and 8 system architecture diagrams.
+- `doc:011`: page 7 and 8 system diagrams; page 9 Gantt schedule and role chart.
+- `doc:026`: page 8 Gantt schedule; page 9 project organization chart.
+- `doc:034`: page 7 Gantt schedule.
+- `doc:068`: page 10 target-system architecture diagram.
+- `doc:094`: page 7 target service model diagram.
+
+Excluded during this pass: cover pages, text/table-only pages, and visual-type
+records where the page rendering or `business_fields` did not support the claim
+cleanly.
 
 ## 14. Final portfolio goal and quality contract
 
