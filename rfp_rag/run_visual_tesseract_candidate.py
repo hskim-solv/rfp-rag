@@ -21,6 +21,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pdftoppm-bin", default="pdftoppm")
     parser.add_argument("--tesseract-bin", default="tesseract")
     parser.add_argument("--timeout-seconds", type=int, default=20)
+    parser.add_argument(
+        "--review-status",
+        action="append",
+        dest="review_statuses",
+        help="Review status to include. Repeat to include multiple statuses.",
+    )
     return parser
 
 
@@ -37,6 +43,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         pdftoppm_bin=args.pdftoppm_bin,
         tesseract_bin=args.tesseract_bin,
         timeout_seconds=args.timeout_seconds,
+        review_statuses=args.review_statuses,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     return 0

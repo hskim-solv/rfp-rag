@@ -87,6 +87,21 @@ VISUAL_OCR_RULES: dict[str, VisualOcrRule] = {
 }
 
 
+def _normalize_review_statuses(
+    review_statuses: Iterable[str] | None,
+) -> tuple[str, ...]:
+    values = tuple(
+        sorted(
+            {
+                str(status).strip()
+                for status in (review_statuses or (REVIEW_STATUS_FILTER,))
+                if str(status).strip()
+            }
+        )
+    )
+    return values or (REVIEW_STATUS_FILTER,)
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         raise FileNotFoundError(f"jsonl file not found: {path}")
@@ -170,14 +185,17 @@ def _candidate_fact(
 def build_visual_tesseract_candidates(
     records: Iterable[dict[str, Any]],
     ocr_text_by_record: dict[str, str],
+    *,
+    review_statuses: Iterable[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
     rows = list(records)
+    allowed_review_statuses = set(_normalize_review_statuses(review_statuses))
     candidates: list[dict[str, Any]] = []
     observations: list[dict[str, Any]] = []
 
     for record in rows:
         record_id = str(record.get("record_id") or "")
-        if record.get("review_status") != REVIEW_STATUS_FILTER:
+        if record.get("review_status") not in allowed_review_statuses:
             observations.append(
                 {
                     "record_id": record_id,
@@ -246,7 +264,7 @@ def build_visual_tesseract_candidates(
     summary = {
         "decision": "visual_tesseract_ocr_candidate",
         "extractor": EXTRACTOR_NAME,
-        "review_status_filter": REVIEW_STATUS_FILTER,
+        "review_status_filter": list(sorted(allowed_review_statuses)),
         "source_record_count": len(rows),
         "ocr_text_record_count": len(ocr_text_by_record),
         "candidate_fact_count": len(candidates),
@@ -346,6 +364,7 @@ def _run_tesseract_stdin(
 def _ocr_records(
     records: Iterable[dict[str, Any]],
     *,
+    review_statuses: Iterable[str] | None = None,
     dpi: int,
     lang: str,
     psm: int,
@@ -355,12 +374,13 @@ def _ocr_records(
 ) -> tuple[dict[str, str], list[dict[str, Any]]]:
     ocr_text_by_record: dict[str, str] = {}
     observations: list[dict[str, Any]] = []
+    allowed_review_statuses = set(_normalize_review_statuses(review_statuses))
     page_cache: dict[tuple[str, int], tuple[str, dict[str, Any] | None]] = {}
     with tempfile.TemporaryDirectory(prefix="rfp-visual-tesseract-") as tmp:
         root = Path(tmp)
         for record in records:
             record_id = str(record.get("record_id") or "")
-            if record.get("review_status") != REVIEW_STATUS_FILTER:
+            if record.get("review_status") not in allowed_review_statuses:
                 continue
             try:
                 cache_key = _page_cache_key(record)
@@ -423,11 +443,14 @@ def run_visual_tesseract_candidate(
     pdftoppm_bin: str = "pdftoppm",
     tesseract_bin: str = "tesseract",
     timeout_seconds: int = 20,
+    review_statuses: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     records = _read_jsonl(Path(records_path))
+    normalized_review_statuses = _normalize_review_statuses(review_statuses)
     if ocr_text_path is None:
         ocr_text_by_record, ocr_error_observations = _ocr_records(
             records,
+            review_statuses=normalized_review_statuses,
             dpi=dpi,
             lang=lang,
             psm=psm,
@@ -440,7 +463,9 @@ def run_visual_tesseract_candidate(
         ocr_error_observations = []
 
     candidates, summary, observations = build_visual_tesseract_candidates(
-        records, ocr_text_by_record
+        records,
+        ocr_text_by_record,
+        review_statuses=normalized_review_statuses,
     )
     observations = ocr_error_observations + observations
     if ocr_error_observations:

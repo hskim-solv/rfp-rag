@@ -47,6 +47,21 @@ def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
             f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
+def _normalize_review_statuses(
+    review_statuses: Iterable[str] | None,
+) -> tuple[str, ...]:
+    values = tuple(
+        sorted(
+            {
+                str(status).strip()
+                for status in (review_statuses or (REVIEW_STATUS_FILTER,))
+                if str(status).strip()
+            }
+        )
+    )
+    return values or (REVIEW_STATUS_FILTER,)
+
+
 def _choose_field(record: dict[str, Any]) -> str:
     fields = [str(field) for field in record.get("business_fields") or []]
     visual_type = str(record.get("visual_type") or "visual_structure")
@@ -71,23 +86,26 @@ def _candidate_fact(record: dict[str, Any]) -> dict[str, Any]:
 
 def build_visual_local_candidates(
     records: Iterable[dict[str, Any]],
+    *,
+    review_statuses: Iterable[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = list(records)
+    allowed_review_statuses = set(_normalize_review_statuses(review_statuses))
     candidates = [
         _candidate_fact(record)
         for record in rows
-        if record.get("review_status") == REVIEW_STATUS_FILTER
+        if record.get("review_status") in allowed_review_statuses
     ]
     field_counts = Counter(candidate["field"] for candidate in candidates)
     visual_type_counts = Counter(
         str(record.get("visual_type") or "visual_structure")
         for record in rows
-        if record.get("review_status") == REVIEW_STATUS_FILTER
+        if record.get("review_status") in allowed_review_statuses
     )
     summary = {
         "decision": "visual_local_record_baseline",
         "extractor": EXTRACTOR_NAME,
-        "review_status_filter": REVIEW_STATUS_FILTER,
+        "review_status_filter": list(sorted(allowed_review_statuses)),
         "source_record_count": len(rows),
         "candidate_fact_count": len(candidates),
         "skipped_record_count": len(rows) - len(candidates),
@@ -100,9 +118,14 @@ def build_visual_local_candidates(
 def run_visual_local_baseline(
     records_path: Path | str,
     out_dir: Path | str,
+    *,
+    review_statuses: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     records = _read_jsonl(Path(records_path))
-    candidates, summary = build_visual_local_candidates(records)
+    candidates, summary = build_visual_local_candidates(
+        records,
+        review_statuses=review_statuses,
+    )
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     _write_jsonl(out / "candidate_facts.jsonl", candidates)

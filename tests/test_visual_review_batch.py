@@ -120,6 +120,29 @@ def test_build_visual_review_batch_selects_unresolved_page_review_records() -> N
     }
 
 
+def test_build_visual_review_batch_uses_visual_type_default_field() -> None:
+    records, facts_template, _summary = build_visual_review_batch(
+        [
+            {
+                "record_id": "doc:071:p3:gantt_schedule",
+                "doc_id": "doc:071",
+                "page": 3,
+                "visual_type": "gantt_schedule",
+                "business_fields": ["system_architecture", "requirements"],
+                "structured_facts": [],
+                "review_status": "needs_page_review",
+                "confidence": 0.5,
+                "evidence_ref": {"pdf_path": "doc071.pdf"},
+            }
+        ],
+        [],
+        review_status="needs_page_review",
+    )
+
+    assert records[0]["record_id"] == "doc:071:p3:gantt_schedule"
+    assert facts_template[0]["field"] == "schedule"
+
+
 def test_visual_review_batch_fact_template_matches_review_contract() -> None:
     records, facts_template, _summary = build_visual_review_batch(
         _records(),

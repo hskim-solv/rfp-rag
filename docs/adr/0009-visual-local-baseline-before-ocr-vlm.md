@@ -66,6 +66,28 @@ lane이 필요하다.
 OCR+layout 후보는 최소한 recall을 유지하면서 negative violation과 unknown claim을
 크게 줄여야 "비자명한 개선"이라고 주장할 수 있다.
 
+후속 실행 결과: 2026-06-16에 `needs_page_review` 50 records를 추가로 page-review해
+gold set을 110 records로 확장했다. 같은 baseline을
+`--review-status reviewed_needs_extraction --review-status needs_page_review`로 다시
+실행한 결과는 다음과 같다.
+
+| metric | value |
+|---|---:|
+| candidate_fact_count | `110` |
+| positive_gold_count | `25` |
+| negative_gold_count | `85` |
+| precision | `0.17272727` |
+| recall | `0.76` |
+| f1 | `0.28148148` |
+| false_positive_count | `91` |
+| false_negative_count | `6` |
+| negative_violation_count | `52` |
+| unknown_candidate_count | `39` |
+
+확장 결과에서도 기준선의 역할은 동일하다. Queue prior만 믿으면 recall은 어느 정도
+나오지만 unsupported visual claim이 많다. 이후 candidate는 이 기준선 대비 F1과
+negative violation을 개선해야 하며, recall이 낮아질 경우 그 trade-off를 명시해야 한다.
+
 ## 탈락 사유
 
 - 후보 A: 바로 OCR/VLM을 붙이면 모델 품질과 queue prior 효과가 섞여 개선 폭을
@@ -88,4 +110,6 @@ OCR+layout 후보는 최소한 recall을 유지하면서 negative violation과 u
 - `docs/evidence/visual-structure-review-facts.seed.jsonl`
 - `artifacts/visual_local_baseline/summary.json`
 - `artifacts/visual_local_baseline_eval/summary.json`
+- `artifacts/visual_local_baseline_expanded/summary.json`
+- `artifacts/visual_local_baseline_expanded_eval/summary.json`
 - `REPORT.md` §13-10

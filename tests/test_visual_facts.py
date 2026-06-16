@@ -101,12 +101,13 @@ def test_merge_visual_facts_adds_only_accepted_structured_facts() -> None:
     assert records[1]["structured_facts"] == []
     assert summary["record_count"] == 2
     assert summary["reviewed_needs_extraction_count"] == 1
+    assert summary["review_scope_record_count"] == 2
     assert summary["accepted_record_count"] == 1
-    assert summary["accepted_record_ratio"] == 1.0
+    assert summary["accepted_record_ratio"] == 0.5
     assert summary["rejected_record_count"] == 1
     assert summary["needs_review_record_count"] == 1
     assert summary["resolved_record_count"] == 1
-    assert summary["resolved_record_ratio"] == 1.0
+    assert summary["resolved_record_ratio"] == 0.5
     assert summary["fact_count"] == 3
     assert summary["accepted_fact_count"] == 1
     assert summary["rejected_fact_count"] == 1
@@ -127,6 +128,16 @@ def test_merge_visual_facts_rejects_field_outside_record_business_fields() -> No
 
     with pytest.raises(ValueError, match="field .* is not listed"):
         merge_visual_facts(_records(), [bad_fact])
+
+
+def test_merge_visual_facts_allows_visual_type_default_field_for_presence() -> None:
+    record = _records()[0] | {"business_fields": ["requirements"]}
+    fact = _facts()[0] | {"field": "schedule"}
+
+    records, summary = merge_visual_facts([record], [fact])
+
+    assert summary["accepted_fact_count"] == 1
+    assert records[0]["structured_facts"][0]["field"] == "schedule"
 
 
 def test_merge_visual_facts_rejects_incompatible_fact_type() -> None:

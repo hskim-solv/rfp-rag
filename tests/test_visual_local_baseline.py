@@ -77,6 +77,26 @@ def test_build_visual_local_candidates_filters_and_selects_fields() -> None:
     }
 
 
+def test_build_visual_local_candidates_can_include_page_review_records() -> None:
+    candidates, summary = build_visual_local_candidates(
+        _records(),
+        review_statuses=["reviewed_needs_extraction", "needs_page_review"],
+    )
+
+    assert [candidate["record_id"] for candidate in candidates] == [
+        "doc:001:p3:gantt_schedule",
+        "doc:002:p5:system_architecture_diagram",
+        "doc:003:p7:organization_chart",
+        "doc:004:p1:dashboard_screenshot",
+    ]
+    assert summary["candidate_fact_count"] == 4
+    assert summary["skipped_record_count"] == 0
+    assert summary["review_status_filter"] == [
+        "needs_page_review",
+        "reviewed_needs_extraction",
+    ]
+
+
 def test_run_visual_local_baseline_writes_candidate_facts_and_summary(
     tmp_path: Path,
 ) -> None:
@@ -109,3 +129,35 @@ def test_run_visual_local_baseline_cli_writes_outputs(tmp_path: Path, capsys) ->
     payload = json.loads(capsys.readouterr().out)
     assert payload["candidate_fact_count"] == 3
     assert (out_dir / "candidate_facts.jsonl").is_file()
+
+
+def test_run_visual_local_baseline_cli_accepts_repeated_review_status(
+    tmp_path: Path, capsys
+) -> None:
+    from rfp_rag.run_visual_local_baseline import main
+
+    records_path = tmp_path / "records.jsonl"
+    out_dir = tmp_path / "baseline"
+    _write_jsonl(records_path, _records())
+
+    assert (
+        main(
+            [
+                "--records",
+                str(records_path),
+                "--out",
+                str(out_dir),
+                "--review-status",
+                "reviewed_needs_extraction",
+                "--review-status",
+                "needs_page_review",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["candidate_fact_count"] == 4
+    assert payload["review_status_filter"] == [
+        "needs_page_review",
+        "reviewed_needs_extraction",
+    ]
