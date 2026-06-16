@@ -4,6 +4,13 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+VISUAL_CANDIDATE_DEFAULT_THRESHOLDS = {
+    "min_precision": 0.70,
+    "min_recall": 0.70,
+    "min_f1": 0.70,
+    "max_negative_violation_count": 3,
+}
+
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
@@ -85,6 +92,66 @@ def evaluate_visual_gold_candidates(
         "precision": precision,
         "recall": recall,
         "f1": f1,
+    }
+
+
+def check_visual_candidate_summary(
+    summary: dict[str, Any],
+    *,
+    min_precision: float = VISUAL_CANDIDATE_DEFAULT_THRESHOLDS["min_precision"],
+    min_recall: float = VISUAL_CANDIDATE_DEFAULT_THRESHOLDS["min_recall"],
+    min_f1: float = VISUAL_CANDIDATE_DEFAULT_THRESHOLDS["min_f1"],
+    max_negative_violation_count: int = VISUAL_CANDIDATE_DEFAULT_THRESHOLDS[
+        "max_negative_violation_count"
+    ],
+) -> dict[str, Any]:
+    thresholds = {
+        "min_precision": min_precision,
+        "min_recall": min_recall,
+        "min_f1": min_f1,
+        "max_negative_violation_count": max_negative_violation_count,
+    }
+    checks = [
+        ("precision", float(summary.get("precision") or 0.0), min_precision, ">="),
+        ("recall", float(summary.get("recall") or 0.0), min_recall, ">="),
+        ("f1", float(summary.get("f1") or 0.0), min_f1, ">="),
+        (
+            "negative_violation_count",
+            int(summary.get("negative_violation_count") or 0),
+            max_negative_violation_count,
+            "<=",
+        ),
+    ]
+    failures = []
+    for metric, actual, threshold, comparator in checks:
+        passed = actual >= threshold if comparator == ">=" else actual <= threshold
+        if not passed:
+            failures.append(
+                {
+                    "metric": metric,
+                    "actual": actual,
+                    "threshold": threshold,
+                    "comparator": comparator,
+                }
+            )
+    return {
+        "decision": "visual_candidate_gate",
+        "ok": not failures,
+        "thresholds": thresholds,
+        "metrics": {
+            "candidate_fact_count": int(summary.get("candidate_fact_count") or 0),
+            "true_positive_count": int(summary.get("true_positive_count") or 0),
+            "false_positive_count": int(summary.get("false_positive_count") or 0),
+            "false_negative_count": int(summary.get("false_negative_count") or 0),
+            "negative_violation_count": int(
+                summary.get("negative_violation_count") or 0
+            ),
+            "unknown_candidate_count": int(summary.get("unknown_candidate_count") or 0),
+            "precision": float(summary.get("precision") or 0.0),
+            "recall": float(summary.get("recall") or 0.0),
+            "f1": float(summary.get("f1") or 0.0),
+        },
+        "failures": failures,
     }
 
 

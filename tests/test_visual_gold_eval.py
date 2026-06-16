@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from rfp_rag.visual_gold_eval import (
+    check_visual_candidate_summary,
     evaluate_visual_gold_candidates,
     run_visual_gold_eval,
 )
@@ -135,3 +136,104 @@ def test_run_visual_gold_eval_cli_prints_summary(tmp_path: Path, capsys) -> None
     payload = json.loads(capsys.readouterr().out)
     assert payload["candidate_fact_count"] == 0
     assert payload["recall"] == 0.0
+
+
+def test_check_visual_candidate_summary_passes_when_targets_are_met() -> None:
+    result = check_visual_candidate_summary(
+        {
+            "precision": 0.76923077,
+            "recall": 0.8,
+            "f1": 0.78431373,
+            "negative_violation_count": 3,
+            "candidate_fact_count": 26,
+            "true_positive_count": 20,
+        }
+    )
+
+    assert result["decision"] == "visual_candidate_gate"
+    assert result["ok"] is True
+    assert result["failures"] == []
+    assert result["metrics"]["precision"] == 0.76923077
+    assert result["thresholds"]["min_recall"] == 0.7
+
+
+def test_check_visual_candidate_summary_fails_below_targets() -> None:
+    result = check_visual_candidate_summary(
+        {
+            "precision": 0.69,
+            "recall": 0.8,
+            "f1": 0.69,
+            "negative_violation_count": 4,
+            "candidate_fact_count": 26,
+            "true_positive_count": 20,
+        }
+    )
+
+    assert result["ok"] is False
+    assert {
+        "metric": "precision",
+        "actual": 0.69,
+        "threshold": 0.7,
+        "comparator": ">=",
+    } in result["failures"]
+    assert {
+        "metric": "negative_violation_count",
+        "actual": 4,
+        "threshold": 3,
+        "comparator": "<=",
+    } in result["failures"]
+
+
+def test_run_visual_candidate_check_cli_exits_nonzero_for_failed_summary(
+    tmp_path: Path, capsys
+) -> None:
+    from rfp_rag.run_visual_candidate_check import main
+
+    summary_path = tmp_path / "summary.json"
+    summary_path.write_text(
+        json.dumps(
+            {
+                "precision": 0.69,
+                "recall": 0.8,
+                "f1": 0.69,
+                "negative_violation_count": 4,
+                "candidate_fact_count": 26,
+                "true_positive_count": 20,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["--summary", str(summary_path)]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert payload["failures"][0]["metric"] == "precision"
+
+
+def test_run_visual_candidate_check_cli_writes_gate_artifact(
+    tmp_path: Path, capsys
+) -> None:
+    from rfp_rag.run_visual_candidate_check import main
+
+    summary_path = tmp_path / "summary.json"
+    out_dir = tmp_path / "gate"
+    summary_path.write_text(
+        json.dumps(
+            {
+                "precision": 0.8,
+                "recall": 0.8,
+                "f1": 0.8,
+                "negative_violation_count": 3,
+                "candidate_fact_count": 26,
+                "true_positive_count": 20,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["--summary", str(summary_path), "--out", str(out_dir)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    saved = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+    assert payload["ok"] is True
+    assert saved["decision"] == "visual_candidate_gate"
+    assert saved["ok"] is True
