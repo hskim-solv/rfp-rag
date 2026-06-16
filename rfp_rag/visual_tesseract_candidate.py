@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-EXTRACTOR_NAME = "visual_tesseract_ocr_candidate_v1"
+EXTRACTOR_NAME = "visual_tesseract_ocr_candidate_v2"
 REVIEW_STATUS_FILTER = "reviewed_needs_extraction"
 
 
@@ -17,12 +17,17 @@ class VisualOcrRule:
     fact_type: str
     field: str
     keywords: tuple[str, ...]
+    min_keyword_count: int = 1
+    required_keywords_any: tuple[str, ...] = ()
+    solitary_keywords: tuple[str, ...] = ()
+    emit_candidate: bool = True
 
 
 VISUAL_OCR_RULES: dict[str, VisualOcrRule] = {
     "gantt_schedule": VisualOcrRule(
         fact_type="visual_type_present",
         field="schedule",
+        min_keyword_count=3,
         keywords=(
             "일정",
             "추진일정",
@@ -40,6 +45,8 @@ VISUAL_OCR_RULES: dict[str, VisualOcrRule] = {
     "system_architecture_diagram": VisualOcrRule(
         fact_type="visual_type_present",
         field="system_architecture",
+        required_keywords_any=("서버", "DB", "인터페이스"),
+        solitary_keywords=("연계",),
         keywords=(
             "시스템",
             "구성",
@@ -57,6 +64,7 @@ VISUAL_OCR_RULES: dict[str, VisualOcrRule] = {
     "organization_chart": VisualOcrRule(
         fact_type="business_field_affected",
         field="requirements",
+        required_keywords_any=("조직", "수행체계"),
         keywords=(
             "조직",
             "추진체계",
@@ -73,6 +81,7 @@ VISUAL_OCR_RULES: dict[str, VisualOcrRule] = {
     "requirements_table": VisualOcrRule(
         fact_type="business_field_affected",
         field="requirements",
+        emit_candidate=False,
         keywords=("요구사항", "기능", "요건", "항목", "세부", "내용", "구분"),
     ),
 }
@@ -120,6 +129,25 @@ def _ocr_text_fixture(path: Path) -> dict[str, str]:
 def _match_keywords(text: str, rule: VisualOcrRule) -> list[str]:
     upper_text = text.upper()
     return [keyword for keyword in rule.keywords if keyword.upper() in upper_text]
+
+
+def _passes_evidence_gate(matched_keywords: list[str], rule: VisualOcrRule) -> bool:
+    if not rule.emit_candidate:
+        return False
+
+    matched_keyword_set = set(matched_keywords)
+    if len(matched_keyword_set) == 1 and matched_keywords[0] in rule.solitary_keywords:
+        return True
+
+    if len(matched_keyword_set) < rule.min_keyword_count:
+        return False
+
+    if rule.required_keywords_any and not (
+        matched_keyword_set & set(rule.required_keywords_any)
+    ):
+        return False
+
+    return True
 
 
 def _candidate_fact(
@@ -194,6 +222,16 @@ def build_visual_tesseract_candidates(
                 }
             )
             continue
+        if not _passes_evidence_gate(matched_keywords, rule):
+            observations.append(
+                {
+                    "record_id": record_id,
+                    "status": "insufficient_ocr_evidence",
+                    "ocr_text_length": len(text),
+                    "matched_keywords": matched_keywords,
+                }
+            )
+            continue
         candidates.append(_candidate_fact(record, rule, matched_keywords))
         observations.append(
             {
@@ -215,6 +253,9 @@ def build_visual_tesseract_candidates(
         "skipped_record_count": status_counts.get("skipped_review_status", 0),
         "empty_ocr_text_count": status_counts.get("empty_ocr_text", 0),
         "no_keyword_match_count": status_counts.get("no_keyword_match", 0),
+        "insufficient_ocr_evidence_count": status_counts.get(
+            "insufficient_ocr_evidence", 0
+        ),
         "unsupported_visual_type_count": status_counts.get(
             "unsupported_visual_type", 0
         ),

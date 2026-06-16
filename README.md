@@ -245,11 +245,13 @@ python3 -m rfp_rag.run_visual_gold_eval \
   --out artifacts/visual_tesseract_candidate_eval
 ```
 
-Current Tesseract candidate result: `candidate_fact_count=43`,
-`precision=0.23255814`, `recall=0.90909091`, `f1=0.37037037`,
-`negative_violation_count=16`, and `unknown_candidate_count=17`. This improves
-the no-model baseline on precision, recall, F1, and rejected-label violations,
-but remains a local OCR candidate rather than final visual understanding.
+Current precision-hardened Tesseract candidate result:
+`candidate_fact_count=13`, `precision=0.76923077`, `recall=0.90909091`,
+`f1=0.83333333`, `negative_violation_count=2`, and
+`unknown_candidate_count=1`. This improves the no-model baseline on precision,
+recall, F1, and rejected-label violations, but remains a local OCR candidate
+calibrated on the small reviewer gold set rather than final visual
+understanding.
 
 ## Section-aware indexing
 
