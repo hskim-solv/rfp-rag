@@ -76,13 +76,13 @@ gold set을 110 records로 확장했다. 같은 baseline을
 | candidate_fact_count | `110` |
 | positive_gold_count | `25` |
 | negative_gold_count | `85` |
-| precision | `0.17272727` |
-| recall | `0.76` |
-| f1 | `0.28148148` |
-| false_positive_count | `91` |
-| false_negative_count | `6` |
+| precision | `0.19090909` |
+| recall | `0.84` |
+| f1 | `0.31111111` |
+| false_positive_count | `89` |
+| false_negative_count | `4` |
 | negative_violation_count | `52` |
-| unknown_candidate_count | `39` |
+| unknown_candidate_count | `37` |
 
 확장 결과에서도 기준선의 역할은 동일하다. Queue prior만 믿으면 recall은 어느 정도
 나오지만 unsupported visual claim이 많다. 이후 candidate는 이 기준선 대비 F1과

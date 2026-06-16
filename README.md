@@ -249,8 +249,8 @@ python3 -m rfp_rag.run_visual_gold_eval \
 ```
 
 Current expanded local baseline result: `candidate_fact_count=110`,
-`precision=0.17272727`, `recall=0.76`, `f1=0.28148148`,
-`negative_violation_count=52`, and `unknown_candidate_count=39`. This is the
+`precision=0.19090909`, `recall=0.84`, `f1=0.31111111`,
+`negative_violation_count=52`, and `unknown_candidate_count=37`. This is the
 floor comparison group for later OCR/VLM or OCR+layout candidates, not a
 production-quality visual extractor.
 
@@ -272,11 +272,11 @@ python3 -m rfp_rag.run_visual_gold_eval \
 ```
 
 Current expanded precision-hardened Tesseract candidate result:
-`candidate_fact_count=20`, `precision=0.7`, `recall=0.56`, `f1=0.62222222`,
-`negative_violation_count=3`, and `unknown_candidate_count=3`. This improves the
-expanded no-model baseline on precision, F1, and rejected-label violations, but
-recall falls below the baseline (`0.56` vs `0.76`), so the next candidate step
-should target recall recovery without relaxing unsupported-claim controls.
+`candidate_fact_count=26`, `precision=0.76923077`, `recall=0.8`,
+`f1=0.78431373`, `negative_violation_count=3`, and
+`unknown_candidate_count=3`. This now clears the current visual-candidate target
+on precision, recall, F1, and rejected-label violations while remaining a local
+OCR candidate rather than final visual understanding.
 
 ## Section-aware indexing
 

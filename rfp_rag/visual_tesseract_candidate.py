@@ -62,7 +62,7 @@ VISUAL_OCR_RULES: dict[str, VisualOcrRule] = {
         ),
     ),
     "organization_chart": VisualOcrRule(
-        fact_type="business_field_affected",
+        fact_type="visual_type_present",
         field="requirements",
         required_keywords_any=("조직", "수행체계"),
         keywords=(
@@ -79,9 +79,9 @@ VISUAL_OCR_RULES: dict[str, VisualOcrRule] = {
         ),
     ),
     "requirements_table": VisualOcrRule(
-        fact_type="business_field_affected",
+        fact_type="visual_type_present",
         field="requirements",
-        emit_candidate=False,
+        min_keyword_count=4,
         keywords=("요구사항", "기능", "요건", "항목", "세부", "내용", "구분"),
     ),
 }

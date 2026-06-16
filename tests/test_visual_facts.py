@@ -82,6 +82,32 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
             f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
+def test_seed_organization_chart_positive_labels_use_page_level_contract() -> None:
+    facts_path = Path("docs/evidence/visual-structure-review-facts.seed.jsonl")
+    facts = [
+        json.loads(line)
+        for line in facts_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    organization_chart_accepts = [
+        fact
+        for fact in facts
+        if fact["status"] == "accepted"
+        and fact["record_id"].endswith(":organization_chart")
+    ]
+
+    assert organization_chart_accepts
+    assert {
+        (fact["record_id"], fact["fact_type"], fact["field"])
+        for fact in organization_chart_accepts
+    } == {
+        ("doc:011:p9:organization_chart", "visual_type_present", "requirements"),
+        ("doc:026:p9:organization_chart", "visual_type_present", "requirements"),
+        ("doc:040:p6:organization_chart", "visual_type_present", "requirements"),
+        ("doc:037:p8:organization_chart", "visual_type_present", "requirements"),
+    }
+
+
 def test_merge_visual_facts_adds_only_accepted_structured_facts() -> None:
     records, summary = merge_visual_facts(_records(), _facts())
 
