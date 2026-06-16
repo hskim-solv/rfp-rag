@@ -1202,6 +1202,47 @@ This closes the first M3 Visual MVP step: visual-only risk is no longer just a
 Markdown note; it has a reproducible artifact that can feed the next extractor,
 review queue, and visual-risk eval subset.
 
+### 13-6. Reviewer visual-fact gold lane
+
+The approved next step is A-first, C-later: reviewer facts create the comparison
+set before any OCR/VLM extractor is trusted. This means `structured_facts` is not
+filled by a model by default. It is filled only from reviewer fact JSONL records
+that pass strict validation against the existing visual-structure records.
+
+Command shape:
+
+```bash
+python3 -m rfp_rag.run_visual_fact_review \
+  --records artifacts/visual_structure/records.jsonl \
+  --facts docs/evidence/visual-structure-review-facts.example.jsonl \
+  --out artifacts/visual_structure_reviewed
+```
+
+Input fact statuses:
+
+| status | effect |
+|---|---|
+| `accepted` | merged into `structured_facts` |
+| `rejected` | counted as `unsupported_claim_count`, not merged |
+| `needs_review` | counted, not merged |
+
+Accepted fact types:
+
+- `visual_type_present`
+- `business_field_affected`
+- `schedule_milestone`
+- `schedule_duration`
+- `schedule_dependency`
+- `requirement_item`
+- `architecture_component`
+- `architecture_integration`
+- `ui_requirement`
+
+The first two fact types support a conservative page-level gold set before
+deeper business facts are extracted. Later OCR/VLM extraction should be treated
+as a candidate lane and evaluated against this gold set with recall, precision,
+field accuracy, citation alignment, and unsupported visual claim rate.
+
 ## 14. Final portfolio goal and quality contract
 
 The final portfolio target is now recorded in
