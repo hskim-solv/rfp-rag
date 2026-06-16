@@ -14,13 +14,23 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--records", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument(
+        "--review-status",
+        action="append",
+        dest="review_statuses",
+        help="Review status to include. Repeat to include multiple statuses.",
+    )
     return parser
 
 
 def main(argv: Iterable[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    summary = run_visual_local_baseline(args.records, args.out)
+    summary = run_visual_local_baseline(
+        args.records,
+        args.out,
+        review_statuses=args.review_statuses,
+    )
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

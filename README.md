@@ -197,8 +197,14 @@ The default target is `resolved_record_ratio >= 0.80` with no unresolved
 negative labels, so a page-reviewed gold set can evaluate both recall and
 precision for later OCR/VLM candidates.
 
-Create the next reviewer batch for visual records that still require page
-review:
+Current expanded gold result: `fact_count=110`, `accepted_fact_count=25`,
+`rejected_fact_count=85`, `resolved_record_ratio=1.0`,
+`needs_review_fact_count=0`, and `unknown_record_count=0`. The gold set is now a
+complete comparison set over the current 110 visual records, not only the
+initial 60-record calibration subset.
+
+Create the next reviewer batch for visual records that still require page review
+or confirm that none remain:
 
 ```bash
 python3 -m rfp_rag.run_visual_review_batch \
@@ -209,11 +215,9 @@ python3 -m rfp_rag.run_visual_review_batch \
 ```
 
 This writes `records.jsonl`, `facts_template.jsonl`, `summary.json`, and
-`review_queue.md`. The current next batch contains `50` unresolved records:
-`dashboard_screenshot=5`, `gantt_schedule=20`, `organization_chart=10`, and
-`requirements_table=15`. The template facts intentionally remain
-`status=needs_review` until a page reviewer changes them to `accepted` or
-`rejected`.
+`review_queue.md`. With the current expanded seed file, the command reports
+`existing_fact_record_count=110` and `selected_record_count=0`, so there is no
+remaining page-review batch for the current visual-structure records.
 
 Evaluate a candidate extractor output against the reviewer gold set:
 
@@ -234,17 +238,19 @@ Generate the deterministic no-model local baseline before adopting OCR/VLM:
 ```bash
 python3 -m rfp_rag.run_visual_local_baseline \
   --records artifacts/visual_structure/records.jsonl \
-  --out artifacts/visual_local_baseline
+  --out artifacts/visual_local_baseline_expanded \
+  --review-status reviewed_needs_extraction \
+  --review-status needs_page_review
 
 python3 -m rfp_rag.run_visual_gold_eval \
   --gold docs/evidence/visual-structure-review-facts.seed.jsonl \
-  --candidate artifacts/visual_local_baseline/candidate_facts.jsonl \
-  --out artifacts/visual_local_baseline_eval
+  --candidate artifacts/visual_local_baseline_expanded/candidate_facts.jsonl \
+  --out artifacts/visual_local_baseline_expanded_eval
 ```
 
-Current local baseline result: `candidate_fact_count=60`,
-`precision=0.15`, `recall=0.81818182`, `f1=0.25352113`,
-`negative_violation_count=32`, and `unknown_candidate_count=19`. This is the
+Current expanded local baseline result: `candidate_fact_count=110`,
+`precision=0.17272727`, `recall=0.76`, `f1=0.28148148`,
+`negative_violation_count=52`, and `unknown_candidate_count=39`. This is the
 floor comparison group for later OCR/VLM or OCR+layout candidates, not a
 production-quality visual extractor.
 
@@ -253,23 +259,24 @@ Generate the first local OCR candidate with Tesseract:
 ```bash
 python3 -m rfp_rag.run_visual_tesseract_candidate \
   --records artifacts/visual_structure/records.jsonl \
-  --out artifacts/visual_tesseract_candidate \
+  --out artifacts/visual_tesseract_candidate_expanded \
   --dpi 120 \
-  --timeout-seconds 15
+  --timeout-seconds 15 \
+  --review-status reviewed_needs_extraction \
+  --review-status needs_page_review
 
 python3 -m rfp_rag.run_visual_gold_eval \
   --gold docs/evidence/visual-structure-review-facts.seed.jsonl \
-  --candidate artifacts/visual_tesseract_candidate/candidate_facts.jsonl \
-  --out artifacts/visual_tesseract_candidate_eval
+  --candidate artifacts/visual_tesseract_candidate_expanded/candidate_facts.jsonl \
+  --out artifacts/visual_tesseract_candidate_expanded_eval
 ```
 
-Current precision-hardened Tesseract candidate result:
-`candidate_fact_count=13`, `precision=0.76923077`, `recall=0.90909091`,
-`f1=0.83333333`, `negative_violation_count=2`, and
-`unknown_candidate_count=1`. This improves the no-model baseline on precision,
-recall, F1, and rejected-label violations, but remains a local OCR candidate
-calibrated on the small reviewer gold set rather than final visual
-understanding.
+Current expanded precision-hardened Tesseract candidate result:
+`candidate_fact_count=20`, `precision=0.7`, `recall=0.56`, `f1=0.62222222`,
+`negative_violation_count=3`, and `unknown_candidate_count=3`. This improves the
+expanded no-model baseline on precision, F1, and rejected-label violations, but
+recall falls below the baseline (`0.56` vs `0.76`), so the next candidate step
+should target recall recovery without relaxing unsupported-claim controls.
 
 ## Section-aware indexing
 

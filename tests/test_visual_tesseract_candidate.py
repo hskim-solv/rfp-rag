@@ -227,6 +227,32 @@ def test_build_visual_tesseract_candidates_filters_weak_ocr_evidence() -> None:
     ]
 
 
+def test_build_visual_tesseract_candidates_can_include_page_review_records() -> None:
+    candidates, summary, observations = build_visual_tesseract_candidates(
+        _records(),
+        {
+            "doc:001:p3:gantt_schedule": "착수 완료 일정 계획",
+            "doc:005:p1:gantt_schedule": "일정 추진일정 착수",
+        },
+        review_statuses=("reviewed_needs_extraction", "needs_page_review"),
+    )
+
+    assert [(c["record_id"], c["field"]) for c in candidates] == [
+        ("doc:001:p3:gantt_schedule", "schedule"),
+        ("doc:005:p1:gantt_schedule", "schedule"),
+    ]
+    assert summary["review_status_filter"] == [
+        "needs_page_review",
+        "reviewed_needs_extraction",
+    ]
+    assert summary["candidate_fact_count"] == 2
+    assert not [
+        observation
+        for observation in observations
+        if observation["status"] == "skipped_review_status"
+    ]
+
+
 def test_run_visual_tesseract_candidate_writes_artifacts_from_ocr_text_fixture(
     tmp_path: Path,
 ) -> None:
@@ -346,4 +372,48 @@ def test_run_visual_tesseract_candidate_cli_accepts_ocr_text_fixture(
         == 0
     )
     payload = json.loads(capsys.readouterr().out)
+    assert payload["candidate_fact_count"] == 1
+
+
+def test_run_visual_tesseract_candidate_cli_accepts_repeated_review_status(
+    tmp_path: Path, capsys
+) -> None:
+    from rfp_rag.run_visual_tesseract_candidate import main
+
+    records_path = tmp_path / "records.jsonl"
+    ocr_text_path = tmp_path / "ocr_text.jsonl"
+    out_dir = tmp_path / "out"
+    _write_jsonl(records_path, _records())
+    _write_jsonl(
+        ocr_text_path,
+        [
+            {
+                "record_id": "doc:005:p1:gantt_schedule",
+                "text": "일정 추진일정 착수",
+            }
+        ],
+    )
+
+    assert (
+        main(
+            [
+                "--records",
+                str(records_path),
+                "--out",
+                str(out_dir),
+                "--ocr-text",
+                str(ocr_text_path),
+                "--review-status",
+                "reviewed_needs_extraction",
+                "--review-status",
+                "needs_page_review",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["review_status_filter"] == [
+        "needs_page_review",
+        "reviewed_needs_extraction",
+    ]
     assert payload["candidate_fact_count"] == 1

@@ -79,6 +79,15 @@ VISUAL_TYPE_FACT_TYPES = {
     },
 }
 
+VISUAL_TYPE_DEFAULT_FIELDS = {
+    "gantt_schedule": "schedule",
+    "organization_chart": "requirements",
+    "requirements_table": "requirements",
+    "system_architecture_diagram": "system_architecture",
+    "dashboard_screenshot": "requirements",
+    "visual_structure": "requirements",
+}
+
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
@@ -132,15 +141,19 @@ def _validate_fact(record: dict[str, Any], fact: dict[str, Any]) -> None:
     if status == "accepted":
         _require_non_empty(fact, "evidence_quote")
 
+    visual_type = str(record.get("visual_type") or "visual_structure")
+    visual_type_default_field = VISUAL_TYPE_DEFAULT_FIELDS.get(visual_type)
     business_fields = set(record.get("business_fields") or [])
-    if field not in business_fields:
+    is_visual_type_presence_default = (
+        fact_type == "visual_type_present" and field == visual_type_default_field
+    )
+    if field not in business_fields and not is_visual_type_presence_default:
         raise ValueError(
             f"field {field!r} is not listed in business_fields for {record['record_id']}"
         )
     allowed_fields = FACT_TYPE_FIELDS.get(fact_type)
     if allowed_fields is None or field not in allowed_fields:
         raise ValueError(f"incompatible fact_type {fact_type!r} for field {field!r}")
-    visual_type = str(record.get("visual_type") or "visual_structure")
     allowed_types = VISUAL_TYPE_FACT_TYPES.get(visual_type, {"visual_type_present"})
     if fact_type not in allowed_types:
         raise ValueError(
@@ -199,15 +212,27 @@ def merge_visual_facts(
         for record in merged_records
         if record.get("review_status") == "reviewed_needs_extraction"
     )
+    reviewed_needs_extraction_ids = {
+        str(record["record_id"])
+        for record in merged_records
+        if record.get("review_status") == "reviewed_needs_extraction"
+    }
     accepted_record_count = sum(
         1 for record in merged_records if record.get("structured_facts")
     )
+    fact_record_ids = (
+        status_records["accepted"]
+        | status_records["rejected"]
+        | status_records["needs_review"]
+    )
+    review_scope_record_ids = reviewed_needs_extraction_ids | fact_record_ids
     resolved_record_ids = status_records["accepted"] | status_records["rejected"]
-    denominator = reviewed_needs_extraction_count or len(merged_records) or 1
+    denominator = len(review_scope_record_ids) or len(merged_records) or 1
     summary = {
         "decision": "reviewer_visual_fact_gold_set",
         "record_count": len(merged_records),
         "reviewed_needs_extraction_count": reviewed_needs_extraction_count,
+        "review_scope_record_count": len(review_scope_record_ids),
         "accepted_record_count": accepted_record_count,
         "accepted_record_ratio": round(accepted_record_count / denominator, 8),
         "rejected_record_count": len(status_records["rejected"]),
@@ -235,6 +260,7 @@ def _render_review_report(summary: dict[str, Any]) -> str:
         "decision",
         "record_count",
         "reviewed_needs_extraction_count",
+        "review_scope_record_count",
         "accepted_record_count",
         "accepted_record_ratio",
         "rejected_record_count",
@@ -345,6 +371,9 @@ def check_visual_gold_summary(
         "metrics": {
             "resolved_record_ratio": float(summary.get("resolved_record_ratio") or 0.0),
             "resolved_record_count": int(summary.get("resolved_record_count") or 0),
+            "review_scope_record_count": int(
+                summary.get("review_scope_record_count") or 0
+            ),
             "accepted_record_ratio": float(summary.get("accepted_record_ratio") or 0.0),
             "accepted_record_count": int(summary.get("accepted_record_count") or 0),
             "rejected_record_count": int(summary.get("rejected_record_count") or 0),

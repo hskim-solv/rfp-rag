@@ -5,6 +5,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
+from .visual_facts import VISUAL_TYPE_DEFAULT_FIELDS
+
 
 DECISION = "visual_gold_review_batch"
 DEFAULT_REVIEW_STATUS = "needs_page_review"
@@ -50,6 +52,10 @@ def _existing_fact_record_ids(facts: Iterable[dict[str, Any]]) -> set[str]:
 
 
 def _template_field(record: dict[str, Any]) -> str:
+    visual_type = str(record.get("visual_type") or "visual_structure")
+    visual_type_default_field = VISUAL_TYPE_DEFAULT_FIELDS.get(visual_type)
+    if visual_type_default_field:
+        return visual_type_default_field
     fields = [str(field).strip() for field in record.get("business_fields") or []]
     return next((field for field in fields if field), "requirements")
 

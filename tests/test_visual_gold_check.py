@@ -11,6 +11,7 @@ def _summary(**overrides: object) -> dict[str, object]:
         "decision": "reviewer_visual_fact_gold_set",
         "record_count": 10,
         "reviewed_needs_extraction_count": 5,
+        "review_scope_record_count": 8,
         "accepted_record_count": 1,
         "accepted_record_ratio": 0.2,
         "rejected_record_count": 3,
@@ -35,6 +36,7 @@ def test_visual_gold_gate_passes_when_thresholds_are_met() -> None:
     assert result["decision"] == "visual_gold_gate"
     assert result["failures"] == []
     assert result["thresholds"]["min_resolved_record_ratio"] == 0.8
+    assert result["metrics"]["review_scope_record_count"] == 8
 
 
 def test_visual_gold_gate_fails_when_resolved_coverage_is_too_low() -> None:
