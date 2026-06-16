@@ -197,6 +197,24 @@ The default target is `resolved_record_ratio >= 0.80` with no unresolved
 negative labels, so a page-reviewed gold set can evaluate both recall and
 precision for later OCR/VLM candidates.
 
+Create the next reviewer batch for visual records that still require page
+review:
+
+```bash
+python3 -m rfp_rag.run_visual_review_batch \
+  --records artifacts/visual_structure/records.jsonl \
+  --facts docs/evidence/visual-structure-review-facts.seed.jsonl \
+  --out artifacts/visual_review_batch_next \
+  --review-status needs_page_review
+```
+
+This writes `records.jsonl`, `facts_template.jsonl`, `summary.json`, and
+`review_queue.md`. The current next batch contains `50` unresolved records:
+`dashboard_screenshot=5`, `gantt_schedule=20`, `organization_chart=10`, and
+`requirements_table=15`. The template facts intentionally remain
+`status=needs_review` until a page reviewer changes them to `accepted` or
+`rejected`.
+
 Evaluate a candidate extractor output against the reviewer gold set:
 
 ```bash

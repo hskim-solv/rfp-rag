@@ -1478,6 +1478,50 @@ not as final visual extraction quality.
 
 Decision record: `docs/adr/0011-local-tesseract-visual-candidate.md`.
 
+### 13-12. Next visual gold review batch
+
+The precision-hardened Tesseract lane was calibrated against the current
+60-record reviewer gold set. To avoid overstating that result, the next step is
+not to fabricate more labels automatically, but to prepare the remaining
+`needs_page_review` visual records for human review.
+
+Batch command:
+
+```bash
+python3 -m rfp_rag.run_visual_review_batch \
+  --records artifacts/visual_structure/records.jsonl \
+  --facts docs/evidence/visual-structure-review-facts.seed.jsonl \
+  --out artifacts/visual_review_batch_next \
+  --review-status needs_page_review
+```
+
+Template validation command:
+
+```bash
+python3 -m rfp_rag.run_visual_fact_review \
+  --records artifacts/visual_review_batch_next/records.jsonl \
+  --facts artifacts/visual_review_batch_next/facts_template.jsonl \
+  --out artifacts/visual_review_batch_next_checked
+```
+
+Current next-batch summary:
+
+| field | value |
+|---|---:|
+| source_record_count | `110` |
+| existing_fact_record_count | `60` |
+| eligible_record_count | `50` |
+| selected_record_count | `50` |
+| dashboard_screenshot | `5` |
+| gantt_schedule | `20` |
+| organization_chart | `10` |
+| requirements_table | `15` |
+
+The generated `facts_template.jsonl` rows are intentionally `status=needs_review`.
+They are contract-compatible with `run_visual_fact_review`, but they do not
+expand the gold evaluator until a reviewer changes each row to `accepted` or
+`rejected` with supporting evidence.
+
 ## 14. Final portfolio goal and quality contract
 
 The final portfolio target is now recorded in
