@@ -1445,6 +1445,10 @@ python3 -m rfp_rag.run_visual_gold_eval \
   --gold docs/evidence/visual-structure-review-facts.seed.jsonl \
   --candidate artifacts/visual_tesseract_candidate_expanded/candidate_facts.jsonl \
   --out artifacts/visual_tesseract_candidate_expanded_eval
+
+python3 -m rfp_rag.run_visual_candidate_check \
+  --summary artifacts/visual_tesseract_candidate_expanded_eval/summary.json \
+  --out artifacts/visual_tesseract_candidate_expanded_gate
 ```
 
 Tesseract generation summary:
@@ -1479,6 +1483,18 @@ Candidate-vs-gold result:
 | precision | `0.19090909` | `0.76923077` |
 | recall | `0.84` | `0.8` |
 | f1 | `0.31111111` | `0.78431373` |
+
+Candidate gate result:
+
+| metric | threshold | actual |
+|---|---:|---:|
+| precision | `>=0.70` | `0.76923077` |
+| recall | `>=0.70` | `0.8` |
+| f1 | `>=0.70` | `0.78431373` |
+| negative_violation_count | `<=3` | `3` |
+
+Gate artifact: `artifacts/visual_tesseract_candidate_expanded_gate/summary.json`
+with `ok=true`.
 
 Interpretation: Tesseract is not a final visual-understanding solution, but it
 is a useful first OCR candidate. On the expanded 110-record gold set it improves
@@ -1562,8 +1578,8 @@ Result:
 
 | check | result |
 |---|---:|
-| offline tests | `267 passed, 5 deselected` |
-| runtime | `139.20s` |
+| offline tests | `271 passed, 5 deselected` |
+| runtime | `128.87s` |
 
 ```bash
 uv run python -m rfp_rag.report_check --eval artifacts/eval --readme README.md
@@ -1595,8 +1611,8 @@ Final quality targets:
 
 Next milestone order:
 
-1. M3 Visual MVP closeout: expose the 110-record visual candidate gate in
-   reportable artifacts before integrating visual facts into retrieval/generation.
+1. M3 Visual MVP closeout: integrate only gate-passing visual facts into
+   retrieval/generation with citation/audit visibility.
 2. M4 Retrieval Ablation: compare dense, BM25, hybrid RRF, and reranked
    retrieval with quality, latency, and cost trade-offs.
 3. M5 Real Quality Gate: rerun only after explicit cost approval.

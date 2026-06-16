@@ -269,14 +269,19 @@ python3 -m rfp_rag.run_visual_gold_eval \
   --gold docs/evidence/visual-structure-review-facts.seed.jsonl \
   --candidate artifacts/visual_tesseract_candidate_expanded/candidate_facts.jsonl \
   --out artifacts/visual_tesseract_candidate_expanded_eval
+
+python3 -m rfp_rag.run_visual_candidate_check \
+  --summary artifacts/visual_tesseract_candidate_expanded_eval/summary.json \
+  --out artifacts/visual_tesseract_candidate_expanded_gate
 ```
 
 Current expanded precision-hardened Tesseract candidate result:
 `candidate_fact_count=26`, `precision=0.76923077`, `recall=0.8`,
 `f1=0.78431373`, `negative_violation_count=3`, and
 `unknown_candidate_count=3`. This now clears the current visual-candidate target
-on precision, recall, F1, and rejected-label violations while remaining a local
-OCR candidate rather than final visual understanding.
+on precision, recall, F1, and rejected-label violations. The gate artifact is
+`artifacts/visual_tesseract_candidate_expanded_gate/summary.json`; this remains
+a local OCR candidate rather than final visual understanding.
 
 ## Section-aware indexing
 
