@@ -451,3 +451,7 @@ pass:
 > latency/token/cost evidence, Docker/CI-backed regression gates, and
 > artifact-backed evaluation for recall, MRR, faithfulness, answer relevancy,
 > abstention, and failed-run analysis.
+
+Architecture evidence is tracked in
+`docs/architecture/system-architecture.md`; final-readiness claims should point
+to that document rather than describing an unverified architecture from memory.
