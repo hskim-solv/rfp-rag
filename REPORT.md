@@ -2109,3 +2109,40 @@ Boundary:
   offline evidence;
 - guardrails are testable service tripwires, not a complete security red-team
   claim.
+
+## 24. MCP-style RFP RAG Ops tool server
+
+ADR-0016 records the ops-tool decision. The project now has a dependency-free
+JSONL tool server that follows the MCP mental model (`tools/list`,
+`tools/call`) while avoiding a new daemon, auth, storage, or external MCP
+runtime dependency in this slice.
+
+Implemented read-only tools:
+
+| tool | purpose |
+|---|---|
+| `gate.status` | read local gate status evidence |
+| `ops.summary` | summarize eval predictions and agent audit logs |
+| `eval.metrics` | read a local `metrics.json` artifact |
+
+Guardrails:
+
+- explicit tool allowlist via `--allow-tool`;
+- max tool-call budget via `--max-tool-calls`;
+- no artifact mutation and no provider/API calls.
+
+Example:
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"ops.summary","arguments":{"eval_dir":"artifacts/eval","audit_path":"artifacts/eval_agent/agent_artifacts/audit.jsonl"}}}' \
+  | python3 -m rfp_rag.ops_tool_server --max-tool-calls 3
+```
+
+Current boundary:
+
+- this is MCP-style local tooling, not a full MCP transport/auth implementation;
+- FastMCP remains a later wrapper candidate after the read-only tool contract is
+  stable;
+- mutating or cost-bearing ops tools require a new ADR and guardrail review.
