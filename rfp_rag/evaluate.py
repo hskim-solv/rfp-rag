@@ -39,7 +39,7 @@ RAGAS_THRESHOLDS = {
 MAX_ERROR_RATE = 0.10
 DEFAULT_METADATA_DOCS = 100
 DEFAULT_CURATED_DOCS = 10
-DEFAULT_SECTION_LOOKUP_DOCS = 10
+DEFAULT_SECTION_LOOKUP_DOCS = 30
 
 
 def decide_gates(
@@ -239,7 +239,7 @@ def _section_lookup_title_matches_type(section_title: str, section_type: str) ->
 
 
 def generate_section_lookup_questions(
-    chunks: list[dict[str, Any]], max_docs: int = 10
+    chunks: list[dict[str, Any]], max_docs: int = DEFAULT_SECTION_LOOKUP_DOCS
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()

@@ -12,6 +12,7 @@ from rfp_rag.evaluate import (
     evaluate_index,
     generate_abstention_questions,
     generate_golden_metadata,
+    generate_section_lookup_questions,
 )
 from rfp_rag.report_check import check_report
 
@@ -78,6 +79,40 @@ def test_abstention_benchmark_has_30_near_domain_hard_negatives() -> None:
         any(term in record["query"] for term in near_domain_terms) for record in records
     )
     assert near_domain_count >= 20
+
+
+def _section_chunk(i: int) -> dict[str, object]:
+    section_types = [
+        ("project_overview", "사업 개요"),
+        ("evaluation_criteria", "평가 기준"),
+        ("submission", "제안 제출"),
+        ("eligibility", "참가 자격"),
+        ("requirements", "요구 사항"),
+        ("contract", "계약 조건"),
+        ("security", "보안 요구사항"),
+    ]
+    section_type, section_title = section_types[i % len(section_types)]
+    row_id = f"{i:03d}"
+    return {
+        "chunk_id": f"doc:{row_id}:chunk:0",
+        "doc_id": f"doc:{row_id}",
+        "csv_row_id": row_id,
+        "metadata": {
+            "project_name": f"프로젝트 {i}",
+            "section_type": section_type,
+            "section_title": section_title,
+        },
+    }
+
+
+def test_default_section_lookup_benchmark_covers_30_labeled_sections() -> None:
+    records = generate_section_lookup_questions([_section_chunk(i) for i in range(40)])
+
+    assert len(records) == 30
+    assert len({record["id"] for record in records}) == 30
+    assert {record["query_type"] for record in records} == {"section_lookup"}
+    assert all(record["expected_section_types"] for record in records)
+    assert all(record["expected_section_titles"] for record in records)
 
 
 def test_evaluate_index_writes_offline_contract_artifacts(
