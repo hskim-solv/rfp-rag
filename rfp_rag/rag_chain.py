@@ -16,6 +16,11 @@ from .providers import (
 )
 from .rerank import RERANKER_NONE, Reranker, build_reranker
 from .vector_index import RETRIEVAL_VECTOR, load_vector_store, search
+from .visual_sidecar import (
+    VisualEvidenceIndex,
+    attach_visual_evidence,
+    load_visual_sidecar,
+)
 
 ABSTAIN_ANSWER = "검색된 제안요청서 근거만으로는 답할 수 없는 정보입니다. 없는 정보"
 
@@ -39,6 +44,7 @@ def _source_from_result(result: SearchResult) -> dict[str, Any]:
         "section_path": md.get("section_path") or [],
         "page_start": md.get("section_page_start"),
         "page_end": md.get("section_page_end"),
+        "visual_evidence": md.get("visual_evidence") or [],
     }
 
 
@@ -84,6 +90,7 @@ def answer_with_store(
     index_dir: Path | None = None,
     reranker: Reranker | None = None,
     rerank_candidate_k: int | None = None,
+    visual_evidence_index: VisualEvidenceIndex | None = None,
 ) -> dict[str, Any]:
     candidate_k = max(top_k, rerank_candidate_k or top_k)
     reranker_name = reranker.name if reranker else RERANKER_NONE
@@ -105,6 +112,7 @@ def answer_with_store(
         results = reranker.rerank(query, results, top_k=top_k)
     else:
         results = results[:top_k]
+    results = attach_visual_evidence(results, visual_evidence_index)
 
     answer = generator.generate(query, results)
     # "없는 정보" is the abstention sentinel produced by generators (e.g.
@@ -155,6 +163,8 @@ def answer_query(
     retrieval_mode: str = RETRIEVAL_VECTOR,
     reranker: str = RERANKER_NONE,
     rerank_candidate_k: int | None = None,
+    visual_candidate_path: Path | str | None = None,
+    visual_gate_path: Path | str | None = None,
 ) -> dict[str, Any]:
     index_dir = Path(index_dir)
     manifest = _load_manifest(index_dir)
@@ -168,6 +178,11 @@ def answer_query(
     store = load_vector_store(index_dir / "qdrant", embeddings, lane=lane)
     generator = build_generator(lane)
     reranker_impl = build_reranker(lane, reranker)
+    visual_evidence_index = (
+        load_visual_sidecar(visual_candidate_path, visual_gate_path)
+        if visual_candidate_path is not None
+        else None
+    )
     return answer_with_store(
         store,
         generator,
@@ -178,4 +193,5 @@ def answer_query(
         index_dir=index_dir,
         reranker=reranker_impl,
         rerank_candidate_k=rerank_candidate_k,
+        visual_evidence_index=visual_evidence_index,
     )

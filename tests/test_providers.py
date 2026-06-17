@@ -121,6 +121,38 @@ def test_chunk_context_block_renders_registry_metadata_lines() -> None:
     ]
 
 
+def test_chunk_context_block_renders_visual_evidence() -> None:
+    result = SearchResult(
+        chunk_id="doc:040:chunk:0",
+        doc_id="doc:040",
+        csv_row_id="040",
+        score=0.9,
+        text="요구사항 본문",
+        metadata={
+            "project_name": "요구사항표 포함 사업",
+            "visual_evidence": [
+                {
+                    "record_id": "doc:040:p10:requirements_table",
+                    "doc_id": "doc:040",
+                    "page": 10,
+                    "visual_type": "requirements_table",
+                    "value": "Requirements table is present on the selected page",
+                    "confidence": 0.77,
+                    "extractor": "visual_tesseract_ocr_candidate_v2",
+                }
+            ],
+        },
+    )
+
+    block = chunk_context_block(result)
+
+    assert "시각근거:" in block
+    assert (
+        "- doc:040 p10 requirements_table: "
+        "Requirements table is present on the selected page"
+    ) in block
+
+
 def test_build_answer_prompt_omits_absent_metadata_fields() -> None:
     result = SearchResult(
         chunk_id="doc:001:chunk:0",

@@ -28,6 +28,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--provider", default=None, help="offline | real_openai (default: index lane)"
     )
+    parser.add_argument(
+        "--visual-candidates",
+        type=Path,
+        default=None,
+        help="Optional gate-passing visual candidate facts JSONL sidecar",
+    )
+    parser.add_argument(
+        "--visual-gate",
+        type=Path,
+        default=None,
+        help="Visual candidate gate summary JSON; required with --visual-candidates",
+    )
     parser.add_argument("--out", type=Path, help="Optional JSON output path")
     return parser
 
@@ -44,6 +56,8 @@ def main(argv: Iterable[str] | None = None) -> int:
         retrieval_mode=args.retrieval_mode,
         reranker=args.reranker,
         rerank_candidate_k=args.rerank_candidate_k,
+        visual_candidate_path=args.visual_candidates,
+        visual_gate_path=args.visual_gate,
     )
     payload = json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if args.out:
