@@ -40,6 +40,7 @@ MAX_ERROR_RATE = 0.10
 DEFAULT_METADATA_DOCS = 100
 DEFAULT_CURATED_DOCS = 10
 DEFAULT_SECTION_LOOKUP_DOCS = 30
+DEFAULT_CROSS_DOCUMENT_QUESTIONS = 20
 
 
 def decide_gates(
@@ -208,6 +209,45 @@ def generate_curated_text_questions(
     return records
 
 
+def generate_cross_document_questions(
+    docs: list[CorpusDocument], max_questions: int = DEFAULT_CROSS_DOCUMENT_QUESTIONS
+) -> list[dict[str, Any]]:
+    candidates = [doc for doc in docs if doc.metadata.get("project_name")]
+    if len(candidates) < 2:
+        return []
+    offset = max(1, len(candidates) // 2)
+    records: list[dict[str, Any]] = []
+    for idx, left in enumerate(candidates[:max_questions]):
+        right_idx = idx + offset
+        if right_idx >= len(candidates):
+            break
+        right = candidates[right_idx]
+        left_project = left.metadata.get("project_name", left.doc_id)
+        right_project = right.metadata.get("project_name", right.doc_id)
+        records.append(
+            {
+                "id": f"cross_budget_compare_{left.csv_row_id}_{right.csv_row_id}",
+                "query": (
+                    f"{left_project}와 {right_project}의 사업 금액을 비교하고 "
+                    "두 사업의 근거를 함께 알려줘"
+                ),
+                "query_type": "cross_document",
+                "expected_doc_ids": [left.doc_id, right.doc_id],
+                "expected_field": "budget_krw_int",
+                "expected_values_normalized": {
+                    left.doc_id: _normalize_expected(
+                        "budget_krw_int", left.metadata.get("budget_krw_int")
+                    ),
+                    right.doc_id: _normalize_expected(
+                        "budget_krw_int", right.metadata.get("budget_krw_int")
+                    ),
+                },
+                "label_source": "cross_document_metadata",
+            }
+        )
+    return records
+
+
 def _load_index_chunk_records(index_dir: Path) -> list[dict[str, Any]]:
     chunks_path = index_dir / "chunks.jsonl"
     if not chunks_path.exists():
@@ -329,7 +369,7 @@ def generate_abstention_questions() -> list[dict[str, Any]]:
 def _recall_at(retrieved: list[str], expected: list[str], k: int) -> float:
     if not expected:
         return 0.0
-    return 1.0 if set(retrieved[:k]).intersection(expected) else 0.0
+    return len(set(retrieved[:k]).intersection(expected)) / len(set(expected))
 
 
 def _mrr(retrieved: list[str], expected: list[str]) -> float:
@@ -363,6 +403,13 @@ def _score_prediction(
         else None
     )
     mrr = _mrr(retrieved_docs, expected_docs) if expected_docs else None
+    all_expected_docs_retrieved5 = None
+    if expected_docs:
+        all_expected_docs_retrieved5 = (
+            1.0
+            if set(expected_docs).issubset(set(retrieved_docs[: min(5, top_k)]))
+            else 0.0
+        )
     citation_presence = None if is_abstention else (1.0 if sources else 0.0)
     citation_validity = None
     if not is_abstention:
@@ -420,6 +467,7 @@ def _score_prediction(
     return {
         "recall@3": recall3,
         "recall@5": recall5,
+        "all_expected_docs_retrieved@5": all_expected_docs_retrieved5,
         "mrr": mrr,
         "citation_presence": citation_presence,
         "citation_validity": citation_validity,
@@ -523,6 +571,9 @@ def _aggregate(scored_predictions: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "recall@3": _mean(m.get("recall@3") for m in metrics),
         "recall@5": _mean(m.get("recall@5") for m in metrics),
+        "all_expected_docs_retrieved@5": _mean(
+            m.get("all_expected_docs_retrieved@5") for m in metrics
+        ),
         "mrr": _mean(m.get("mrr") for m in metrics),
         "citation_presence": _mean(m.get("citation_presence") for m in metrics),
         "citation_validity": _mean(m.get("citation_validity") for m in metrics),
@@ -639,8 +690,9 @@ def evaluate_index(
         _load_index_chunk_records(index_dir),
         max_docs=min(max_docs, DEFAULT_SECTION_LOOKUP_DOCS),
     )
+    cross_document = generate_cross_document_questions(docs)
     abstentions = generate_abstention_questions()
-    queries = golden + curated + section_lookup + abstentions
+    queries = golden + curated + section_lookup + cross_document + abstentions
     index_lane = _index_embedding_lane(index_dir)
     if lane != index_lane:
         raise ValueError(
@@ -729,6 +781,7 @@ def evaluate_index(
             "golden_metadata": len(golden),
             "curated_text": len(curated),
             "section_lookup": len(section_lookup),
+            "cross_document": len(cross_document),
             "abstention": len(abstentions),
             "total": len(queries),
         },
@@ -742,6 +795,7 @@ def evaluate_index(
     _write_jsonl(out_dir / "golden_metadata.jsonl", golden)
     _write_jsonl(out_dir / "curated_text_questions.jsonl", curated)
     _write_jsonl(out_dir / "section_lookup_questions.jsonl", section_lookup)
+    _write_jsonl(out_dir / "cross_document_questions.jsonl", cross_document)
     _write_jsonl(out_dir / "abstention_questions.jsonl", abstentions)
     _write_json(out_dir / "contract.json", _contract_for(lane))
     _write_json(out_dir / "metrics.json", metrics)

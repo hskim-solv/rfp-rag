@@ -47,8 +47,8 @@ def _write_valid_portfolio_gates(root: Path) -> None:
         root / "artifacts/index_real/chunks.jsonl",
         [{"chunk_id": f"doc:000:chunk:{idx}", "doc_id": "doc:000"} for idx in range(3)],
     )
-    _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 470))
-    _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 470))
+    _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 490))
+    _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 490))
     _write_jsonl(root / "artifacts/eval_agent/predictions.jsonl", _records("agent", 85))
     _write_json(
         root / "artifacts/index/manifest.json",
@@ -109,10 +109,11 @@ def _write_valid_portfolio_gates(root: Path) -> None:
             "provider_lane": "offline",
             "query_set_counts": {
                 "abstention": 30,
+                "cross_document": 20,
                 "curated_text": 10,
                 "golden_metadata": 400,
                 "section_lookup": 30,
-                "total": 470,
+                "total": 490,
             },
             "rag_quality_complete": False,
             "reranker": "none",
@@ -130,10 +131,11 @@ def _write_valid_portfolio_gates(root: Path) -> None:
             "provider_lane": "real_openai",
             "query_set_counts": {
                 "abstention": 30,
+                "cross_document": 20,
                 "curated_text": 10,
                 "golden_metadata": 400,
                 "section_lookup": 30,
-                "total": 470,
+                "total": 490,
             },
             "rag_quality_complete": True,
             "reranker": "none",

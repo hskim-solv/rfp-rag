@@ -9,6 +9,7 @@ from rfp_rag.build_index import build_index
 from rfp_rag.corpus import CorpusDocument
 from rfp_rag.evaluate import (
     _build_arg_parser,
+    _score_prediction,
     evaluate_index,
     generate_abstention_questions,
     generate_golden_metadata,
@@ -115,6 +116,34 @@ def test_default_section_lookup_benchmark_covers_30_labeled_sections() -> None:
     assert all(record["expected_section_titles"] for record in records)
 
 
+def test_multi_doc_scoring_requires_covering_all_expected_docs() -> None:
+    record = {
+        "query_type": "cross_document",
+        "expected_doc_ids": ["doc:a", "doc:b"],
+    }
+    one_doc_response = {
+        "retrieved_doc_ids": ["doc:a", "doc:x"],
+        "retrieved_chunk_ids": ["chunk:a"],
+        "sources": [{"doc_id": "doc:a", "chunk_id": "chunk:a"}],
+    }
+    both_docs_response = {
+        "retrieved_doc_ids": ["doc:a", "doc:b"],
+        "retrieved_chunk_ids": ["chunk:a", "chunk:b"],
+        "sources": [
+            {"doc_id": "doc:a", "chunk_id": "chunk:a"},
+            {"doc_id": "doc:b", "chunk_id": "chunk:b"},
+        ],
+    }
+
+    partial = _score_prediction(record, one_doc_response, top_k=5)
+    complete = _score_prediction(record, both_docs_response, top_k=5)
+
+    assert partial["recall@5"] == 0.5
+    assert partial["all_expected_docs_retrieved@5"] == 0.0
+    assert complete["recall@5"] == 1.0
+    assert complete["all_expected_docs_retrieved@5"] == 1.0
+
+
 def test_evaluate_index_writes_offline_contract_artifacts(
     tmp_path: Path, parsed_manifest_factory
 ) -> None:
@@ -151,6 +180,7 @@ def test_evaluate_index_writes_offline_contract_artifacts(
     assert metrics["offline_scaffold_complete"] is True
     assert metrics["rag_quality_complete"] is False
     assert metrics["thresholds_applied"] is False
+    assert metrics["query_set_counts"]["cross_document"] == 20
     assert metrics["query_set_counts"]["abstention"] == 30
     assert metrics["query_set_counts"]["section_lookup"] >= 1
     assert metrics["score_distribution"]["abstention_top_scores"]
@@ -158,12 +188,15 @@ def test_evaluate_index_writes_offline_contract_artifacts(
     assert metrics["aggregate"]["citation_presence"] >= 0.95
     assert metrics["aggregate"]["citation_validity"] >= 0.90
     assert metrics["aggregate"]["abstention_pass"] >= 0.90
+    assert metrics["aggregate"]["all_expected_docs_retrieved@5"] is not None
     assert metrics["aggregate"]["section_hit_rate"] is not None
+    assert "cross_document" in metrics["per_type"]
     assert "section_lookup" in metrics["per_type"]
     for name in [
         "golden_metadata.jsonl",
         "curated_text_questions.jsonl",
         "section_lookup_questions.jsonl",
+        "cross_document_questions.jsonl",
         "abstention_questions.jsonl",
         "metrics.json",
         "predictions.jsonl",
@@ -292,6 +325,7 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
         "golden_metadata.jsonl",
         "curated_text_questions.jsonl",
         "section_lookup_questions.jsonl",
+        "cross_document_questions.jsonl",
         "abstention_questions.jsonl",
         "metrics.json",
         "predictions.jsonl",

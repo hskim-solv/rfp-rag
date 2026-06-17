@@ -37,9 +37,9 @@ Adversarial roadmap lock:
    contract, source-lineage, query-count, retrieval/reranker, or reaggregation
    evidence.
 2. Continue benchmark hardening beyond the current 100-document metadata,
-   30 hard-negative, and 30 section-labeled coverage with paraphrases,
-   cross-document questions, and table/visual slices before claiming retrieval
-   or reranker wins.
+   30 hard-negative, 30 section-labeled, and 20 cross-document coverage with
+   paraphrases and table/visual slices before claiming retrieval or reranker
+   wins.
 3. Rebuild the real gate on a parsed-source index only after explicit cost
    approval.
 4. Add an evidence surface that shows answers, citations, chunks, source
@@ -360,16 +360,18 @@ being treated as an offline scaffold signal; it does not replace the
 `real_openai` quality gate.
 
 Current section-aware vector offline gate at `--min-score 0.34` over the
-470-query benchmark:
+490-query benchmark:
 
-| mode | queries | recall@5 | mrr | citation_validity | abstention_pass | section_hit_rate | offline_scaffold_complete |
-|---|---:|---:|---:|---:|---:|---:|---|
-| vector | `470` | `0.9977` | `0.9841` | `0.9977` | `1.0` | `1.0` | `true` |
+| mode | queries | recall@5 | all_docs@5 | cross-doc all_docs@5 | mrr | citation_validity | abstention_pass | section_hit_rate | offline_scaffold_complete |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| vector | `490` | `0.9848` | `0.9717` | `0.4` | `0.9837` | `0.9957` | `1.0` | `1.0` | `true` |
 
 The previous hybrid smoke comparison was run on the smaller benchmark and is no
 longer a same-dataset adoption signal after 100-document metadata expansion.
 Keep `vector` as the offline gate mode until hybrid has its own calibrated
-470-query comparison plus abstention and section-lookup evidence.
+490-query comparison plus abstention, cross-document, and section-lookup
+evidence. The current vector baseline exposes a cross-document weakness:
+top-5 often fills with multiple chunks from one expected document.
 
 ### Reranker
 
