@@ -2174,3 +2174,19 @@ Current boundary:
 - FastMCP remains a later wrapper candidate after the read-only tool contract is
   stable;
 - mutating or cost-bearing ops tools require a new ADR and guardrail review.
+
+## 25. Architecture evidence map
+
+`docs/architecture/system-architecture.md` records the current implemented
+architecture with Mermaid diagrams and evidence pointers. It maps the source
+RFP corpus, CSV metadata registry, source parser, section-aware chunking,
+embedded Qdrant indexes, citation-grounded RAG, LangGraph agent workflow,
+FastAPI service, MCP-style ops tools, evaluation gates, guardrail regression,
+Docker/CI boundary, and local artifact evidence.
+
+The document deliberately excludes unimplemented claims:
+
+- no public cloud deployment yet;
+- no full MCP transport/auth server yet;
+- no broad dashboard/UI claim yet;
+- no raw RFP publication in Docker or CI.

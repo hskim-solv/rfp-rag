@@ -12,7 +12,9 @@ The offline lane (`--provider offline`) is an offline contract gate and does not
 
 The final portfolio target is recorded in
 `docs/portfolio/2026-rfp-rag-final-goal.md`. The adversarial readiness review is
-recorded in `docs/portfolio/2026-rfp-rag-adversarial-review.md`. The project
+recorded in `docs/portfolio/2026-rfp-rag-adversarial-review.md`. The current
+implemented architecture map is recorded in
+`docs/architecture/system-architecture.md`. The project
 should be framed as a production-grade Agentic RAG system for Korean public RFP
 intelligence: complex-document parsing, retrieval quality evaluation,
 citation-grounded generation, typed agent workflow, service/tool operation, and
