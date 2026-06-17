@@ -7,7 +7,12 @@ import pytest
 
 from rfp_rag.build_index import build_index
 from rfp_rag.corpus import CorpusDocument
-from rfp_rag.evaluate import _build_arg_parser, evaluate_index, generate_golden_metadata
+from rfp_rag.evaluate import (
+    _build_arg_parser,
+    evaluate_index,
+    generate_abstention_questions,
+    generate_golden_metadata,
+)
 from rfp_rag.report_check import check_report
 
 
@@ -61,6 +66,20 @@ def test_evaluate_cli_default_max_docs_matches_100_document_benchmark() -> None:
     assert args.max_docs == 100
 
 
+def test_abstention_benchmark_has_30_near_domain_hard_negatives() -> None:
+    records = generate_abstention_questions()
+
+    assert len(records) == 30
+    assert len({record["id"] for record in records}) == 30
+    assert {record["query_type"] for record in records} == {"abstention"}
+    assert {record["expected_behavior"] for record in records} == {"abstain"}
+    near_domain_terms = ("RFP", "입찰", "제안", "평가", "계약", "사업", "발주", "요구")
+    near_domain_count = sum(
+        any(term in record["query"] for term in near_domain_terms) for record in records
+    )
+    assert near_domain_count >= 20
+
+
 def test_evaluate_index_writes_offline_contract_artifacts(
     tmp_path: Path, parsed_manifest_factory
 ) -> None:
@@ -97,7 +116,7 @@ def test_evaluate_index_writes_offline_contract_artifacts(
     assert metrics["offline_scaffold_complete"] is True
     assert metrics["rag_quality_complete"] is False
     assert metrics["thresholds_applied"] is False
-    assert metrics["query_set_counts"]["abstention"] == 10
+    assert metrics["query_set_counts"]["abstention"] == 30
     assert metrics["query_set_counts"]["section_lookup"] >= 1
     assert metrics["score_distribution"]["abstention_top_scores"]
     assert metrics["score_distribution"]["in_domain_top_scores"]

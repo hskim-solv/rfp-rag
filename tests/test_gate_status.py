@@ -47,9 +47,9 @@ def _write_valid_portfolio_gates(root: Path) -> None:
         root / "artifacts/index_real/chunks.jsonl",
         [{"chunk_id": f"doc:000:chunk:{idx}", "doc_id": "doc:000"} for idx in range(3)],
     )
-    _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 430))
-    _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 430))
-    _write_jsonl(root / "artifacts/eval_agent/predictions.jsonl", _records("agent", 65))
+    _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 450))
+    _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 450))
+    _write_jsonl(root / "artifacts/eval_agent/predictions.jsonl", _records("agent", 85))
     _write_json(
         root / "artifacts/index/manifest.json",
         {
@@ -108,11 +108,11 @@ def _write_valid_portfolio_gates(root: Path) -> None:
             "offline_scaffold_complete": True,
             "provider_lane": "offline",
             "query_set_counts": {
-                "abstention": 10,
+                "abstention": 30,
                 "curated_text": 10,
                 "golden_metadata": 400,
                 "section_lookup": 10,
-                "total": 430,
+                "total": 450,
             },
             "rag_quality_complete": False,
             "reranker": "none",
@@ -129,11 +129,11 @@ def _write_valid_portfolio_gates(root: Path) -> None:
             "offline_scaffold_complete": True,
             "provider_lane": "real_openai",
             "query_set_counts": {
-                "abstention": 10,
+                "abstention": 30,
                 "curated_text": 10,
                 "golden_metadata": 400,
                 "section_lookup": 10,
-                "total": 430,
+                "total": 450,
             },
             "rag_quality_complete": True,
             "reranker": "none",
@@ -147,7 +147,7 @@ def _write_valid_portfolio_gates(root: Path) -> None:
         {
             "agent_lane_complete": True,
             "counts": {
-                "abstention": 10,
+                "abstention": 30,
                 "regression": 20,
                 "rewrite": 5,
                 "routing": 20,
