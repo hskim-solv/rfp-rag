@@ -1609,7 +1609,7 @@ Result:
 | check | result |
 |---|---:|
 | offline tests | `285 passed, 5 deselected` |
-| runtime | `343.59s` |
+| runtime | `362.38s` |
 
 ```bash
 uv run python -m rfp_rag.report_check --eval artifacts/eval --readme README.md
@@ -1643,16 +1643,18 @@ Next milestone order after adversarial portfolio review:
 
 1. Gate freshness hardening: `rfp_rag.gate_status` now fails stale or
    lineage-mismatched evidence before it reports portfolio readiness.
-2. Benchmark hardening: expand beyond the current small automatic query set into
+2. No-cost gate evidence refresh: offline RAG and agent offline artifacts have
+   been regenerated under the current source-first/vector/no-reranker policy, so
+   `offline_rag`, `agent_offline`, and `visual_candidate` pass locally.
+3. Benchmark hardening: expand beyond the current small automatic query set into
    hard negatives, paraphrases, cross-document questions, and
    section/table/visual slices.
-3. Retrieval and reranker ablation: compare dense, BM25, hybrid RRF, and
+4. Retrieval and reranker ablation: compare dense, BM25, hybrid RRF, and
    reranked retrieval on the hardened set with quality, abstention, latency, and
    token/cost trade-offs.
-4. Source-first real quality gate: rerun only after explicit cost approval, and
+5. Source-first real quality gate: rerun only after explicit cost approval, and
    only on an index whose manifest records parsed-source lineage.
-5. Agent freshness and evidence UX: rerun the agent lane with current retrieval
-   policy, then expose answer/citation/chunk/source/gate/failure evidence in a
+6. Evidence UX: expose answer/citation/chunk/source/gate/failure evidence in a
    small service/dashboard surface.
 
 Stop conditions:
@@ -1802,10 +1804,69 @@ Accepted blockers before senior-ready positioning:
    token/cost.
 5. **Gate status was too shallow.** `rfp_rag.gate_status` now validates contract
    version, source lineage, parsed-manifest linkage, query counts,
-   retrieval/reranker mode, freshness, and reaggregation provenance. The current
-   local status is intentionally `overall_ok=false`: offline evidence is missing
-   reranker metadata, real evidence is still old-contract/non-parsed-source, and
-   agent evidence is still at the previous `--min-score 0.15`.
+   retrieval/reranker mode, freshness, and reaggregation provenance. After the
+   no-cost refresh, the current local status is intentionally `overall_ok=false`
+   only because real evidence is still old-contract/non-parsed-source and
+   requires explicit cost approval to refresh.
+
+## 18. No-cost gate evidence refresh
+
+After gate freshness hardening, the no-cost lanes were regenerated from pipeline
+commands rather than hand-editing `artifacts/`:
+
+```bash
+uv run python -m rfp_rag.evaluate \
+  --data data/data_list.csv \
+  --index artifacts/index \
+  --out artifacts/eval \
+  --provider offline \
+  --top-k 5 \
+  --min-score 0.34
+```
+
+Result:
+
+| field | value |
+|---|---|
+| offline_scaffold_complete | `true` |
+| provider_lane | `offline` |
+| retrieval_mode | `vector` |
+| reranker | `none` |
+| rerank_candidate_k | `5` |
+| query_set_counts.total | `70` |
+
+```bash
+uv run python -m rfp_rag.agent.evaluate_agent \
+  --data data/data_list.csv \
+  --files data/files \
+  --index artifacts/index \
+  --out artifacts/eval_agent \
+  --provider offline \
+  --top-k 5 \
+  --min-score 0.34
+```
+
+Result:
+
+| field | value |
+|---|---|
+| agent_lane_complete | `true` |
+| lane | `offline` |
+| min_score | `0.34` |
+| top_k | `5` |
+| gate.failed | `[]` |
+
+`python3 -m rfp_rag.gate_status` now reports:
+
+| lane | ok | remaining issue |
+|---|---:|---|
+| offline_rag | `true` | none |
+| agent_offline | `true` | none |
+| visual_candidate | `true` | none |
+| real_rag | `false` | old contract, non-parsed `index_real`, missing section lookup/reranker metadata, and reaggregated predictions |
+
+This is the intended no-cost portfolio state. The remaining `real_rag` refresh
+requires explicit `real_openai` cost approval.
 
 Claims to avoid until the new gates exist:
 

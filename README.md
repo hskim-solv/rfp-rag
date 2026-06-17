@@ -59,11 +59,11 @@ python3 -m rfp_rag.gate_status
 ```
 
 `gate_status` is stricter than `report_check`: it reads the local gate artifacts
-and fails stale portfolio evidence. With the currently checked-in local
-artifacts, the expected state is `overall_ok=false` until the offline eval is
-regenerated with reranker metadata, the agent lane is rerun at `--min-score
-0.34`, and the real lane is rerun on a parsed-source `artifacts/index_real`
-after explicit cost approval.
+and fails stale portfolio evidence. After the no-cost refresh on 2026-06-17,
+`offline_rag`, `agent_offline`, and `visual_candidate` are expected to pass from
+local artifacts. `overall_ok` still remains `false` because `real_rag` requires
+an explicitly approved parsed-source `artifacts/index_real` rebuild and
+`real_openai` evaluation.
 
 ## Source parsing lane
 
