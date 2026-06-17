@@ -134,7 +134,8 @@ Parser/source targets:
 Evaluation and freshness targets:
 
 - `gate_status` must fail stale or lineage-mismatched evidence instead of
-  reporting boolean-only success.
+  reporting boolean-only success, and the CLI must return a non-zero exit code
+  when `overall_ok=false`.
 - Source-first real gate artifacts must use an index manifest with
   `text_source=parsed`, `parse_manifest_path`, and `index_text_source_counts`
   covering all 100 documents.
