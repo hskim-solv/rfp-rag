@@ -2110,6 +2110,34 @@ Boundary:
 - guardrails are testable service tripwires, not a complete security red-team
   claim.
 
+### 23-1. Guardrail regression fixture
+
+The guardrail check is now covered by a deterministic regression runner:
+
+```bash
+python3 -m rfp_rag.guardrail_eval \
+  --cases tests/fixtures/guardrail_cases.jsonl \
+  --out artifacts/guardrails/summary.json
+```
+
+Current local result:
+
+| field | value |
+|---|---:|
+| case_count | `7` |
+| passed | `7` |
+| failed | `0` |
+| block_recall | `1.0` |
+| allow_recall | `1.0` |
+| category_exact_match | `1.0` |
+
+Fixture coverage:
+
+- prompt-injection attempts that ask the system to ignore prior instructions;
+- secret-exfiltration attempts involving API keys, `.env`, passwords, or
+  credentials;
+- benign RFP questions that must still pass through retrieval.
+
 ## 24. MCP-style RFP RAG Ops tool server
 
 ADR-0016 records the ops-tool decision. The project now has a dependency-free
