@@ -70,6 +70,16 @@ and fails stale portfolio evidence. After the source-first refresh on 2026-06-17
 artifacts. `real_rag` uses `artifacts/index_real` with parsed-source lineage and
 `artifacts/eval_real` contract `rfp-rag-real-v5`.
 
+Final evidence bundle check:
+
+```bash
+python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
+```
+
+This check verifies local gate status, guardrail regression, Docker/CI files,
+architecture evidence, and ADR links. It currently passes with explicit deferred
+gaps for `cloud_deployment` and `public_dashboard`.
+
 ## FastAPI service surface
 
 The service layer is intentionally thin: it exposes the existing source-first

@@ -2190,3 +2190,32 @@ The document deliberately excludes unimplemented claims:
 - no full MCP transport/auth server yet;
 - no broad dashboard/UI claim yet;
 - no raw RFP publication in Docker or CI.
+
+## 26. Portfolio readiness check
+
+`rfp_rag.portfolio_check` adds a deterministic final evidence-bundle check. It is
+not a replacement for human review, but it prevents the main portfolio claim
+from depending on scattered manual inspection.
+
+Command:
+
+```bash
+python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
+```
+
+Current local result:
+
+| field | value |
+|---|---|
+| portfolio_readiness_check | `true` |
+| failed | `[]` |
+| deferred | `cloud_deployment`, `public_dashboard` |
+
+Checked evidence:
+
+- `python3 -m rfp_rag.gate_status` reports `overall_ok=true`;
+- `artifacts/guardrails/summary.json` reports
+  `guardrail_regression_complete=true`;
+- `Dockerfile` and `.github/workflows/ci.yml` exist;
+- `docs/architecture/system-architecture.md` exists and is linked from README;
+- ADR-0014/0015/0016 exist for FastAPI, Docker/CI, and MCP-style ops tooling.
