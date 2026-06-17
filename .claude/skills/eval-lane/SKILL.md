@@ -1,23 +1,33 @@
 ---
-name: eval-lane
-description: Use when running RFP RAG/agent evaluation lanes, checking gate status (offline_scaffold_complete, rag_quality_complete, agent_lane_complete), rebuilding an index, comparing eval runs, or verifying gates before a PR.
+name: "eval-lane"
+description: "Use when running RFP RAG/agent evaluation lanes, checking gate status, rebuilding indexes, comparing eval runs, or verifying gates before a PR."
 ---
 
 # Eval Lane Runbook
 
+## Trigger
+
+Use this skill for `rfp-rag` evaluation work: offline RAG, real RAG, agent lane, gate status checks, run comparison, index rebuilds, and PR gate verification.
+
+## Guardrails
+
+- Offline lane must remain credential-free. `python3 -m pytest -m "not real"` must not require `OPENAI_API_KEY`.
+- Real lane uses `OPENAI_API_KEY` and costs money. Do not run real RAG, real agent smoke, or `pytest -m real` unless the user explicitly asks for a real lane.
+- `artifacts/` is gate evidence. Do not hand-edit metrics, predictions, reports, indexes, checkpoints, or audit logs.
+- If a gate fails, hand off to `eval-gate-analyst` with a handoff_contract: destination, input payload, input filter, and return contract.
+
 ## Gate map
 
-| Lane | 비용 | Gate 파일 | Gate 키 |
-|------|------|-----------|---------|
-| offline RAG | 무료 (키 불필요) | `artifacts/eval/metrics.json` | `offline_scaffold_complete` |
-| real RAG | OPENAI_API_KEY, ~$5 | `artifacts/eval_real/metrics.json` | `rag_quality_complete` |
-| agent (offline 판정) | 무료 | `artifacts/eval_agent/metrics.json` | `agent_lane_complete` (세부: `gate.failed[]`) |
-| real agent smoke | OPENAI_API_KEY, 소액 | — | `pytest -m real` 통과 |
+| Lane | Cost | Gate file | Gate key |
+| --- | --- | --- | --- |
+| offline RAG | free, no key | `artifacts/eval/metrics.json` | `offline_scaffold_complete` |
+| real RAG | `OPENAI_API_KEY`, about $5 full run | `artifacts/eval_real/metrics.json` | `rag_quality_complete` |
+| agent offline | free | `artifacts/eval_agent/metrics.json` | `agent_lane_complete`, plus `gate.failed[]` |
+| real agent smoke | `OPENAI_API_KEY`, small cost | pytest result | `pytest -m real` passes |
 
-**real lane 명령은 비용이 발생하므로 사용자 명시 요청 없이 실행하지 않는다.**
-모든 명령은 repo 루트에서 실행한다. evaluate/evaluate_agent는 `--index` 디렉터리가 먼저 빌드되어 있어야 한다.
+## Gate status
 
-## 게이트 일괄 판정
+Run from repo root:
 
 ```bash
 python3 -c "
@@ -25,32 +35,42 @@ import json
 for p, k in [('artifacts/eval','offline_scaffold_complete'),
              ('artifacts/eval_real','rag_quality_complete'),
              ('artifacts/eval_agent','agent_lane_complete')]:
-    try: print(f'{p}: {k} =', json.load(open(p + '/metrics.json'))[k])
-    except FileNotFoundError: print(f'{p}: (run 없음)')
+    try:
+        print(f'{p}: {k} =', json.load(open(p + '/metrics.json'))[k])
+    except FileNotFoundError:
+        print(f'{p}: (run 없음)')
 "
 ```
 
-## Offline lane (회귀 확인 — 키 없이 통과해야 정상)
+## Offline lane
 
-`rfp_rag/agent/` 를 수정했다면 아래에 더해 Agent lane 판정(다음 섹션, 역시 무료)까지 돌려야 회귀 확인이 완결된다.
+Run when checking ordinary regressions. If `rfp_rag/agent/` changed, also run the agent lane.
 
 ```bash
 python3 -m pytest -m "not real"
-python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline
-python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.15
+python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl
+python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34
 python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
 ```
 
-## Agent lane (offline 판정)
+## Agent lane
 
 ```bash
 python3 -m rfp_rag.agent.evaluate_agent --data data/data_list.csv --files data/files \
-  --index artifacts/index --out artifacts/eval_agent --provider offline --top-k 5 --min-score 0.15
+  --index artifacts/index --out artifacts/eval_agent --provider offline --top-k 5 --min-score 0.34
 ```
 
-실패 시 `metrics.json`의 `gate.failed[]`로 미달 메트릭 확인 → `.claude/agents/eval-gate-analyst.md` 서브에이전트로 진단 (Agent/Task 도구에서 `eval-gate-analyst` 타입으로 호출).
+If `metrics.json` has `gate.failed[]`, use `eval-gate-analyst`.
 
-## Real lane (사용자 승인 후에만)
+Handoff contract:
+- destination: `eval-gate-analyst`
+- input payload: failed metrics, relevant `metrics.json`, `predictions.jsonl`, `scenarios.jsonl`, and changed files
+- input filter: do not include raw secrets, API keys, or full unrelated artifacts
+- return contract: failed gate attribution, 2-3 evidence cases, and one smallest next experiment
+
+## Real lane
+
+Only after explicit user request:
 
 ```bash
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
@@ -60,23 +80,23 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
 python3 -m pytest -m real
 ```
 
-비용 절감: `RFP_JUDGE_MODEL=gpt-5.4-mini` (~$5 → ~$1).
+Cost reduction option:
 
-## Run 비교 (회귀 추적)
+```bash
+RFP_JUDGE_MODEL=gpt-5.4-mini
+```
 
-이전 run을 보존하려면 `--out artifacts/eval_real_runN` 으로 분리 실행 후 메트릭 비교:
+## Run comparison
 
 ```bash
 python3 -c "
 import json
 a = json.load(open('artifacts/eval_real_run1/metrics.json'))['aggregate']
 b = json.load(open('artifacts/eval_real/metrics.json'))['aggregate']
-[print(f'{k}: {a.get(k)} → {b.get(k)}') for k in sorted(set(a) | set(b))]
+[print(f'{k}: {a.get(k)} -> {b.get(k)}') for k in sorted(set(a) | set(b))]
 "
 ```
 
-## 주의
+## Non-trigger
 
-- `--min-score` 보정값(offline 0.15 / real 0.47)을 바꾸면 `score_distribution` 근거를 REPORT.md에 기록.
-- embedded Qdrant는 단일 프로세스 전용 — 평가 중 다른 프로세스로 같은 인덱스를 열지 않는다.
-- artifacts/는 손으로 편집 금지 (게이트 증거).
+Do not use this skill for parser implementation, UI design, portfolio copy, or general refactoring unless the task also asks for gate execution or evaluation evidence.
