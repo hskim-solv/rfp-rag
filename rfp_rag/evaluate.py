@@ -37,6 +37,9 @@ RAGAS_THRESHOLDS = {
     "judge_coverage_answer_relevancy": 0.90,
 }
 MAX_ERROR_RATE = 0.10
+DEFAULT_METADATA_DOCS = 100
+DEFAULT_CURATED_DOCS = 10
+DEFAULT_SECTION_LOOKUP_DOCS = 10
 
 
 def decide_gates(
@@ -130,7 +133,7 @@ def _metric_record(
 
 
 def generate_golden_metadata(
-    docs: list[CorpusDocument], max_docs: int = 10
+    docs: list[CorpusDocument], max_docs: int = DEFAULT_METADATA_DOCS
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for doc in docs[:max_docs]:
@@ -591,7 +594,7 @@ def evaluate_index(
     out_dir: Path | str,
     provider: str = "fake_offline",
     top_k: int = 5,
-    max_docs: int = 10,
+    max_docs: int = DEFAULT_METADATA_DOCS,
     # Section-aware source-first offline lane is calibrated at 0.34 (see score_distribution in metrics.json);
     # pass min_score explicitly per lane (real lane calibrates in its own run).
     min_score: float = 0.34,
@@ -609,9 +612,12 @@ def evaluate_index(
     out_dir = Path(out_dir)
     docs = load_corpus(data_path, _files_path_from_index(index_dir))
     golden = generate_golden_metadata(docs, max_docs=max_docs)
-    curated = generate_curated_text_questions(docs, max_docs=min(max_docs, 10))
+    curated = generate_curated_text_questions(
+        docs, max_docs=min(max_docs, DEFAULT_CURATED_DOCS)
+    )
     section_lookup = generate_section_lookup_questions(
-        _load_index_chunk_records(index_dir), max_docs=min(max_docs, 10)
+        _load_index_chunk_records(index_dir),
+        max_docs=min(max_docs, DEFAULT_SECTION_LOOKUP_DOCS),
     )
     abstentions = generate_abstention_questions()
     queries = golden + curated + section_lookup + abstentions
@@ -799,7 +805,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     # fake_offline이 들어가 real 증거를 덮어쓰는 사고 방지) 여기서 기본을 정하지 않는다.
     parser.add_argument("--provider", default=None)
     parser.add_argument("--top-k", default=5, type=int)
-    parser.add_argument("--max-docs", default=10, type=int)
+    parser.add_argument("--max-docs", default=DEFAULT_METADATA_DOCS, type=int)
     # Section-aware source-first offline lane is calibrated at 0.34 (see score_distribution in metrics.json);
     # pass --min-score explicitly per lane.
     parser.add_argument("--min-score", default=0.34, type=float)

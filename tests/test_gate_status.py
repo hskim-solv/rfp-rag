@@ -47,8 +47,8 @@ def _write_valid_portfolio_gates(root: Path) -> None:
         root / "artifacts/index_real/chunks.jsonl",
         [{"chunk_id": f"doc:000:chunk:{idx}", "doc_id": "doc:000"} for idx in range(3)],
     )
-    _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 70))
-    _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 70))
+    _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 430))
+    _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 430))
     _write_jsonl(root / "artifacts/eval_agent/predictions.jsonl", _records("agent", 65))
     _write_json(
         root / "artifacts/index/manifest.json",
@@ -110,9 +110,9 @@ def _write_valid_portfolio_gates(root: Path) -> None:
             "query_set_counts": {
                 "abstention": 10,
                 "curated_text": 10,
-                "golden_metadata": 40,
+                "golden_metadata": 400,
                 "section_lookup": 10,
-                "total": 70,
+                "total": 430,
             },
             "rag_quality_complete": False,
             "reranker": "none",
@@ -131,9 +131,9 @@ def _write_valid_portfolio_gates(root: Path) -> None:
             "query_set_counts": {
                 "abstention": 10,
                 "curated_text": 10,
-                "golden_metadata": 40,
+                "golden_metadata": 400,
                 "section_lookup": 10,
-                "total": 70,
+                "total": 430,
             },
             "rag_quality_complete": True,
             "reranker": "none",
