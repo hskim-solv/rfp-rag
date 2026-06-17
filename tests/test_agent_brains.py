@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from rfp_rag.agent.brains import RuleQueryRewriter, RuleRouter, build_rewriter, build_router
+from rfp_rag.agent.brains import (
+    RuleQueryRewriter,
+    RuleRouter,
+    build_rewriter,
+    build_router,
+)
 
 
 def test_rule_router_metadata_sort_query() -> None:
@@ -16,7 +21,11 @@ def test_rule_router_count_query() -> None:
     d = RuleRouter().route("한국전력공사가 발주한 공고는 몇 건이야?")
     assert d.route == "metadata_query"
     assert d.tool_args["agg"] == "count"
-    assert {"field": "issuer", "op": "contains", "value": "한국전력공사"} in d.tool_args["filters"]
+    assert {
+        "field": "issuer",
+        "op": "contains",
+        "value": "한국전력공사",
+    } in d.tool_args["filters"]
 
 
 def test_rule_router_sum_query() -> None:
@@ -24,7 +33,11 @@ def test_rule_router_sum_query() -> None:
     assert d.route == "metadata_query"
     assert d.tool_args["agg"] == "sum"
     assert d.tool_args["agg_field"] == "budget_krw_int"
-    assert {"field": "budget_krw_int", "op": "gte", "value": 1_000_000_000} in d.tool_args["filters"]
+    assert {
+        "field": "budget_krw_int",
+        "op": "gte",
+        "value": 1_000_000_000,
+    } in d.tool_args["filters"]
 
 
 def test_rule_router_deadline_query() -> None:
@@ -36,7 +49,9 @@ def test_rule_router_deadline_query() -> None:
 
 
 def test_rule_router_rag_default_and_save_flag() -> None:
-    d = RuleRouter().route("한영대학교 트랙운영 학사정보시스템 고도화 사업을 요약해서 보고서로 저장해줘")
+    d = RuleRouter().route(
+        "한영대학교 트랙운영 학사정보시스템 고도화 사업을 요약해서 보고서로 저장해줘"
+    )
     assert d.route == "rag_query"
     assert d.save_requested is True
     d2 = RuleRouter().route("한영대학교 사업의 발주 기관은 어디야?")

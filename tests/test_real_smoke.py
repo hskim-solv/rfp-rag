@@ -34,7 +34,10 @@ def test_llm_generator_smoke() -> None:
         csv_row_id="000",
         score=0.9,
         text="사업명: 한영대학교 학사정보시스템 고도화\n발주기관: 한영대학\n예산은 1억 5천만원이다.",
-        metadata={"project_name": "한영대학교 학사정보시스템 고도화", "issuer": "한영대학"},
+        metadata={
+            "project_name": "한영대학교 학사정보시스템 고도화",
+            "issuer": "한영대학",
+        },
     )
     gen = LLMAnswerGenerator()
 

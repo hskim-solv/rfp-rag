@@ -28,7 +28,9 @@ def token_spans(text: str) -> list[tuple[str, int, int]]:
     return [(m.group(0), m.start(), m.end()) for m in _TOKEN_RE.finditer(text)]
 
 
-def _window_text(text: str, spans: list[tuple[str, int, int]], start: int, end: int) -> str:
+def _window_text(
+    text: str, spans: list[tuple[str, int, int]], start: int, end: int
+) -> str:
     if not spans:
         return text.strip()
     char_start = spans[start][1]
@@ -55,7 +57,14 @@ def _base_windows(
         char_start = spans[start][1]
         char_end = spans[end - 1][2]
         windows.append(
-            (start, end, char_start, char_end, _window_text(text, spans, start, end), None)
+            (
+                start,
+                end,
+                char_start,
+                char_end,
+                _window_text(text, spans, start, end),
+                None,
+            )
         )
         if end >= len(spans):
             break
@@ -76,7 +85,9 @@ def _range_windows(
         return []
     range_text = text[char_start:char_end]
     if section is None:
-        range_text = re.sub(r"^\s*\[PAGE\s+\d+\]\s*$", "", range_text, flags=re.MULTILINE)
+        range_text = re.sub(
+            r"^\s*\[PAGE\s+\d+\]\s*$", "", range_text, flags=re.MULTILINE
+        )
     if not range_text.strip():
         return []
 
@@ -175,7 +186,9 @@ def _section_metadata(
     }
 
 
-def chunk_document(doc: CorpusDocument, chunk_size: int = 500, chunk_overlap: int = 80) -> list[Chunk]:
+def chunk_document(
+    doc: CorpusDocument, chunk_size: int = 500, chunk_overlap: int = 80
+) -> list[Chunk]:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
     if chunk_overlap < 0:
@@ -195,7 +208,9 @@ def chunk_document(doc: CorpusDocument, chunk_size: int = 500, chunk_overlap: in
         windows = _base_windows(text, spans, chunk_size, chunk_overlap)
 
     chunks: list[Chunk] = []
-    for idx, (start, end, char_start, char_end, chunk_text, section) in enumerate(windows):
+    for idx, (start, end, char_start, char_end, chunk_text, section) in enumerate(
+        windows
+    ):
         if section is None and sections:
             section = find_section_for_span(sections, char_start, char_end)
         metadata = dict(doc.metadata)
@@ -223,8 +238,12 @@ def chunk_document(doc: CorpusDocument, chunk_size: int = 500, chunk_overlap: in
     return chunks
 
 
-def chunk_documents(docs: list[CorpusDocument], chunk_size: int = 500, chunk_overlap: int = 80) -> list[Chunk]:
+def chunk_documents(
+    docs: list[CorpusDocument], chunk_size: int = 500, chunk_overlap: int = 80
+) -> list[Chunk]:
     chunks: list[Chunk] = []
     for doc in docs:
-        chunks.extend(chunk_document(doc, chunk_size=chunk_size, chunk_overlap=chunk_overlap))
+        chunks.extend(
+            chunk_document(doc, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        )
     return chunks

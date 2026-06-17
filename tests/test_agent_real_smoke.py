@@ -24,7 +24,9 @@ def test_llm_router_classifies_metadata_query() -> None:
 def test_llm_router_classifies_rag_query_with_save_flag() -> None:
     from rfp_rag.agent.brains import LLMRouter
 
-    d = LLMRouter().route("한영대학교 학사정보시스템 고도화 사업을 요약해서 보고서로 저장해줘")
+    d = LLMRouter().route(
+        "한영대학교 학사정보시스템 고도화 사업을 요약해서 보고서로 저장해줘"
+    )
     assert d.route == "rag_query"
     assert d.save_requested is True
 

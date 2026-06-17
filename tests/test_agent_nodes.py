@@ -30,7 +30,9 @@ def _runtime(tmp_path: Path, min_score: float = 0.05) -> AgentRuntime:
             },
         )
     ]
-    store = build_vector_store(chunks, LexicalHashEmbeddings(dim=512), qdrant_path=None, lane="offline")
+    store = build_vector_store(
+        chunks, LexicalHashEmbeddings(dim=512), qdrant_path=None, lane="offline"
+    )
     docs = [
         CorpusDocument(
             csv_row_id="000",
@@ -83,7 +85,12 @@ def test_grade_branch_routes_by_count(tmp_path: Path) -> None:
 
 def test_rewrite_node_increments_and_rewrites(tmp_path: Path) -> None:
     rt = _runtime(tmp_path)
-    out = rt.rewrite_node({"original_question": "안녕하세요 혹시 한영대학교 예산 알려줘", "rewrite_count": 0})
+    out = rt.rewrite_node(
+        {
+            "original_question": "안녕하세요 혹시 한영대학교 예산 알려줘",
+            "rewrite_count": 0,
+        }
+    )
     assert out["rewrite_count"] == 1
     assert "안녕하세요" not in out["question"]
 
@@ -111,7 +118,12 @@ def test_generate_node_metadata_route_formats_tool_result(tmp_path: Path) -> Non
         "route": "metadata_query",
         "question": "사업 금액이 가장 큰 공고 1건은?",
         "original_question": "사업 금액이 가장 큰 공고 1건은?",
-        "tool_args": {"sort_by": "budget_krw_int", "descending": True, "top_n": 1, "agg": "list"},
+        "tool_args": {
+            "sort_by": "budget_krw_int",
+            "descending": True,
+            "top_n": 1,
+            "agg": "list",
+        },
     }
     tool_out = rt.tool_exec_node(state)
     assert tool_out["tool_result"]["doc_ids"] == ["doc:000"]
@@ -125,10 +137,23 @@ def test_generate_node_metadata_route_formats_tool_result(tmp_path: Path) -> Non
 def test_verify_branch_decisions(tmp_path: Path) -> None:
     rt = _runtime(tmp_path)
     assert rt.verify_branch({"answer": None}) == "abstain"
-    assert rt.verify_branch({"answer": {"x": 1}, "verify_ok": True, "save_requested": False}) == "respond"
-    assert rt.verify_branch({"answer": {"x": 1}, "verify_ok": True, "save_requested": True}) == "save_report"
+    assert (
+        rt.verify_branch(
+            {"answer": {"x": 1}, "verify_ok": True, "save_requested": False}
+        )
+        == "respond"
+    )
+    assert (
+        rt.verify_branch(
+            {"answer": {"x": 1}, "verify_ok": True, "save_requested": True}
+        )
+        == "save_report"
+    )
     assert rt.verify_branch({"answer": {"x": 1}, "verify_ok": False}) == "regenerate"
-    assert rt.verify_branch({"answer": {"x": 1}, "verify_ok": False, "regenerated": True}) == "abstain"
+    assert (
+        rt.verify_branch({"answer": {"x": 1}, "verify_ok": False, "regenerated": True})
+        == "abstain"
+    )
 
 
 def test_abstain_node_uses_existing_contract(tmp_path: Path) -> None:

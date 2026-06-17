@@ -28,7 +28,9 @@ def chunk_to_record(chunk: Chunk) -> dict[str, Any]:
     }
 
 
-def save_index(out_dir: Path, manifest: dict[str, Any], chunks: Iterable[Chunk]) -> None:
+def save_index(
+    out_dir: Path, manifest: dict[str, Any], chunks: Iterable[Chunk]
+) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -36,4 +38,7 @@ def save_index(out_dir: Path, manifest: dict[str, Any], chunks: Iterable[Chunk])
     )
     with (out_dir / "chunks.jsonl").open("w", encoding="utf-8") as f:
         for chunk in chunks:
-            f.write(json.dumps(chunk_to_record(chunk), ensure_ascii=False, sort_keys=True) + "\n")
+            f.write(
+                json.dumps(chunk_to_record(chunk), ensure_ascii=False, sort_keys=True)
+                + "\n"
+            )

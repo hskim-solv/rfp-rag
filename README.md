@@ -94,6 +94,40 @@ curl -s http://127.0.0.1:8000/v1/answer \
   -d '{"question":"한영대학교 트랙운영 학사정보시스템 고도화 사업을 요약해줘","index_dir":"artifacts/index","provider":"offline","top_k":5,"min_score":0.34}'
 ```
 
+## Docker and CI
+
+ADR-0015 records the Docker/CI baseline. The container image intentionally
+contains only the FastAPI app and locked Python dependencies. It does not bake
+in local `data/`, `artifacts/`, `.env`, or raw RFP files; mount those directories
+read-only when running answer or gate endpoints.
+
+```bash
+docker build -t rfp-rag-service .
+docker run --rm -p 8000:8000 rfp-rag-service
+```
+
+With local evidence mounted:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -v "$PWD/artifacts:/app/artifacts:ro" \
+  -v "$PWD/data:/app/data:ro" \
+  rfp-rag-service
+```
+
+GitHub Actions runs credential-free PR/push regression checks:
+
+```bash
+uv sync --frozen --group dev
+uv run ruff format --check rfp_rag tests
+uv run ruff check rfp_rag tests
+uv run pytest -m "not real"
+```
+
+Because `data/` is intentionally gitignored, CI creates a private-data-free
+synthetic 100-row corpus before running tests. Local quality claims still come
+from the real `data/` and `artifacts/` evidence described in the gate sections.
+
 ## Source parsing lane
 
 The RAG path is source-first. `data_list.csv` remains the metadata registry, and

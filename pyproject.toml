@@ -28,6 +28,7 @@ exclude-dependencies = ["diskcache"]
 [dependency-groups]
 dev = [
     "pytest>=9.0",
+    "ruff>=0.14",
 ]
 
 [tool.pytest.ini_options]

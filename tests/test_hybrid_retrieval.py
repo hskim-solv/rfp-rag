@@ -79,14 +79,21 @@ def test_bm25_scores_keyword_exact_chunk_first(tmp_path: Path) -> None:
 
     results = index.search("AI LMS 추천 엔진", top_k=3)
 
-    assert [result.chunk_id for result in results] == ["doc:001:chunk:0", "doc:000:chunk:0"]
+    assert [result.chunk_id for result in results] == [
+        "doc:001:chunk:0",
+        "doc:000:chunk:0",
+    ]
     assert results[0].score > results[1].score
     assert all(result.score > 0 for result in results)
 
 
 def test_bm25_empty_query_returns_no_results(tmp_path: Path) -> None:
     out = tmp_path / "index"
-    save_index(out, {"embedding_provider": "offline"}, [_chunk("doc:000:chunk:0", "AI LMS 본문")])
+    save_index(
+        out,
+        {"embedding_provider": "offline"},
+        [_chunk("doc:000:chunk:0", "AI LMS 본문")],
+    )
     index = BM25Index.from_index_dir(out)
 
     assert index.search("!!!", top_k=5) == []
@@ -104,8 +111,13 @@ def test_bm25_repeated_query_terms_do_not_change_ordering(tmp_path: Path) -> Non
     base = index.search("AI LMS", top_k=2)
     repeated = index.search("AI AI AI LMS", top_k=2)
 
-    assert [result.chunk_id for result in base] == ["doc:001:chunk:0", "doc:000:chunk:0"]
-    assert [result.chunk_id for result in repeated] == [result.chunk_id for result in base]
+    assert [result.chunk_id for result in base] == [
+        "doc:001:chunk:0",
+        "doc:000:chunk:0",
+    ]
+    assert [result.chunk_id for result in repeated] == [
+        result.chunk_id for result in base
+    ]
     assert [result.score for result in repeated] == [result.score for result in base]
 
 
@@ -171,7 +183,9 @@ def test_fuse_ranked_results_promotes_keyword_candidate() -> None:
         _search_result("doc:002:chunk:0", 8.0),
     ]
 
-    fused = fuse_ranked_results(vector, bm25, 3, vector_weight=0.7, bm25_weight=0.3, rank_constant=1)
+    fused = fuse_ranked_results(
+        vector, bm25, 3, vector_weight=0.7, bm25_weight=0.3, rank_constant=1
+    )
 
     assert [r.chunk_id for r in fused] == [
         "doc:001:chunk:0",
@@ -182,10 +196,18 @@ def test_fuse_ranked_results_promotes_keyword_candidate() -> None:
 
 
 def test_fusion_tie_breaks_deterministically() -> None:
-    vector = [_search_result("doc:002:chunk:0", 0.9), _search_result("doc:001:chunk:0", 0.8)]
-    bm25 = [_search_result("doc:001:chunk:0", 12.0), _search_result("doc:002:chunk:0", 8.0)]
+    vector = [
+        _search_result("doc:002:chunk:0", 0.9),
+        _search_result("doc:001:chunk:0", 0.8),
+    ]
+    bm25 = [
+        _search_result("doc:001:chunk:0", 12.0),
+        _search_result("doc:002:chunk:0", 8.0),
+    ]
 
-    fused = fuse_ranked_results(vector, bm25, 2, vector_weight=1.0, bm25_weight=1.0, rank_constant=60)
+    fused = fuse_ranked_results(
+        vector, bm25, 2, vector_weight=1.0, bm25_weight=1.0, rank_constant=60
+    )
 
     assert fused[0].score == fused[1].score
     assert [r.chunk_id for r in fused] == ["doc:001:chunk:0", "doc:002:chunk:0"]

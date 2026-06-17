@@ -73,7 +73,9 @@ class _DocStats:
 
 
 class BM25Index:
-    def __init__(self, documents: list[SearchResult], *, k1: float = 1.5, b: float = 0.75) -> None:
+    def __init__(
+        self, documents: list[SearchResult], *, k1: float = 1.5, b: float = 0.75
+    ) -> None:
         self._documents = documents
         self._k1 = k1
         self._b = b
@@ -109,7 +111,9 @@ class BM25Index:
             tf = stats.term_counts.get(term, 0)
             if tf == 0:
                 continue
-            denominator = tf + self._k1 * (1 - self._b + self._b * stats.length / self._avgdl)
+            denominator = tf + self._k1 * (
+                1 - self._b + self._b * stats.length / self._avgdl
+            )
             score += self._idf(term) * ((tf * (self._k1 + 1)) / denominator)
         return score
 
@@ -168,7 +172,9 @@ def fuse_ranked_results(
                 continue
             seen.add(result.chunk_id)
             by_chunk.setdefault(result.chunk_id, result)
-            scores[result.chunk_id] = scores.get(result.chunk_id, 0.0) + weight / (rank_constant + rank)
+            scores[result.chunk_id] = scores.get(result.chunk_id, 0.0) + weight / (
+                rank_constant + rank
+            )
 
     add(vector_results, vector_weight)
     add(bm25_results, bm25_weight)
