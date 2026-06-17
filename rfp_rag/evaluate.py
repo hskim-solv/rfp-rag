@@ -18,6 +18,7 @@ from .vector_index import (
     RETRIEVAL_VECTOR,
     load_vector_store,
 )
+from .visual_sidecar import VisualEvidenceIndex, load_reviewed_visual_evidence
 
 REAL_QUALITY_THRESHOLDS = {
     "recall@3": 0.85,
@@ -41,6 +42,15 @@ DEFAULT_METADATA_DOCS = 100
 DEFAULT_CURATED_DOCS = 10
 DEFAULT_SECTION_LOOKUP_DOCS = 30
 DEFAULT_CROSS_DOCUMENT_QUESTIONS = 20
+DEFAULT_VISUAL_TABLE_QUESTIONS = 30
+
+VISUAL_TYPE_LABELS = {
+    "dashboard_screenshot": "대시보드 화면",
+    "gantt_schedule": "일정표",
+    "organization_chart": "조직도",
+    "requirements_table": "요구사항 표",
+    "system_architecture_diagram": "시스템 아키텍처 다이어그램",
+}
 
 
 def decide_gates(
@@ -314,6 +324,54 @@ def generate_section_lookup_questions(
     return records
 
 
+def generate_visual_table_questions(
+    docs: list[CorpusDocument],
+    visual_index: VisualEvidenceIndex,
+    max_questions: int = DEFAULT_VISUAL_TABLE_QUESTIONS,
+) -> list[dict[str, Any]]:
+    docs_by_id = {doc.doc_id: doc for doc in docs}
+    records: list[dict[str, Any]] = []
+    seen_record_ids: set[str] = set()
+    for doc_id, evidence_rows in sorted(visual_index.by_doc_id.items()):
+        doc = docs_by_id.get(doc_id)
+        if doc is None:
+            continue
+        project = doc.metadata.get("project_name") or doc_id
+        csv_row_id = doc.csv_row_id
+        for evidence in evidence_rows:
+            record_id = str(evidence["record_id"])
+            if record_id in seen_record_ids:
+                continue
+            seen_record_ids.add(record_id)
+            page = int(evidence["page"])
+            visual_type = str(evidence["visual_type"])
+            visual_label = VISUAL_TYPE_LABELS.get(
+                visual_type, visual_type.replace("_", " ")
+            )
+            records.append(
+                {
+                    "id": f"visual_table_{csv_row_id}_p{page}_{visual_type}",
+                    "query": (
+                        f"{project} 문서 {page}페이지의 {visual_label} "
+                        "시각자료가 어떤 정보를 보여주는지 알려줘"
+                    ),
+                    "query_type": "visual_table",
+                    "expected_doc_ids": [doc_id],
+                    "expected_visual_record_ids": [record_id],
+                    "expected_visual_types": [visual_type],
+                    "expected_visual_pages": [page],
+                    "expected_field": evidence.get("field"),
+                    "expected_value_normalized": str(
+                        evidence.get("value") or ""
+                    ).strip(),
+                    "label_source": "visual_review_gold",
+                }
+            )
+            if len(records) >= max_questions:
+                return records
+    return records
+
+
 def generate_abstention_questions() -> list[dict[str, Any]]:
     questions = [
         "화성 이주선 산소탱크 발사일은 언제야?",
@@ -463,6 +521,20 @@ def _score_prediction(
                 hit = True
                 break
         section_hit_rate = 1.0 if hit else 0.0
+    visual_evidence_hit_rate = None
+    expected_visual_record_ids = set(record.get("expected_visual_record_ids") or [])
+    if expected_visual_record_ids:
+        cited_visual_record_ids: set[str] = set()
+        for source in sources:
+            for evidence in source.get("visual_evidence") or []:
+                record_id = evidence.get("record_id")
+                if record_id is not None:
+                    cited_visual_record_ids.add(str(record_id))
+        visual_evidence_hit_rate = (
+            1.0
+            if cited_visual_record_ids.intersection(expected_visual_record_ids)
+            else 0.0
+        )
 
     return {
         "recall@3": recall3,
@@ -474,6 +546,7 @@ def _score_prediction(
         "metadata_exact_match": metadata_exact,
         "abstention_pass": abstention_pass,
         "section_hit_rate": section_hit_rate,
+        "visual_evidence_hit_rate": visual_evidence_hit_rate,
     }
 
 
@@ -580,6 +653,9 @@ def _aggregate(scored_predictions: list[dict[str, Any]]) -> dict[str, Any]:
         "metadata_exact_match": _mean(m.get("metadata_exact_match") for m in metrics),
         "abstention_pass": _mean(m.get("abstention_pass") for m in metrics),
         "section_hit_rate": _mean(m.get("section_hit_rate") for m in metrics),
+        "visual_evidence_hit_rate": _mean(
+            m.get("visual_evidence_hit_rate") for m in metrics
+        ),
     }
 
 
@@ -672,6 +748,7 @@ def evaluate_index(
     retrieval_mode: str = RETRIEVAL_VECTOR,
     reranker: str = RERANKER_NONE,
     rerank_candidate_k: int | None = None,
+    visual_records_path: Path | str | None = None,
 ) -> dict[str, Any]:
     if retrieval_mode not in RETRIEVAL_MODES:
         raise ValueError(f"unknown retrieval_mode: {retrieval_mode}")
@@ -691,8 +768,20 @@ def evaluate_index(
         max_docs=min(max_docs, DEFAULT_SECTION_LOOKUP_DOCS),
     )
     cross_document = generate_cross_document_questions(docs)
+    visual_evidence_index = (
+        load_reviewed_visual_evidence(visual_records_path)
+        if visual_records_path is not None
+        else None
+    )
+    visual_table = (
+        generate_visual_table_questions(docs, visual_evidence_index)
+        if visual_evidence_index is not None
+        else []
+    )
     abstentions = generate_abstention_questions()
-    queries = golden + curated + section_lookup + cross_document + abstentions
+    queries = (
+        golden + curated + section_lookup + cross_document + visual_table + abstentions
+    )
     index_lane = _index_embedding_lane(index_dir)
     if lane != index_lane:
         raise ValueError(
@@ -718,6 +807,7 @@ def evaluate_index(
                 index_dir=index_dir,
                 reranker=reranker_impl,
                 rerank_candidate_k=rerank_candidate_k,
+                visual_evidence_index=visual_evidence_index,
             )
         except Exception as exc:  # noqa: BLE001 - isolate per-question API failures
             error_count += 1
@@ -743,6 +833,11 @@ def evaluate_index(
                 "expected_doc_ids": record.get("expected_doc_ids", []),
                 "expected_section_types": record.get("expected_section_types", []),
                 "expected_section_titles": record.get("expected_section_titles", []),
+                "expected_visual_record_ids": record.get(
+                    "expected_visual_record_ids", []
+                ),
+                "expected_visual_types": record.get("expected_visual_types", []),
+                "expected_visual_pages": record.get("expected_visual_pages", []),
                 "retrieved_doc_ids": response.get("retrieved_doc_ids", []),
                 "retrieved_chunk_ids": response.get("retrieved_chunk_ids", []),
                 "answer": response.get("answer", ""),
@@ -782,6 +877,7 @@ def evaluate_index(
             "curated_text": len(curated),
             "section_lookup": len(section_lookup),
             "cross_document": len(cross_document),
+            "visual_table": len(visual_table),
             "abstention": len(abstentions),
             "total": len(queries),
         },
@@ -796,6 +892,7 @@ def evaluate_index(
     _write_jsonl(out_dir / "curated_text_questions.jsonl", curated)
     _write_jsonl(out_dir / "section_lookup_questions.jsonl", section_lookup)
     _write_jsonl(out_dir / "cross_document_questions.jsonl", cross_document)
+    _write_jsonl(out_dir / "visual_table_questions.jsonl", visual_table)
     _write_jsonl(out_dir / "abstention_questions.jsonl", abstentions)
     _write_json(out_dir / "contract.json", _contract_for(lane))
     _write_json(out_dir / "metrics.json", metrics)
@@ -891,6 +988,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reranker", choices=sorted(RERANKERS), default=RERANKER_NONE)
     parser.add_argument("--rerank-candidate-k", default=None, type=int)
     parser.add_argument(
+        "--visual-records",
+        type=Path,
+        default=None,
+        help="reviewed visual_structure records.jsonl to add visual_table gold queries",
+    )
+    parser.add_argument(
         "--reaggregate",
         action="store_true",
         help="recompute metrics/contract/report from existing predictions.jsonl in --out (no API calls)",
@@ -919,6 +1022,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             retrieval_mode=args.retrieval_mode,
             reranker=args.reranker,
             rerank_candidate_k=args.rerank_candidate_k,
+            visual_records_path=args.visual_records,
         )
     finally:
         flush_tracing()  # 예외 경로 포함 — 단명 CLI에서 배치 전송 보장

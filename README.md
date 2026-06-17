@@ -4,7 +4,7 @@
 
 ## Gate semantics
 
-Contract: `rfp-rag-offline-v2`.
+Contract: `rfp-rag-offline-v3`.
 
 The offline lane (`--provider offline`) is an offline contract gate and does not claim semantic quality. It verifies deterministic corpus/index/retrieval plumbing, citation schema, and abstention behavior without credentials. The offline lane earns `offline_scaffold_complete` only (`thresholds_applied` stays false); `rag_quality_complete` is reserved for the real provider lane below. `--min-score 0.34` is the calibrated section-aware source-first offline retrieval cutoff. The current score distribution includes synthetic exact-section candidate scores for section lookup queries, so use the abstention/in-domain gap in `artifacts/eval/metrics.json` as a lane-specific calibration signal, not as pure vector-similarity evidence.
 
@@ -37,8 +37,8 @@ Adversarial roadmap lock:
    contract, source-lineage, query-count, retrieval/reranker, or reaggregation
    evidence.
 2. Continue benchmark hardening beyond the current 100-document metadata,
-   30 hard-negative, 30 section-labeled, and 20 cross-document coverage with
-   paraphrases and table/visual slices before claiming retrieval or reranker
+   30 hard-negative, 30 section-labeled, 20 cross-document, and 25 reviewed
+   visual/table coverage with paraphrases before claiming retrieval or reranker
    wins.
 3. Rebuild the real gate on a parsed-source index only after explicit cost
    approval.
@@ -54,7 +54,7 @@ python3 -m pytest
 python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json
 python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl
-python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34
+python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34 --visual-records artifacts/visual_structure_reviewed/records.jsonl
 python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
 python3 -m rfp_rag.gate_status
 ```
@@ -339,9 +339,13 @@ so the offline section lookup eval is not limited by dense/lexical vector
 collisions.
 
 `evaluate` writes `section_lookup_questions.jsonl` and reports
-`section_hit_rate`. Current offline calibration uses `--min-score 0.34`; the
-section-aware score distribution is recorded in `artifacts/eval/metrics.json`
-and includes injected section-candidate scores for the section lookup subset.
+`section_hit_rate`. With `--visual-records
+artifacts/visual_structure_reviewed/records.jsonl`, it also writes
+`visual_table_questions.jsonl` from reviewed page-level visual/table facts and
+reports `visual_evidence_hit_rate`. Current offline calibration uses
+`--min-score 0.34`; the section-aware score distribution is recorded in
+`artifacts/eval/metrics.json` and includes injected section-candidate scores for
+the section lookup subset.
 
 ### Retrieval mode
 
@@ -352,26 +356,27 @@ reciprocal-rank fusion.
 ```bash
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index \
   --out artifacts/eval_hybrid_offline --provider offline --top-k 5 \
-  --min-score 0.34 --retrieval-mode hybrid
+  --min-score 0.34 --retrieval-mode hybrid \
+  --visual-records artifacts/visual_structure_reviewed/records.jsonl
 ```
 
 Hybrid retrieval is an experiment lane. It must be calibrated separately before
 being treated as an offline scaffold signal; it does not replace the
 `real_openai` quality gate.
 
-Current section-aware vector offline gate at `--min-score 0.34` over the
-490-query benchmark:
+Current section/visual-aware vector offline gate at `--min-score 0.34` over the
+515-query benchmark:
 
-| mode | queries | recall@5 | all_docs@5 | cross-doc all_docs@5 | mrr | citation_validity | abstention_pass | section_hit_rate | offline_scaffold_complete |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| vector | `490` | `0.9848` | `0.9717` | `0.4` | `0.9837` | `0.9957` | `1.0` | `1.0` | `true` |
+| mode | queries | recall@5 | all_docs@5 | cross-doc all_docs@5 | mrr | citation_validity | abstention_pass | section_hit_rate | visual_evidence_hit_rate | offline_scaffold_complete |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| vector | `515` | `0.9856` | `0.9732` | `0.4` | `0.9845` | `0.9918` | `1.0` | `1.0` | `0.92` | `true` |
 
 The previous hybrid smoke comparison was run on the smaller benchmark and is no
 longer a same-dataset adoption signal after 100-document metadata expansion.
 Keep `vector` as the offline gate mode until hybrid has its own calibrated
-490-query comparison plus abstention, cross-document, and section-lookup
-evidence. The current vector baseline exposes a cross-document weakness:
-top-5 often fills with multiple chunks from one expected document.
+515-query comparison plus abstention, cross-document, section-lookup, and
+visual/table evidence. The current vector baseline exposes a cross-document
+weakness: top-5 often fills with multiple chunks from one expected document.
 
 ### Reranker
 
@@ -392,10 +397,11 @@ Example shape, after approving the relevant provider cost:
 ```bash
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open \
   --out artifacts/eval_open_rerank --provider open --top-k 5 --min-score 0.55 \
-  --reranker llm --rerank-candidate-k 10
+  --reranker llm --rerank-candidate-k 10 \
+  --visual-records artifacts/visual_structure_reviewed/records.jsonl
 ```
 
-## Real provider quality lane (rfp-rag-real-v3)
+## Real provider quality lane (rfp-rag-real-v4)
 
 The contract version is bumped for code/report semantics. Regenerate
 `artifacts/eval_real` before using real-lane artifacts as current evidence.
@@ -409,7 +415,8 @@ python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
   --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 \
   --embedding-provider openai --parse-manifest artifacts/parsed_docs/manifest.jsonl
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real \
-  --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47
+  --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47 \
+  --visual-records artifacts/visual_structure_reviewed/records.jsonl
 ```
 
 - `rag_quality_complete` requires every threshold in `artifacts/eval_real/metrics.json`
@@ -438,7 +445,7 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
 - Assumption: the corpus is trusted public RFP documents; prompt-injection
   robustness against adversarial corpus content is out of scope for this cycle.
 
-## Open lane — 저비용 이터레이션 (rfp-rag-open-v2)
+## Open lane — 저비용 이터레이션 (rfp-rag-open-v3)
 
 The contract version is bumped for code/report semantics. Regenerate
 `artifacts/eval_open` before using open-lane artifacts as current evidence.
@@ -458,7 +465,8 @@ python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
   --out artifacts/index_open --chunk-size 500 --chunk-overlap 80 \
   --embedding-provider open --parse-manifest artifacts/parsed_docs/manifest.jsonl
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open \
-  --out artifacts/eval_open --provider open --top-k 5 --min-score 0.55
+  --out artifacts/eval_open --provider open --top-k 5 --min-score 0.55 \
+  --visual-records artifacts/visual_structure_reviewed/records.jsonl
 ```
 
 `--min-score 0.55`는 첫 성공 런의 `score_distribution`에서 보정한 open lane 전용 cutoff입니다. abstention top score 최댓값은 `0.49755216`, in-domain top score 최솟값은 `0.60993228`이고, 두 분포 사이의 gap에 cutoff를 둡니다.

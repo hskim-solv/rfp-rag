@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-CONTRACT_VERSION = "rfp-rag-offline-v2"
+CONTRACT_VERSION = "rfp-rag-offline-v3"
 
 # --min-score 0.34 is the calibrated section-aware source-first offline cutoff
 # (rationale: score_distribution in metrics.json).
@@ -11,7 +11,7 @@ REQUIRED_COMMANDS = [
     "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json",
     "python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs",
     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34",
+    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
     "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
 ]
 
@@ -20,6 +20,7 @@ REQUIRED_EVAL_FILES = [
     "curated_text_questions.jsonl",
     "section_lookup_questions.jsonl",
     "cross_document_questions.jsonl",
+    "visual_table_questions.jsonl",
     "abstention_questions.jsonl",
     "metrics.json",
     "predictions.jsonl",
@@ -49,11 +50,11 @@ def offline_contract() -> dict[str, Any]:
     }
 
 
-REAL_CONTRACT_VERSION = "rfp-rag-real-v3"
+REAL_CONTRACT_VERSION = "rfp-rag-real-v4"
 
 REAL_REQUIRED_COMMANDS = [
     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47",
+    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
 ]
 
 
@@ -77,11 +78,11 @@ def real_contract() -> dict[str, Any]:
     }
 
 
-OPEN_CONTRACT_VERSION = "rfp-rag-open-v2"
+OPEN_CONTRACT_VERSION = "rfp-rag-open-v3"
 
 OPEN_REQUIRED_COMMANDS = [
     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_open --chunk-size 500 --chunk-overlap 80 --embedding-provider open --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open --out artifacts/eval_open --provider open --top-k 5 --min-score 0.55",
+    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_open --out artifacts/eval_open --provider open --top-k 5 --min-score 0.55 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
 ]
 
 

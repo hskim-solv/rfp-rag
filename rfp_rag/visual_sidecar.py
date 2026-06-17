@@ -74,6 +74,41 @@ def load_visual_sidecar(
     return VisualEvidenceIndex(by_doc_id=by_doc_id)
 
 
+def load_reviewed_visual_evidence(records_path: Path | str) -> VisualEvidenceIndex:
+    by_doc_id: dict[str, list[dict[str, Any]]] = {}
+    for row in _read_jsonl(Path(records_path)):
+        structured_facts = list(row.get("structured_facts") or [])
+        if not structured_facts:
+            continue
+        doc_id, page, visual_type = _parse_record_id(str(row["record_id"]))
+        for fact in structured_facts:
+            evidence = {
+                "record_id": row["record_id"],
+                "fact_id": fact.get("fact_id"),
+                "doc_id": doc_id,
+                "page": page,
+                "visual_type": visual_type,
+                "fact_type": fact.get("fact_type"),
+                "field": fact.get("field"),
+                "value": fact.get("value"),
+                "confidence": fact.get("confidence"),
+                "reviewer": fact.get("reviewer"),
+                "evidence_quote": fact.get("evidence_quote"),
+                "source": "visual_structure_reviewed",
+            }
+            by_doc_id.setdefault(doc_id, []).append(evidence)
+
+    for evidence_rows in by_doc_id.values():
+        evidence_rows.sort(
+            key=lambda item: (
+                item["page"],
+                item["record_id"],
+                item.get("fact_id") or "",
+            )
+        )
+    return VisualEvidenceIndex(by_doc_id=by_doc_id)
+
+
 def attach_visual_evidence(
     results: Iterable[SearchResult],
     index: VisualEvidenceIndex | None,

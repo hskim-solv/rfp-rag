@@ -14,8 +14,10 @@ from rfp_rag.evaluate import (
     generate_abstention_questions,
     generate_golden_metadata,
     generate_section_lookup_questions,
+    generate_visual_table_questions,
 )
 from rfp_rag.report_check import check_report
+from rfp_rag.visual_sidecar import VisualEvidenceIndex
 
 
 def _build_fake_index(tmp_path: Path, parse_manifest_path: Path) -> Path:
@@ -144,6 +146,75 @@ def test_multi_doc_scoring_requires_covering_all_expected_docs() -> None:
     assert complete["all_expected_docs_retrieved@5"] == 1.0
 
 
+def test_visual_table_questions_are_generated_from_reviewed_gold_evidence() -> None:
+    visual_index = VisualEvidenceIndex(
+        by_doc_id={
+            "doc:040": [
+                {
+                    "record_id": "doc:040:p10:requirements_table",
+                    "doc_id": "doc:040",
+                    "page": 10,
+                    "visual_type": "requirements_table",
+                    "fact_type": "visual_type_present",
+                    "field": "requirements",
+                    "value": "Requirements table is present on the selected page",
+                }
+            ]
+        }
+    )
+
+    records = generate_visual_table_questions([_corpus_doc(40)], visual_index)
+
+    assert records == [
+        {
+            "id": "visual_table_040_p10_requirements_table",
+            "query": "프로젝트 40 문서 10페이지의 요구사항 표 시각자료가 어떤 정보를 보여주는지 알려줘",
+            "query_type": "visual_table",
+            "expected_doc_ids": ["doc:040"],
+            "expected_visual_record_ids": ["doc:040:p10:requirements_table"],
+            "expected_visual_types": ["requirements_table"],
+            "expected_visual_pages": [10],
+            "expected_field": "requirements",
+            "expected_value_normalized": (
+                "Requirements table is present on the selected page"
+            ),
+            "label_source": "visual_review_gold",
+        }
+    ]
+
+
+def test_visual_table_scoring_checks_attached_visual_evidence_record_ids() -> None:
+    record = {
+        "query_type": "visual_table",
+        "expected_doc_ids": ["doc:040"],
+        "expected_visual_record_ids": ["doc:040:p10:requirements_table"],
+    }
+    no_visual_response = {
+        "retrieved_doc_ids": ["doc:040"],
+        "retrieved_chunk_ids": ["chunk:040"],
+        "sources": [{"doc_id": "doc:040", "chunk_id": "chunk:040"}],
+    }
+    visual_hit_response = {
+        "retrieved_doc_ids": ["doc:040"],
+        "retrieved_chunk_ids": ["chunk:040"],
+        "sources": [
+            {
+                "doc_id": "doc:040",
+                "chunk_id": "chunk:040",
+                "visual_evidence": [
+                    {"record_id": "doc:040:p10:requirements_table"},
+                ],
+            }
+        ],
+    }
+
+    miss = _score_prediction(record, no_visual_response, top_k=5)
+    hit = _score_prediction(record, visual_hit_response, top_k=5)
+
+    assert miss.get("visual_evidence_hit_rate") == 0.0
+    assert hit.get("visual_evidence_hit_rate") == 1.0
+
+
 def test_evaluate_index_writes_offline_contract_artifacts(
     tmp_path: Path, parsed_manifest_factory
 ) -> None:
@@ -206,8 +277,73 @@ def test_evaluate_index_writes_offline_contract_artifacts(
         assert (eval_dir / name).exists(), name
     contract = json.loads((eval_dir / "contract.json").read_text(encoding="utf-8"))
     assert saved_metrics == metrics
-    assert contract["contract_version"] == "rfp-rag-offline-v2"
+    assert contract["contract_version"] == "rfp-rag-offline-v3"
     assert contract["quality_semantics"]["offline"]["claims_semantic_quality"] is False
+
+
+def test_evaluate_index_writes_visual_table_slice_when_reviewed_records_are_supplied(
+    tmp_path: Path, parsed_manifest_factory
+) -> None:
+    index_dir = _build_fake_index(
+        tmp_path, parsed_manifest_factory(Path("data/data_list.csv"))
+    )
+    visual_records_path = tmp_path / "visual" / "records.jsonl"
+    visual_records_path.parent.mkdir(parents=True)
+    visual_records_path.write_text(
+        json.dumps(
+            {
+                "record_id": "doc:000:p10:requirements_table",
+                "doc_id": "doc:000",
+                "page": 10,
+                "visual_type": "requirements_table",
+                "structured_facts": [
+                    {
+                        "fact_id": "doc:000:p10:requirements_table:fact:000",
+                        "fact_type": "visual_type_present",
+                        "field": "requirements",
+                        "value": "Requirements table is present on the selected page",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    eval_dir = tmp_path / "eval"
+
+    metrics = evaluate_index(
+        data_path=Path("data/data_list.csv"),
+        index_dir=index_dir,
+        out_dir=eval_dir,
+        provider="fake_offline",
+        top_k=5,
+        max_docs=1,
+        min_score=0.34,
+        visual_records_path=visual_records_path,
+    )
+
+    visual_questions = [
+        json.loads(line)
+        for line in (eval_dir / "visual_table_questions.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert metrics["query_set_counts"]["visual_table"] == 1
+    assert metrics["query_set_counts"]["total"] == (
+        metrics["query_set_counts"]["golden_metadata"]
+        + metrics["query_set_counts"]["curated_text"]
+        + metrics["query_set_counts"]["section_lookup"]
+        + metrics["query_set_counts"]["cross_document"]
+        + metrics["query_set_counts"]["visual_table"]
+        + metrics["query_set_counts"]["abstention"]
+    )
+    assert visual_questions[0]["expected_visual_record_ids"] == [
+        "doc:000:p10:requirements_table"
+    ]
+    assert metrics["aggregate"]["visual_evidence_hit_rate"] is not None
+    assert "visual_table" in metrics["per_type"]
 
 
 def test_evaluate_index_writes_hybrid_retrieval_mode_artifacts(
@@ -326,6 +462,7 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
         "curated_text_questions.jsonl",
         "section_lookup_questions.jsonl",
         "cross_document_questions.jsonl",
+        "visual_table_questions.jsonl",
         "abstention_questions.jsonl",
         "metrics.json",
         "predictions.jsonl",
@@ -347,17 +484,17 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
     (eval_dir / "contract.json").write_text(
         json.dumps(
             {
-                "contract_version": "rfp-rag-offline-v2",
+                "contract_version": "rfp-rag-offline-v3",
                 "required_commands": [
                     "python3 -m pytest",
                     "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json",
                     "python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs",
                     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-                    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34",
+                    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
                     "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
                 ],
                 "readme_markers": [
-                    "rfp-rag-offline-v2",
+                    "rfp-rag-offline-v3",
                     "does not claim semantic quality",
                 ],
                 "quality_semantics": {"offline": {"claims_semantic_quality": False}},
@@ -369,15 +506,15 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
     readme.write_text(
         "\n".join(
             [
-                "rfp-rag-offline-v2",
+                "rfp-rag-offline-v3",
                 "python3 -m pytest",
                 "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json",
                 "python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs",
                 "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34",
+                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
                 "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
                 "The offline lane is an offline contract gate and does not claim semantic quality.",
-                "Real provider quality lane (rfp-rag-real-v3)",
+                "Real provider quality lane (rfp-rag-real-v4)",
             ]
         ),
         encoding="utf-8",
@@ -421,7 +558,7 @@ def test_report_check_flags_real_lane_eval_dir_as_unsupported(tmp_path: Path) ->
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()
     (eval_dir / "contract.json").write_text(
-        json.dumps({"contract_version": "rfp-rag-real-v3"}), encoding="utf-8"
+        json.dumps({"contract_version": "rfp-rag-real-v4"}), encoding="utf-8"
     )
     readme = tmp_path / "README.md"
     readme.write_text("", encoding="utf-8")

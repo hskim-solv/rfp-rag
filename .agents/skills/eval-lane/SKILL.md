@@ -41,7 +41,7 @@ Run when checking ordinary regressions. If `rfp_rag/agent/` changed, also run th
 ```bash
 python3 -m pytest -m "not real"
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl
-python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34
+python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34 --visual-records artifacts/visual_structure_reviewed/records.jsonl
 python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
 ```
 
@@ -68,7 +68,8 @@ Only after explicit user request:
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
   --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real \
-  --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47
+  --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47 \
+  --visual-records artifacts/visual_structure_reviewed/records.jsonl
 python3 -m pytest -m real
 ```
 

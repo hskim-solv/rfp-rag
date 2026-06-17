@@ -47,8 +47,8 @@ def _write_valid_portfolio_gates(root: Path) -> None:
         root / "artifacts/index_real/chunks.jsonl",
         [{"chunk_id": f"doc:000:chunk:{idx}", "doc_id": "doc:000"} for idx in range(3)],
     )
-    _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 490))
-    _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 490))
+    _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 515))
+    _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 515))
     _write_jsonl(root / "artifacts/eval_agent/predictions.jsonl", _records("agent", 85))
     _write_json(
         root / "artifacts/index/manifest.json",
@@ -75,19 +75,19 @@ def _write_valid_portfolio_gates(root: Path) -> None:
     _write_json(
         root / "artifacts/eval/contract.json",
         {
-            "contract_version": "rfp-rag-offline-v2",
+            "contract_version": "rfp-rag-offline-v3",
             "required_commands": [
-                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34",
+                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
             ],
         },
     )
     _write_json(
         root / "artifacts/eval_real/contract.json",
         {
-            "contract_version": "rfp-rag-real-v3",
+            "contract_version": "rfp-rag-real-v4",
             "required_commands": [
                 "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47",
+                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
             ],
         },
     )
@@ -113,7 +113,8 @@ def _write_valid_portfolio_gates(root: Path) -> None:
                 "curated_text": 10,
                 "golden_metadata": 400,
                 "section_lookup": 30,
-                "total": 490,
+                "visual_table": 25,
+                "total": 515,
             },
             "rag_quality_complete": False,
             "reranker": "none",
@@ -135,7 +136,8 @@ def _write_valid_portfolio_gates(root: Path) -> None:
                 "curated_text": 10,
                 "golden_metadata": 400,
                 "section_lookup": 30,
-                "total": 490,
+                "visual_table": 25,
+                "total": 515,
             },
             "rag_quality_complete": True,
             "reranker": "none",
@@ -202,7 +204,7 @@ def test_collect_gate_status_validates_fresh_portfolio_artifacts(
 
     assert status["overall_ok"] is True
     assert status["lanes"]["offline_rag"]["value"] is True
-    assert status["lanes"]["offline_rag"]["contract_version"] == "rfp-rag-offline-v2"
+    assert status["lanes"]["offline_rag"]["contract_version"] == "rfp-rag-offline-v3"
     assert status["lanes"]["real_rag"]["value"] is True
     assert status["lanes"]["agent_offline"]["failed"] == []
     assert status["lanes"]["visual_candidate"]["path"] == (

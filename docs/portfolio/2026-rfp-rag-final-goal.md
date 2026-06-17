@@ -64,11 +64,13 @@ Current safe evidence:
   old index/contract, not for the latest parsed-source index.
 - The LLM reranker path is an implemented interface with artifact fields and
   credential-free offline guards; no real/open reranker quality claim exists yet.
-- The visual lane is a precision-hardened local OCR candidate and sidecar
-  evidence path, not production visual understanding.
+- The visual lane has a precision-hardened local OCR candidate, reviewed
+  page-level visual evidence, and a 25-question `visual_table` offline eval slice
+  with `visual_evidence_hit_rate=0.92`; this is still not production visual
+  understanding.
 - The agent lane proves constrained offline workflow routing, verification,
-  audit, checkpoint, and HITL behavior, but needs a current retrieval-policy
-  rerun and optional real smoke before stronger claims.
+  audit, checkpoint, and HITL behavior against the current offline retrieval
+  policy. Optional real smoke still requires explicit cost approval.
 
 Current unsafe claims:
 
@@ -144,6 +146,9 @@ Evaluation and freshness targets:
 - Hardened labeled set target: >= 150 total labeled queries, 100-document
   metadata coverage, >= 30 hard abstention or hard-negative questions, >= 20
   cross-document comparison questions, and >= 30 section/table/visual questions.
+- Current offline set: 515 total queries, including 400 metadata, 30 hard
+  abstention, 30 section lookup, 20 cross-document, and 25 reviewed visual/table
+  questions. The next missing benchmark slice is paraphrase coverage.
 - Metrics must be reported by slice, not only as aggregate averages.
 
 Retrieval targets:
@@ -172,6 +177,9 @@ Visual-structure targets:
 - Unsupported visual-only factual claims: <= 10% in the visual-risk eval subset.
 - Page-specific visual/table eval subset: >= 30 labeled questions before
   claiming visual/table factual coverage.
+- Current page-specific visual/table eval subset: 25 labeled questions with
+  `visual_evidence_hit_rate=0.92`; target shortfall is 5 reviewed questions plus
+  sidecar on/off comparison.
 - Sidecar on/off answer-quality comparison must show no citation or abstention
   regression before visual evidence is part of final answer claims.
 
@@ -228,13 +236,17 @@ Ops/service targets:
 - Turn manual visual audit into targeted visual-structure extraction.
 - Cover schedules, organization charts, architecture diagrams, screenshots, and
   tables where text extraction loses business meaning.
+- Current status: first reviewed visual/table eval slice is wired into the
+  offline contract with 25 labeled questions.
 - Stop condition: visual claims cannot be tied back to page evidence.
 
 ### M4. Benchmark Hardening
 
 - Build the senior portfolio evaluation set before celebrating retrieval deltas.
 - Cover all 100 documents for metadata, plus hard negatives, paraphrases,
-  cross-document questions, and section/table/visual slices.
+  cross-document questions, and section/table/visual slices. Current gap:
+  paraphrases and the last 5 reviewed visual/table questions needed for the
+  30-question visual/table target.
 - Report per-slice metrics and failure examples.
 - Stop condition: high aggregate scores can be explained by an easy or narrow
   query set.
@@ -340,8 +352,9 @@ closed:
 
 > Built a credential-free source-first RAG/Agent evaluation scaffold for 100
 > Korean public RFP documents, using parsed HWP/PDF artifacts for offline
-> indexing, page/section citations, visual-risk sidecar evidence, constrained
-> LangGraph workflow evaluation, and artifact-backed regression gates.
+> indexing, page/section citations, a reviewed 25-question visual/table evidence
+> slice, constrained LangGraph workflow evaluation, and artifact-backed
+> regression gates.
 
 ## Target Final Resume Claim
 
