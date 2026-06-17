@@ -36,8 +36,8 @@ Adversarial roadmap lock:
    portfolio-ready. The command exits non-zero when any lane has stale
    contract, source-lineage, query-count, retrieval/reranker, or reaggregation
    evidence.
-2. Continue benchmark hardening beyond the current 100-document metadata
-   coverage with hard negatives, paraphrases, cross-document questions, and
+2. Continue benchmark hardening beyond the current 100-document metadata and
+   30 hard-negative coverage with paraphrases, cross-document questions, and
    section/table/visual slices before claiming retrieval or reranker wins.
 3. Rebuild the real gate on a parsed-source index only after explicit cost
    approval.
@@ -359,16 +359,16 @@ being treated as an offline scaffold signal; it does not replace the
 `real_openai` quality gate.
 
 Current section-aware vector offline gate at `--min-score 0.34` over the
-430-query benchmark:
+450-query benchmark:
 
 | mode | queries | recall@5 | mrr | citation_validity | abstention_pass | section_hit_rate | offline_scaffold_complete |
 |---|---:|---:|---:|---:|---:|---:|---|
-| vector | `430` | `0.9976` | `0.9833` | `0.9976` | `1.0` | `1.0` | `true` |
+| vector | `450` | `0.9976` | `0.9833` | `0.9976` | `1.0` | `1.0` | `true` |
 
 The previous hybrid smoke comparison was run on the smaller benchmark and is no
 longer a same-dataset adoption signal after 100-document metadata expansion.
 Keep `vector` as the offline gate mode until hybrid has its own calibrated
-430-query comparison plus abstention and section-lookup evidence.
+450-query comparison plus abstention and section-lookup evidence.
 
 ### Reranker
 
