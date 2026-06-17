@@ -11,10 +11,11 @@ The offline lane (`--provider offline`) is an offline contract gate and does not
 ## Final portfolio contract
 
 The final portfolio target is recorded in
-`docs/portfolio/2026-rfp-rag-final-goal.md`. The project should be framed as an
-`LLM/RAG AI Engineer` portfolio for complex-document parsing, retrieval quality
-evaluation, citation-grounded generation, and evidence-inspectable RAG/Agent
-backends, not as a generic RFP chatbot.
+`docs/portfolio/2026-rfp-rag-final-goal.md`. The adversarial readiness review is
+recorded in `docs/portfolio/2026-rfp-rag-adversarial-review.md`. The project
+should be framed as an `LLM/RAG AI Engineer` portfolio for complex-document
+parsing, retrieval quality evaluation, citation-grounded generation, and
+evidence-inspectable RAG/Agent backends, not as a generic RFP chatbot.
 
 The quality contract is source-first:
 
@@ -22,9 +23,26 @@ The quality contract is source-first:
   truth.
 - CSV is a metadata registry only.
 - Offline artifacts prove deterministic plumbing and regression safety.
-- Real-lane artifacts prove semantic RAG quality after explicit cost approval.
+- Existing real-lane artifacts prove semantic RAG quality only for their
+  recorded index and contract. The latest parsed-source pipeline needs an
+  explicitly approved source-first real rerun before it can claim binding
+  semantic quality.
 - Agent artifacts prove workflow routing, verification, audit, checkpoint, and
   HITL behavior after retrieval quality is established.
+
+Adversarial roadmap lock:
+
+1. Harden `gate_status` so stale or lineage-mismatched artifacts do not look
+   portfolio-ready.
+2. Expand the benchmark with 100-document coverage, hard negatives,
+   paraphrases, cross-document questions, and section/table/visual slices before
+   claiming retrieval or reranker wins.
+3. Rebuild the real gate on a parsed-source index only after explicit cost
+   approval.
+4. Add an evidence surface that shows answers, citations, chunks, source
+   previews, gate freshness, failures, latency, and token/cost estimates.
+5. Keep agent and visual claims subordinate to retrieval quality and evidence
+   inspectability.
 
 ## Commands
 
