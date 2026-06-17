@@ -8,6 +8,7 @@ import pytest
 from rfp_rag.index_store import SearchResult
 from rfp_rag.visual_sidecar import (
     attach_visual_evidence,
+    load_reviewed_visual_evidence,
     load_visual_sidecar,
 )
 
@@ -71,6 +72,59 @@ def test_load_visual_sidecar_groups_gate_passing_candidates_by_doc_id(
         "extractor": "visual_tesseract_ocr_candidate_v2",
         "confidence": 0.77,
         "matched_keywords": ["요구사항", "기능", "항목", "구분"],
+    }
+
+
+def test_load_reviewed_visual_evidence_uses_only_structured_gold_facts(
+    tmp_path: Path,
+) -> None:
+    records_path = tmp_path / "records.jsonl"
+    _write_jsonl(
+        records_path,
+        [
+            {
+                "record_id": "doc:040:p10:requirements_table",
+                "doc_id": "doc:040",
+                "page": 10,
+                "visual_type": "requirements_table",
+                "structured_facts": [
+                    {
+                        "fact_id": "doc:040:p10:requirements_table:fact:000",
+                        "fact_type": "visual_type_present",
+                        "field": "requirements",
+                        "value": "Requirements table is present on the selected page",
+                        "confidence": 0.9,
+                        "reviewer": "manual_page_review_2026_06_16",
+                        "evidence_quote": "manual review confirmed a requirements table",
+                    }
+                ],
+            },
+            {
+                "record_id": "doc:041:p2:requirements_table",
+                "doc_id": "doc:041",
+                "page": 2,
+                "visual_type": "requirements_table",
+                "structured_facts": [],
+            },
+        ],
+    )
+
+    index = load_reviewed_visual_evidence(records_path)
+
+    assert sorted(index.by_doc_id) == ["doc:040"]
+    assert index.by_doc_id["doc:040"][0] == {
+        "record_id": "doc:040:p10:requirements_table",
+        "fact_id": "doc:040:p10:requirements_table:fact:000",
+        "doc_id": "doc:040",
+        "page": 10,
+        "visual_type": "requirements_table",
+        "fact_type": "visual_type_present",
+        "field": "requirements",
+        "value": "Requirements table is present on the selected page",
+        "confidence": 0.9,
+        "reviewer": "manual_page_review_2026_06_16",
+        "evidence_quote": "manual review confirmed a requirements table",
+        "source": "visual_structure_reviewed",
     }
 
 
