@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-CONTRACT_VERSION = "rfp-rag-offline-v3"
+CONTRACT_VERSION = "rfp-rag-offline-v4"
 
 # --min-score 0.34 is the calibrated section-aware source-first offline cutoff
 # (rationale: score_distribution in metrics.json).
@@ -21,9 +21,14 @@ REQUIRED_EVAL_FILES = [
     "section_lookup_questions.jsonl",
     "cross_document_questions.jsonl",
     "visual_table_questions.jsonl",
+    "paraphrase_questions.jsonl",
     "abstention_questions.jsonl",
+    "eval_progress.jsonl",
     "metrics.json",
     "predictions.jsonl",
+    "predictions_unjudged.jsonl",
+    "predictions_unjudged_partial.jsonl",
+    "predictions_judged_partial.jsonl",
     "report.md",
     "contract.json",
 ]
@@ -50,7 +55,7 @@ def offline_contract() -> dict[str, Any]:
     }
 
 
-REAL_CONTRACT_VERSION = "rfp-rag-real-v4"
+REAL_CONTRACT_VERSION = "rfp-rag-real-v5"
 
 REAL_REQUIRED_COMMANDS = [
     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai --parse-manifest artifacts/parsed_docs/manifest.jsonl",
@@ -78,7 +83,7 @@ def real_contract() -> dict[str, Any]:
     }
 
 
-OPEN_CONTRACT_VERSION = "rfp-rag-open-v3"
+OPEN_CONTRACT_VERSION = "rfp-rag-open-v4"
 
 OPEN_REQUIRED_COMMANDS = [
     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_open --chunk-size 500 --chunk-overlap 80 --embedding-provider open --parse-manifest artifacts/parsed_docs/manifest.jsonl",

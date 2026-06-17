@@ -77,6 +77,26 @@ def test_generator_abstention_sentinel_forces_abstain_despite_high_score() -> No
     assert response["sources"] == []
 
 
+def test_generator_abstention_can_preserve_retrieved_sources_for_eval() -> None:
+    class _AbstainingGenerator:
+        def generate(self, query: str, results: list[SearchResult]) -> str:
+            return "검색된 근거만으로는 답할 수 없는 정보입니다."
+
+    response = answer_with_store(
+        _store(),
+        _AbstainingGenerator(),
+        "한영대학교 트랙운영 학사정보시스템 고도화 사업을 요약해줘",
+        top_k=3,
+        min_score=0.05,
+        preserve_generator_abstention_sources=True,
+    )
+
+    assert "insufficient_context" in response["warnings"]
+    assert response["confidence"] == "low"
+    assert response["sources"][0]["chunk_id"] == "doc:000:chunk:0"
+    assert response["source_texts"]
+
+
 def test_unrelated_question_abstains() -> None:
     response = answer_with_store(
         _store(),

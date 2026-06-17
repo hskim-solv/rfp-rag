@@ -9,13 +9,17 @@ from rfp_rag.build_index import build_index
 from rfp_rag.corpus import CorpusDocument
 from rfp_rag.evaluate import (
     _build_arg_parser,
+    _call_with_retries,
+    _clear_final_eval_artifacts,
     _score_prediction,
     evaluate_index,
     generate_abstention_questions,
     generate_golden_metadata,
+    generate_paraphrase_questions,
     generate_section_lookup_questions,
     generate_visual_table_questions,
 )
+from rfp_rag.rag_chain import AnswerStageError
 from rfp_rag.report_check import check_report
 from rfp_rag.visual_sidecar import VisualEvidenceIndex
 
@@ -82,6 +86,25 @@ def test_abstention_benchmark_has_30_near_domain_hard_negatives() -> None:
         any(term in record["query"] for term in near_domain_terms) for record in records
     )
     assert near_domain_count >= 20
+
+
+def test_default_paraphrase_benchmark_covers_30_metadata_queries() -> None:
+    records = generate_paraphrase_questions([_corpus_doc(i) for i in range(40)])
+
+    assert len(records) == 30
+    assert len({record["id"] for record in records}) == 30
+    assert {record["query_type"] for record in records} == {"paraphrase"}
+    assert {record["label_source"] for record in records} == {"csv_metadata"}
+    assert {record["expected_doc_ids"][0] for record in records} == {
+        f"doc:{i:03d}" for i in range(30)
+    }
+    assert {record["expected_field"] for record in records} == {
+        "bid_end_at_iso",
+        "budget_krw_int",
+        "issuer",
+        "summary",
+    }
+    assert all("사업 금액은 얼마야?" not in record["query"] for record in records)
 
 
 def _section_chunk(i: int) -> dict[str, object]:
@@ -253,6 +276,7 @@ def test_evaluate_index_writes_offline_contract_artifacts(
     assert metrics["thresholds_applied"] is False
     assert metrics["query_set_counts"]["cross_document"] == 20
     assert metrics["query_set_counts"]["abstention"] == 30
+    assert metrics["query_set_counts"]["paraphrase"] == 3
     assert metrics["query_set_counts"]["section_lookup"] >= 1
     assert metrics["score_distribution"]["abstention_top_scores"]
     assert metrics["score_distribution"]["in_domain_top_scores"]
@@ -268,17 +292,123 @@ def test_evaluate_index_writes_offline_contract_artifacts(
         "curated_text_questions.jsonl",
         "section_lookup_questions.jsonl",
         "cross_document_questions.jsonl",
+        "paraphrase_questions.jsonl",
         "abstention_questions.jsonl",
+        "eval_progress.jsonl",
         "metrics.json",
         "predictions.jsonl",
+        "predictions_unjudged.jsonl",
+        "predictions_unjudged_partial.jsonl",
+        "predictions_judged_partial.jsonl",
         "report.md",
         "contract.json",
     ]:
         assert (eval_dir / name).exists(), name
     contract = json.loads((eval_dir / "contract.json").read_text(encoding="utf-8"))
     assert saved_metrics == metrics
-    assert contract["contract_version"] == "rfp-rag-offline-v3"
+    assert contract["contract_version"] == "rfp-rag-offline-v4"
     assert contract["quality_semantics"]["offline"]["claims_semantic_quality"] is False
+
+
+def test_evaluate_index_writes_recoverable_artifacts_before_judge_interrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, parsed_manifest_factory
+) -> None:
+    index_dir = _build_fake_index(
+        tmp_path, parsed_manifest_factory(Path("data/data_list.csv"))
+    )
+    eval_dir = tmp_path / "eval"
+    (eval_dir / "metrics.json").parent.mkdir(parents=True)
+    (eval_dir / "metrics.json").write_text('{"stale": true}', encoding="utf-8")
+    (eval_dir / "predictions.jsonl").write_text('{"stale": true}\n', encoding="utf-8")
+
+    def interrupt_judge(predictions, *args: object, **kwargs: object):
+        assert predictions
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr("rfp_rag.evaluate.JUDGED_LANES", {"offline"})
+    monkeypatch.setattr("rfp_rag.judge.judge_predictions", interrupt_judge)
+
+    with pytest.raises(KeyboardInterrupt):
+        evaluate_index(
+            data_path=Path("data/data_list.csv"),
+            index_dir=index_dir,
+            out_dir=eval_dir,
+            provider="offline",
+            top_k=5,
+            max_docs=1,
+            min_score=0.34,
+        )
+
+    unjudged = [
+        json.loads(line)
+        for line in (eval_dir / "predictions_unjudged.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    partial = [
+        json.loads(line)
+        for line in (eval_dir / "predictions_unjudged_partial.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    progress = [
+        json.loads(line)
+        for line in (eval_dir / "eval_progress.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+
+    assert unjudged
+    assert partial == unjudged
+    assert (eval_dir / "contract.json").exists()
+    assert (eval_dir / "golden_metadata.jsonl").exists()
+    assert any(row["phase"] == "answers_complete" for row in progress)
+    assert not (eval_dir / "metrics.json").exists()
+    assert not (eval_dir / "predictions.jsonl").exists()
+
+
+def test_call_with_retries_recovers_transient_rate_limit() -> None:
+    attempts = 0
+
+    def flaky() -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise RuntimeError("RateLimitError: slow down")
+        return "ok"
+
+    sleeps: list[float] = []
+
+    assert (
+        _call_with_retries(
+            flaky,
+            max_attempts=3,
+            base_delay_seconds=0.5,
+            sleep=sleeps.append,
+        )
+        == "ok"
+    )
+    assert attempts == 3
+    assert sleeps == [0.5, 1.0]
+
+
+def test_clear_final_eval_artifacts_removes_stale_recovery_outputs(
+    tmp_path: Path,
+) -> None:
+    for name in [
+        "metrics.json",
+        "predictions.jsonl",
+        "predictions_unjudged.jsonl",
+        "report.md",
+    ]:
+        (tmp_path / name).write_text("stale", encoding="utf-8")
+
+    _clear_final_eval_artifacts(tmp_path)
+
+    assert not (tmp_path / "metrics.json").exists()
+    assert not (tmp_path / "predictions.jsonl").exists()
+    assert not (tmp_path / "predictions_unjudged.jsonl").exists()
+    assert not (tmp_path / "report.md").exists()
 
 
 def test_evaluate_index_writes_visual_table_slice_when_reviewed_records_are_supplied(
@@ -337,6 +467,7 @@ def test_evaluate_index_writes_visual_table_slice_when_reviewed_records_are_supp
         + metrics["query_set_counts"]["section_lookup"]
         + metrics["query_set_counts"]["cross_document"]
         + metrics["query_set_counts"]["visual_table"]
+        + metrics["query_set_counts"]["paraphrase"]
         + metrics["query_set_counts"]["abstention"]
     )
     assert visual_questions[0]["expected_visual_record_ids"] == [
@@ -454,21 +585,40 @@ def test_evaluate_index_preserves_reranker_metadata_on_answer_errors(
     assert first_prediction["warnings"] == ["answer_error:RuntimeError"]
 
 
+def test_evaluate_index_labels_generation_stage_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, parsed_manifest_factory
+) -> None:
+    index_dir = _build_fake_index(
+        tmp_path, parsed_manifest_factory(Path("data/data_list.csv"))
+    )
+    eval_dir = tmp_path / "eval"
+
+    def fail_generation(*args: object, **kwargs: object) -> dict[str, object]:
+        raise AnswerStageError("generation", RuntimeError("RateLimitError"))
+
+    monkeypatch.setattr("rfp_rag.evaluate.answer_with_store", fail_generation)
+
+    evaluate_index(
+        data_path=Path("data/data_list.csv"),
+        index_dir=index_dir,
+        out_dir=eval_dir,
+        provider="offline",
+        max_docs=1,
+    )
+
+    first_prediction = json.loads(
+        (eval_dir / "predictions.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert first_prediction["warnings"] == ["generation_error:RuntimeError"]
+
+
 def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) -> None:
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()
-    for name in [
-        "golden_metadata.jsonl",
-        "curated_text_questions.jsonl",
-        "section_lookup_questions.jsonl",
-        "cross_document_questions.jsonl",
-        "visual_table_questions.jsonl",
-        "abstention_questions.jsonl",
-        "metrics.json",
-        "predictions.jsonl",
-        "report.md",
-        "contract.json",
-    ]:
+    from rfp_rag.contracts import offline_contract
+
+    contract = offline_contract()
+    for name in contract["required_eval_files"]:
         (eval_dir / name).write_text("{}\n", encoding="utf-8")
     (eval_dir / "metrics.json").write_text(
         json.dumps(
@@ -482,39 +632,17 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
         encoding="utf-8",
     )
     (eval_dir / "contract.json").write_text(
-        json.dumps(
-            {
-                "contract_version": "rfp-rag-offline-v3",
-                "required_commands": [
-                    "python3 -m pytest",
-                    "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json",
-                    "python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs",
-                    "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-                    "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
-                    "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
-                ],
-                "readme_markers": [
-                    "rfp-rag-offline-v3",
-                    "does not claim semantic quality",
-                ],
-                "quality_semantics": {"offline": {"claims_semantic_quality": False}},
-            }
-        ),
+        json.dumps(contract),
         encoding="utf-8",
     )
     readme = tmp_path / "README.md"
     readme.write_text(
         "\n".join(
             [
-                "rfp-rag-offline-v3",
-                "python3 -m pytest",
-                "python3 -m rfp_rag.inspect_corpus --data data/data_list.csv --files data/files --out artifacts/corpus_manifest.json",
-                "python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --out artifacts/parsed_docs",
-                "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl",
-                "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
-                "python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md",
+                *contract["required_commands"],
+                *contract["readme_markers"],
                 "The offline lane is an offline contract gate and does not claim semantic quality.",
-                "Real provider quality lane (rfp-rag-real-v4)",
+                "Real provider quality lane (rfp-rag-real-v5)",
             ]
         ),
         encoding="utf-8",
@@ -558,7 +686,7 @@ def test_report_check_flags_real_lane_eval_dir_as_unsupported(tmp_path: Path) ->
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()
     (eval_dir / "contract.json").write_text(
-        json.dumps({"contract_version": "rfp-rag-real-v4"}), encoding="utf-8"
+        json.dumps({"contract_version": "rfp-rag-real-v5"}), encoding="utf-8"
     )
     readme = tmp_path / "README.md"
     readme.write_text("", encoding="utf-8")

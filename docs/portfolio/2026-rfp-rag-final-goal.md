@@ -4,23 +4,23 @@
 
 Target portfolio headline:
 
-> LLM/RAG AI Engineer for complex-document parsing, retrieval evaluation, and
-> evidence-grounded RAG/Agent backends.
+> Production-grade Agentic RAG System for Korean Public RFP Intelligence.
 
 The project should not be presented as an RFP chatbot. The final story is:
 
-> A source-first RAG quality-engineering system for Korean public procurement
-> RFPs, built from original HWP/PDF documents, with parser fidelity checks,
-> section/page-grounded retrieval, hybrid retrieval and reranking experiments,
-> agentic verification, and operator-facing quality evidence.
+> A production-grade Agentic RAG backend using Korean public procurement RFPs as
+> the concrete workload: source-first HWP/PDF ingestion, evaluated retrieval,
+> LangGraph orchestration, tool-using workflows, streaming FastAPI service,
+> observability, guardrails, and CI-backed evaluation gates.
 
 This positioning is stronger for Korean 2026 hiring signals than a narrow
 "Retrieval & Evaluation Engineer" headline. Korean postings usually use broader
 titles such as `LLM/RAG AI Engineer`, `AI Agent Backend Engineer`, `RAG Engine
 Researcher`, or `RAG & Graph Search Engineer`, while still screening for the
-same hard capabilities: document parsing, chunking, vector/hybrid retrieval,
-reranking, citation grounding, evaluation, API/service operation, observability,
-latency, and cost control.
+same hard capabilities: Python backend engineering, document parsing, chunking,
+vector/hybrid retrieval, reranking, citation grounding, evaluation, typed agent
+state, API/service operation, observability, latency, cost control, deployment,
+and guardrails.
 
 This document describes the final target, not the current public claim. Current
 safe claims and missing senior-ready evidence are separated below.
@@ -35,19 +35,29 @@ In scope:
 - Parsed artifacts, page/section citations, visual-structure evidence, and
   reproducible evaluation artifacts.
 - Offline credential-free tests and real-lane quality gates as separate lanes.
-- LangGraph-style workflow only where it improves routing, retrieval,
-  verification, abstention, audit, or human approval.
-- A small service or dashboard surface that exposes evidence, metrics, and
-  traceable runs.
+- FastAPI/Pydantic async service endpoints with streaming answer delivery.
+- LangGraph typed-state orchestration where it improves routing, planning,
+  retrieval, verification, retry/reflection, audit, checkpointing, or human
+  approval.
+- Tool/function-calling surface for document retrieval, run/metric inspection,
+  and guarded operator actions.
+- Evidence dashboard or service surface that exposes answers, citations, chunks,
+  traces, metrics, failures, latency, token/cost, and gate freshness.
+- Docker and GitHub Actions evidence for reproducible local/containerized use.
 
 Out of scope for the final portfolio core:
 
 - Claiming CSV-baseline retrieval as source-document quality.
 - Presenting a generic chatbot UI as the main achievement.
-- Full autonomous multi-agent behavior without measurable retrieval gains.
-- FastMCP/MCP as the main product story before the RAG workflow is stable.
+- Full autonomous multi-agent behavior without measurable retrieval or workflow
+  gains.
+- MCP/FastMCP as the main product story before the core RAG/service workflow is
+  stable. A small ops/tool server is useful; it must not replace the RAG product
+  narrative.
 - Cloud production deployment unless local/containerized evidence is already
-  complete.
+  complete and credentials/spend are explicitly approved.
+- Kubernetes, Terraform, fine-tuning, GraphRAG, or multimodal-agent work unless
+  the core production Agentic RAG system is already demonstrable.
 
 ## Current Evidence Boundary
 
@@ -60,8 +70,10 @@ Current safe evidence:
   `artifacts/index/manifest.json` records `text_source=parsed`,
   `parse_manifest_path=artifacts/parsed_docs/manifest.jsonl`, and
   `chunk_count=16459`.
-- Existing real-lane artifacts show semantic RAG quality only for their recorded
-  old index/contract, not for the latest parsed-source index.
+- The latest source-first real lane uses `artifacts/index_real` with
+  `text_source=parsed`, `parse_manifest_path=artifacts/parsed_docs/manifest.jsonl`,
+  contract `rfp-rag-real-v5`, and a 545-query `artifacts/eval_real` run with
+  `rag_quality_complete=true`.
 - The LLM reranker path is an implemented interface with artifact fields and
   credential-free offline guards; no real/open reranker quality claim exists yet.
 - The visual lane has a precision-hardened local OCR candidate, reviewed
@@ -74,7 +86,6 @@ Current safe evidence:
 
 Current unsafe claims:
 
-- "The latest source-first HWP/PDF real semantic quality gate passed."
 - "Hybrid or reranking improved retrieval quality."
 - "Artifact-backed latency and cost gates are complete."
 - "Production visual understanding or multimodal RAG is solved."
@@ -122,6 +133,23 @@ The finished project should expose these user-visible capabilities:
    - Prefer a pragmatic FastAPI plus Streamlit surface unless a richer frontend
      becomes necessary.
 
+7. Production backend service
+   - Provide Python 3.11+ FastAPI endpoints with Pydantic request/response
+     schemas.
+   - Support async answer generation and SSE streaming for long-running agent
+     responses.
+   - Expose health, gate status, answer, evaluation summary, and trace/run lookup
+     endpoints.
+
+8. Tool and ops layer
+   - Include document retrieval as a first-class tool.
+   - Include at least one SQL-backed inspection tool for metadata, run history,
+     audit, or evaluation artifacts.
+   - Include an internal ops/API tool for gate status, metrics, or artifact
+     comparison.
+   - Include one narrow MCP/FastMCP-style tool server for RFP RAG Ops after the
+     tool boundary, storage scope, and retention policy are explicit.
+
 ## Quality Targets
 
 Parser/source targets:
@@ -146,9 +174,9 @@ Evaluation and freshness targets:
 - Hardened labeled set target: >= 150 total labeled queries, 100-document
   metadata coverage, >= 30 hard abstention or hard-negative questions, >= 20
   cross-document comparison questions, and >= 30 section/table/visual questions.
-- Current offline set: 515 total queries, including 400 metadata, 30 hard
-  abstention, 30 section lookup, 20 cross-document, and 25 reviewed visual/table
-  questions. The next missing benchmark slice is paraphrase coverage.
+- Current offline set: 545 total queries after the paraphrase slice, including
+  400 metadata, 30 hard abstention, 30 section lookup, 20 cross-document, 25
+  reviewed visual/table, and 30 paraphrase questions.
 - Metrics must be reported by slice, not only as aggregate averages.
 
 Retrieval targets:
@@ -193,16 +221,26 @@ Agent/workflow targets:
   it is cited as latest-stack evidence.
 - Real LLM router/rewriter smoke is optional but must be explicitly approved
   because it is cost-bearing.
+- LangGraph graph uses typed state schema, conditional edges, checkpointing, and
+  bounded retry/reflection loops.
+- Final workflow includes a planner-executor or supervisor-worker split only if
+  it maps to real RFP work such as compare, verify, draft report, and approve.
 
 Ops/service targets:
 
 - Offline lane remains credential-free:
   `python3 -m pytest -m "not real"` must pass without `OPENAI_API_KEY`.
 - Real lane is run only on explicit approval because it costs money.
+- FastAPI service exposes Pydantic schemas, async handlers, and SSE streaming.
+- Structured output validation is enforced on agent/tool-facing responses.
+- Tool allowlist, max tool-call budget, prompt-injection checks, and
+  secrets/PII leakage safeguards are covered by tests or scripted checks.
 - Dashboard or report shows gate freshness, latency, token/cost estimate, and
   failure classification.
 - Containerized or local service demo can be reproduced from documented
   commands.
+- Docker build and GitHub Actions CI are documented and run the no-real tests
+  plus lightweight eval/report checks.
 - Token/cost estimate coverage: 100% of generated evaluation predictions where
   a real/open model is used.
 - Latency reporting coverage: 100% of service/demo requests and evaluation
@@ -282,12 +320,37 @@ Ops/service targets:
 - Stop condition: UI hides evidence, or observability captures raw secrets,
   private data, raw RFP source, or full sensitive prompts.
 
-### M9. Portfolio Closeout
+### M9. Production Service And Tool Surface
+
+- Add FastAPI/Pydantic async endpoints for answer generation, gate status, eval
+  summaries, and run/trace lookup.
+- Add SSE streaming for long-running agent answers.
+- Expose document retrieval, SQL/run inspection, and internal metrics/gate tools
+  through a bounded tool allowlist.
+- Add one narrow MCP/FastMCP-style RFP RAG Ops tool server only after storage
+  location, retention, and project/user scope are documented.
+- Stop condition: service routes bypass evaluation/guardrail contracts, or tool
+  access cannot be audited.
+
+### M10. Guardrails, CI, And Deployment Evidence
+
+- Add structured output validation, prompt-injection regression cases,
+  max-tool-call budget checks, and graceful fallback behavior.
+- Add Dockerfile or compose-based local service reproduction.
+- Add GitHub Actions for no-real tests plus lightweight eval/report checks.
+- Record latency, token, cost, tool-call success/failure, and failed-run analysis
+  artifacts.
+- Stop condition: guardrails are described in prose but not testable, or Docker/CI
+  cannot reproduce the documented checks.
+
+### M11. Portfolio Closeout
 
 - Produce final README/REPORT narrative, screenshots, demo script, architecture
   diagram, ADR links, and metric table.
-- Stop condition: the project still reads as a demo rather than an evidence-led
-  engineering system.
+- Produce a short demo video only after the local/containerized service and
+  evidence dashboard are stable.
+- Stop condition: the project still reads as a demo rather than a production-grade
+  Agentic RAG system with evidence-backed operations.
 
 ## Failure Conditions
 
@@ -305,6 +368,13 @@ The portfolio is not senior-level if any of these remain true:
 - It leads with "Agent" while retrieval quality remains unproven.
 - It has no service/dashboard surface for inspecting evidence and failures.
 - It has no clear latency, cost, trace, freshness, or regression-gate story.
+- It lacks FastAPI/Pydantic async service evidence and streaming behavior.
+- It lacks typed LangGraph state, checkpointing, HITL, and bounded retry/reflection
+  evidence.
+- It lacks guarded tool/function-calling behavior or auditable tool failures.
+- It lacks Docker/CI evidence for reproducible checks.
+- It treats MCP, tracing, or dashboard work as a label instead of an operational
+  boundary with storage scope, retention, and tests.
 - It makes unsupported claims about visual-only facts.
 - It requires credentials for offline regression tests.
 
@@ -313,12 +383,13 @@ The portfolio is not senior-level if any of these remain true:
 Recommended defaults are listed first.
 
 1. Portfolio headline
-   - Recommended: `LLM/RAG AI Engineer`.
-   - Alternative: `Retrieval & Evaluation Engineer` for global specialist
-     roles.
+   - Recommended: `Production-grade Agentic RAG System for Korean Public RFP
+     Intelligence`.
+   - Alternative: `LLM/RAG AI Engineer - source-first RAG and agent backend`.
 
 2. Demo surface
-   - Recommended: FastAPI plus Streamlit evidence dashboard.
+   - Recommended: FastAPI plus Streamlit evidence dashboard, with SSE streaming
+     on the FastAPI side.
    - Alternative: FastAPI plus Next.js if frontend polish becomes a major goal.
 
 3. Real evaluation budget
@@ -331,17 +402,23 @@ Recommended defaults are listed first.
    - Later ADR: compare OCR, VLM API, local vision, and page-image retrieval.
 
 5. Deployment scope
-   - Recommended: reproducible local/containerized demo with screenshots and
-     metrics.
+   - Recommended: reproducible local/containerized demo with screenshots,
+     metrics, and GitHub Actions.
    - Alternative: cloud demo only after service quality is complete.
 
 6. MCP/FastMCP scope
-   - Recommended: internal operator/tooling layer after the core RAG workflow is
-     stable.
+   - Recommended: one internal RFP RAG Ops tool server after the core RAG workflow
+     and service boundary are stable.
    - Alternative: public-facing product interface only if a specific role target
      requires it.
 
-7. Public portfolio scope
+7. Observability stack
+   - Recommended: choose one primary trace stack first, such as Langfuse or
+     Phoenix, and document storage/retention before adoption.
+   - Alternative: add a second trace integration only after the first one produces
+     useful failed-run analysis.
+
+8. Public portfolio scope
    - Decide which RFP samples, screenshots, metrics, and source snippets are
      safe to publish.
 
@@ -352,19 +429,22 @@ closed:
 
 > Built a credential-free source-first RAG/Agent evaluation scaffold for 100
 > Korean public RFP documents, using parsed HWP/PDF artifacts for offline
-> indexing, page/section citations, a reviewed 25-question visual/table evidence
-> slice, constrained LangGraph workflow evaluation, and artifact-backed
-> regression gates.
+> indexing, page/section citations, visual/table and paraphrase benchmark slices,
+> constrained LangGraph workflow evaluation, and artifact-backed regression
+> gates.
 
 ## Target Final Resume Claim
 
 This claim is valid only after benchmark hardening, source-first real gate,
-reranker ablation, evidence UX, and ops metrics pass:
+reranker ablation, production service, guardrails, evidence UX, and ops metrics
+pass:
 
-> Built and evaluated a source-first RAG quality system for 100 Korean public RFP
+> Built a production-grade Agentic RAG system for 100 Korean public RFP
 > documents, using parsed HWP/PDF artifacts as the body source of truth,
 > section/page-aware chunking, dense/BM25/hybrid/reranked retrieval comparisons,
-> citation-grounded generation, targeted visual/table validation,
-> LangGraph-style verification workflow, and an evidence dashboard with
-> artifact-backed gates for recall, MRR, faithfulness, answer relevancy,
-> abstention, failure slices, latency, and cost.
+> citation-grounded generation, targeted visual/table validation, LangGraph
+> typed-state orchestration with checkpointing and HITL approval, FastAPI
+> Pydantic async/SSE service endpoints, guarded tool/function calling, traceable
+> latency/token/cost evidence, Docker/CI-backed regression gates, and
+> artifact-backed evaluation for recall, MRR, faithfulness, answer relevancy,
+> abstention, and failed-run analysis.

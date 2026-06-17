@@ -29,6 +29,14 @@ ABSTAIN_ANSWER = "검색된 제안요청서 근거만으로는 답할 수 없는
 DEFAULT_MIN_SCORE = 0.34
 
 
+class AnswerStageError(RuntimeError):
+    def __init__(self, stage: str, original: Exception) -> None:
+        super().__init__(str(original))
+        self.stage = stage
+        self.original = original
+        self.__cause__ = original
+
+
 def _source_from_result(result: SearchResult) -> dict[str, Any]:
     md = result.metadata
     return {
@@ -62,12 +70,17 @@ def abstention_response(
     *,
     reranker: str = RERANKER_NONE,
     rerank_candidate_k: int | None = None,
+    preserve_sources: bool = False,
 ) -> dict[str, Any]:
     return {
         "query": query,
         "answer": ABSTAIN_ANSWER,
-        "sources": [],
-        "source_texts": [],
+        "sources": [_source_from_result(r) for r in results]
+        if preserve_sources
+        else [],
+        "source_texts": [chunk_context_block(r) for r in results]
+        if preserve_sources
+        else [],
         "warnings": ["insufficient_context"],
         "confidence": "low",
         "retrieved_doc_ids": [r.doc_id for r in results],
@@ -91,16 +104,22 @@ def answer_with_store(
     reranker: Reranker | None = None,
     rerank_candidate_k: int | None = None,
     visual_evidence_index: VisualEvidenceIndex | None = None,
+    preserve_generator_abstention_sources: bool = False,
 ) -> dict[str, Any]:
     candidate_k = max(top_k, rerank_candidate_k or top_k)
     reranker_name = reranker.name if reranker else RERANKER_NONE
-    results = search(
-        store,
-        query,
-        top_k=candidate_k,
-        retrieval_mode=retrieval_mode,
-        index_dir=index_dir,
-    )
+    try:
+        results = search(
+            store,
+            query,
+            top_k=candidate_k,
+            retrieval_mode=retrieval_mode,
+            index_dir=index_dir,
+        )
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise AnswerStageError("retrieval", exc) from exc
     if not results or results[0].score < min_score:
         return abstention_response(
             query,
@@ -109,12 +128,18 @@ def answer_with_store(
             rerank_candidate_k=candidate_k,
         )
     if reranker is not None:
-        results = reranker.rerank(query, results, top_k=top_k)
+        try:
+            results = reranker.rerank(query, results, top_k=top_k)
+        except Exception as exc:
+            raise AnswerStageError("rerank", exc) from exc
     else:
         results = results[:top_k]
     results = attach_visual_evidence(results, visual_evidence_index)
 
-    answer = generator.generate(query, results)
+    try:
+        answer = generator.generate(query, results)
+    except Exception as exc:
+        raise AnswerStageError("generation", exc) from exc
     # "없는 정보" is the abstention sentinel produced by generators (e.g.
     # LLMAnswerGenerator on insufficient_context). A grounded answer merely
     # quoting this phrase is a known, accepted false-abstain risk.
@@ -124,6 +149,7 @@ def answer_with_store(
             results,
             reranker=reranker_name,
             rerank_candidate_k=candidate_k,
+            preserve_sources=preserve_generator_abstention_sources,
         )
 
     top_score = results[0].score
@@ -165,6 +191,7 @@ def answer_query(
     rerank_candidate_k: int | None = None,
     visual_candidate_path: Path | str | None = None,
     visual_gate_path: Path | str | None = None,
+    preserve_generator_abstention_sources: bool = False,
 ) -> dict[str, Any]:
     index_dir = Path(index_dir)
     manifest = _load_manifest(index_dir)
@@ -194,4 +221,5 @@ def answer_query(
         reranker=reranker_impl,
         rerank_candidate_k=rerank_candidate_k,
         visual_evidence_index=visual_evidence_index,
+        preserve_generator_abstention_sources=preserve_generator_abstention_sources,
     )
