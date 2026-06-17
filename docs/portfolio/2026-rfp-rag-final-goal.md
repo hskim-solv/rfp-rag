@@ -22,6 +22,9 @@ same hard capabilities: document parsing, chunking, vector/hybrid retrieval,
 reranking, citation grounding, evaluation, API/service operation, observability,
 latency, and cost control.
 
+This document describes the final target, not the current public claim. Current
+safe claims and missing senior-ready evidence are separated below.
+
 ## Scope Boundaries
 
 In scope:
@@ -45,6 +48,35 @@ Out of scope for the final portfolio core:
 - FastMCP/MCP as the main product story before the RAG workflow is stable.
 - Cloud production deployment unless local/containerized evidence is already
   complete.
+
+## Current Evidence Boundary
+
+As of 2026-06-17, the portfolio is **senior-promising-but-not-yet**. It should
+not be described as senior-ready until the blocker items below are closed.
+
+Current safe evidence:
+
+- Source-first offline index and evaluation use parsed artifacts:
+  `artifacts/index/manifest.json` records `text_source=parsed`,
+  `parse_manifest_path=artifacts/parsed_docs/manifest.jsonl`, and
+  `chunk_count=16459`.
+- Existing real-lane artifacts show semantic RAG quality only for their recorded
+  old index/contract, not for the latest parsed-source index.
+- The LLM reranker path is an implemented interface with artifact fields and
+  credential-free offline guards; no real/open reranker quality claim exists yet.
+- The visual lane is a precision-hardened local OCR candidate and sidecar
+  evidence path, not production visual understanding.
+- The agent lane proves constrained offline workflow routing, verification,
+  audit, checkpoint, and HITL behavior, but needs a current retrieval-policy
+  rerun and optional real smoke before stronger claims.
+
+Current unsafe claims:
+
+- "The latest source-first HWP/PDF real semantic quality gate passed."
+- "Hybrid or reranking improved retrieval quality."
+- "Artifact-backed latency and cost gates are complete."
+- "Production visual understanding or multimodal RAG is solved."
+- "The repository is senior-ready as a service/dashboard portfolio."
 
 ## Final Product Shape
 
@@ -99,6 +131,20 @@ Parser/source targets:
 - Page citation availability: 100%.
 - CSV body fallback for RAG content: 0.
 
+Evaluation and freshness targets:
+
+- `gate_status` must fail stale or lineage-mismatched evidence instead of
+  reporting boolean-only success.
+- Source-first real gate artifacts must use an index manifest with
+  `text_source=parsed`, `parse_manifest_path`, and `index_text_source_counts`
+  covering all 100 documents.
+- Real gate contract must match the current source-first contract version and
+  required commands.
+- Hardened labeled set target: >= 150 total labeled queries, 100-document
+  metadata coverage, >= 30 hard abstention or hard-negative questions, >= 20
+  cross-document comparison questions, and >= 30 section/table/visual questions.
+- Metrics must be reported by slice, not only as aggregate averages.
+
 Retrieval targets:
 
 - Real-lane `Recall@5`: >= 0.95.
@@ -106,6 +152,9 @@ Retrieval targets:
 - Real-lane `MRR`: >= 0.85.
 - Section hit rate: >= 0.90 on section-labeled questions.
 - Metadata exact match: >= 0.95.
+- Any hybrid/reranker adoption claim requires same-dataset comparison against
+  vector and BM25 controls with recall, MRR, abstention, section hit rate,
+  latency, and token/cost estimates.
 
 Generation targets:
 
@@ -120,6 +169,10 @@ Visual-structure targets:
   then targeted expansion.
 - Accepted targeted visual records: >= 80% of reviewed high-risk records.
 - Unsupported visual-only factual claims: <= 10% in the visual-risk eval subset.
+- Page-specific visual/table eval subset: >= 30 labeled questions before
+  claiming visual/table factual coverage.
+- Sidecar on/off answer-quality comparison must show no citation or abstention
+  regression before visual evidence is part of final answer claims.
 
 Agent/workflow targets:
 
@@ -127,6 +180,10 @@ Agent/workflow targets:
   and HITL resume paths covered by tests or scripted demos.
 - Agent lane gate passes with artifact-backed metrics.
 - Tool calls and state transitions are inspectable from audit artifacts.
+- Current agent lane must be rerun with the current index/min-score policy before
+  it is cited as latest-stack evidence.
+- Real LLM router/rewriter smoke is optional but must be explicitly approved
+  because it is cost-bearing.
 
 Ops/service targets:
 
@@ -137,6 +194,11 @@ Ops/service targets:
   failure classification.
 - Containerized or local service demo can be reproduced from documented
   commands.
+- Token/cost estimate coverage: 100% of generated evaluation predictions where
+  a real/open model is used.
+- Latency reporting coverage: 100% of service/demo requests and evaluation
+  predictions. Do not publish a latency threshold claim until the measured
+  baseline is recorded.
 
 ## Milestones
 
@@ -160,40 +222,54 @@ Ops/service targets:
 - Preserve parser lineage on chunks and metrics.
 - Stop condition: any RAG path still silently uses CSV body text.
 
-### M3. Visual MVP
+### M3. Visual/Table Semantic MVP
 
 - Turn manual visual audit into targeted visual-structure extraction.
 - Cover schedules, organization charts, architecture diagrams, screenshots, and
   tables where text extraction loses business meaning.
 - Stop condition: visual claims cannot be tied back to page evidence.
 
-### M4. Retrieval Ablation
+### M4. Benchmark Hardening
+
+- Build the senior portfolio evaluation set before celebrating retrieval deltas.
+- Cover all 100 documents for metadata, plus hard negatives, paraphrases,
+  cross-document questions, and section/table/visual slices.
+- Report per-slice metrics and failure examples.
+- Stop condition: high aggregate scores can be explained by an easy or narrow
+  query set.
+
+### M5. Retrieval And Reranker Ablation
 
 - Compare dense, BM25, hybrid RRF, and reranked retrieval.
 - Report quality, latency, and cost trade-offs.
 - Stop condition: quality gains are not statistically or operationally
   defensible.
 
-### M5. Real Quality Gate
+### M6. Source-First Real Quality Gate
 
-- Run approved real-lane evaluation.
+- Run approved real-lane evaluation on the parsed-source index.
 - Update `REPORT.md` from generated artifacts, not by hand-editing metrics.
-- Stop condition: real-lane cost approval is missing.
+- Stop condition: real-lane cost approval is missing, or the real index manifest
+  lacks parsed-source lineage.
 
-### M6. Evidence UX
+### M7. Agent Freshness
+
+- Rerun offline agent evaluation with the current retrieval policy.
+- Add trajectory/audit/checkpoint examples to the evidence surface.
+- Run real agent smoke only after explicit cost approval.
+- Stop condition: agent proof is stale relative to retrieval/index policy.
+
+### M8. Evidence UX And Ops
 
 - Add dashboard/service view for answers, citations, chunks, source previews,
   metrics, and failure reasons.
-- Stop condition: UI hides evidence instead of making quality inspectable.
-
-### M7. Ops Evidence
-
-- Add trace, latency, token/cost, gate status, and failure classification.
+- Add trace, latency, token/cost, gate status freshness, and failure
+  classification.
 - Keep offline lane credential-free.
-- Stop condition: observability captures raw secrets, private data, or full
-  sensitive prompts.
+- Stop condition: UI hides evidence, or observability captures raw secrets,
+  private data, raw RFP source, or full sensitive prompts.
 
-### M8. Portfolio Closeout
+### M9. Portfolio Closeout
 
 - Produce final README/REPORT narrative, screenshots, demo script, architecture
   diagram, ADR links, and metric table.
@@ -205,13 +281,17 @@ Ops/service targets:
 The portfolio is not senior-level if any of these remain true:
 
 - It presents CSV-baseline metrics as if they prove HWP/PDF source-document RAG.
+- It presents the old real-lane index as latest parsed-source semantic evidence.
 - It lacks page/section citation evidence.
 - It cannot explain parser quality and visual-information loss.
-- It uses vector search only without a hybrid/reranking comparison.
+- It uses vector search only without a hardened dense/BM25/hybrid/reranking
+  comparison.
+- It reports high aggregate retrieval scores without hard negatives,
+  cross-document questions, and per-slice metrics.
 - It reports metrics without reproducible commands and artifact paths.
 - It leads with "Agent" while retrieval quality remains unproven.
 - It has no service/dashboard surface for inspecting evidence and failures.
-- It has no clear latency, cost, trace, or regression-gate story.
+- It has no clear latency, cost, trace, freshness, or regression-gate story.
 - It makes unsupported claims about visual-only facts.
 - It requires credentials for offline regression tests.
 
@@ -252,11 +332,25 @@ Recommended defaults are listed first.
    - Decide which RFP samples, screenshots, metrics, and source snippets are
      safe to publish.
 
-## Final Resume Claim
+## Safe Current Claim
 
-> Built a source-first RAG quality system for 100 Korean public RFP documents,
-> using parsed HWP/PDF artifacts as the body source of truth, section/page-aware
-> chunking, hybrid retrieval and reranking, citation-grounded generation,
-> targeted visual-structure validation, LangGraph-style verification workflow,
-> and artifact-backed gates for recall, MRR, faithfulness, answer relevancy,
-> abstention, latency, and cost.
+This is the claim that can be used before the remaining senior-ready gates are
+closed:
+
+> Built a credential-free source-first RAG/Agent evaluation scaffold for 100
+> Korean public RFP documents, using parsed HWP/PDF artifacts for offline
+> indexing, page/section citations, visual-risk sidecar evidence, constrained
+> LangGraph workflow evaluation, and artifact-backed regression gates.
+
+## Target Final Resume Claim
+
+This claim is valid only after benchmark hardening, source-first real gate,
+reranker ablation, evidence UX, and ops metrics pass:
+
+> Built and evaluated a source-first RAG quality system for 100 Korean public RFP
+> documents, using parsed HWP/PDF artifacts as the body source of truth,
+> section/page-aware chunking, dense/BM25/hybrid/reranked retrieval comparisons,
+> citation-grounded generation, targeted visual/table validation,
+> LangGraph-style verification workflow, and an evidence dashboard with
+> artifact-backed gates for recall, MRR, faithfulness, answer relevancy,
+> abstention, failure slices, latency, and cost.

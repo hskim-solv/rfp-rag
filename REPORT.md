@@ -1639,13 +1639,21 @@ Final quality targets:
 | agent workflow | route/retrieve/rewrite/generate/verify/abstain/audit/checkpoint/HITL resume paths covered by tests or scripted demos |
 | ops/service | offline lane remains credential-free; report/dashboard shows gate freshness, latency, token/cost estimate, and failure classification |
 
-Next milestone order:
+Next milestone order after adversarial portfolio review:
 
-1. M3 Visual MVP closeout: validate sidecar answer-context integration against
-   focused tests and offline regression checks.
-2. M4 Retrieval Ablation: compare dense, BM25, hybrid RRF, and reranked
-   retrieval with quality, latency, and cost trade-offs.
-3. M5 Real Quality Gate: rerun only after explicit cost approval.
+1. Gate freshness hardening: make `rfp_rag.gate_status` fail stale or
+   lineage-mismatched evidence before it reports portfolio readiness.
+2. Benchmark hardening: expand beyond the current small automatic query set into
+   hard negatives, paraphrases, cross-document questions, and
+   section/table/visual slices.
+3. Retrieval and reranker ablation: compare dense, BM25, hybrid RRF, and
+   reranked retrieval on the hardened set with quality, abstention, latency, and
+   token/cost trade-offs.
+4. Source-first real quality gate: rerun only after explicit cost approval, and
+   only on an index whose manifest records parsed-source lineage.
+5. Agent freshness and evidence UX: rerun the agent lane with current retrieval
+   policy, then expose answer/citation/chunk/source/gate/failure evidence in a
+   small service/dashboard surface.
 
 Stop conditions:
 
@@ -1745,3 +1753,62 @@ python3 -m pytest \
 Result: `7 passed`. This verifies the interface, artifact fields, and
 credential-free offline guard. It does not claim reranker quality yet because no
 real/open reranker run has been approved or executed.
+
+## 17. Adversarial senior-portfolio review
+
+An independent read-only adversarial reviewer was added as
+`portfolio-adversary` for both Codex and Claude:
+
+- `.codex/agents/portfolio-adversary.toml`
+- `.claude/agents/portfolio-adversary.md`
+
+The project handoff rule in `CLAUDE.md` now includes this reviewer. Its
+contract is read-only: it critiques hiring signal, evidence quality,
+overclaiming, missing senior-level proof, roadmap gaps, security/ops
+credibility, and public portfolio risk. It must not edit files, run real/API
+jobs, or expose raw RFP/source data.
+
+Review record: `docs/portfolio/2026-rfp-rag-adversarial-review.md`.
+
+Main decision:
+
+- The adversarial verdict `overclaimed` is accepted for any public claim that
+  says the repository is already senior-ready.
+- The refined status is `senior-promising-but-not-yet`.
+- No critique was rejected. F-01 through F-05 were accepted; F-06 through F-08
+  were partially accepted because existing workflow/parser/visual evidence is
+  real, but insufficient for the stronger final claims.
+
+Accepted blockers before senior-ready positioning:
+
+1. **Latest source-first real gate is missing.** Existing `artifacts/eval_real`
+   evidence was produced against the older `artifacts/index_real` manifest
+   (`chunk_count=286`, no parsed-source lineage). The current parsed offline
+   index records `text_source=parsed`, `parse_manifest_path`, and
+   `chunk_count=16459`. Therefore the old `rag_quality_complete=true` evidence
+   must not be described as the latest parsed-source real gate.
+2. **Evaluation set is too narrow for the final claim.** The current generated
+   set defaults to the first `max_docs=10` documents and the real run has
+   `query_set_counts.total=60`. This is useful regression evidence, not enough
+   for a senior-level retrieval benchmark.
+3. **Hybrid/reranker quality is not proven yet.** The LLM reranker interface and
+   artifact fields are implemented, but no real/open reranker quality run has
+   been approved. Current hybrid offline evidence has
+   `offline_scaffold_complete=false` because abstention and section lookup
+   regress.
+4. **Evidence UX and ops surface are still missing.** CLI/report artifacts are
+   strong, but the final portfolio needs a small dashboard/service showing
+   answer, citations, chunks, source preview, gates, failures, latency, and
+   token/cost.
+5. **Gate status is too shallow.** `rfp_rag.gate_status` currently reads boolean
+   gate keys. The next no-cost implementation target is to validate contract
+   version, source lineage, parsed-manifest linkage, query counts,
+   retrieval/reranker mode, freshness, and reaggregation provenance.
+
+Claims to avoid until the new gates exist:
+
+- "The latest source-first HWP/PDF real semantic quality gate passed."
+- "Hybrid or reranking improved retrieval quality."
+- "Artifact-backed latency and cost gates are complete."
+- "Production visual understanding or multimodal RAG is solved."
+- "The repository is senior-ready as a public service/dashboard portfolio."
