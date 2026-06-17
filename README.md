@@ -35,6 +35,7 @@ python3 -m rfp_rag.parse_sources --data data/data_list.csv --files data/files --
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index --chunk-size 500 --chunk-overlap 80 --embedding-provider offline --parse-manifest artifacts/parsed_docs/manifest.jsonl
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --out artifacts/eval --provider offline --top-k 5 --min-score 0.34
 python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
+python3 -m rfp_rag.gate_status
 ```
 
 ## Source parsing lane
