@@ -2064,7 +2064,7 @@ Implemented surfaces:
 |---|---|
 | `Dockerfile` | FastAPI app image with locked uv dependencies |
 | `.dockerignore` | excludes `.env`, `data/`, `artifacts/`, caches, and local outputs |
-| `.github/workflows/ci.yml` | synthetic 100-row corpus fixture, `uv sync --frozen --group dev`, `ruff`, `pytest -m "not real"` |
+| `.github/workflows/ci.yml` | synthetic 100-row corpus fixture, `uv sync --frozen --group dev`, `ruff`, `pytest -m "not real"`, `docker build -t rfp-rag-service:ci .` |
 
 Boundary:
 
@@ -2073,6 +2073,8 @@ Boundary:
   `artifacts/` mounts;
 - CI uses a generated synthetic corpus because `data/` is intentionally
   gitignored and should not be published as a repository fixture;
+- CI builds the FastAPI service image, so Docker evidence no longer depends on
+  a local Docker Desktop daemon being available during portfolio review;
 - real/OpenAI quality gates remain explicit cost-bearing runs, not default PR CI.
 
 ## 23. Service observability and basic guardrails
@@ -2216,6 +2218,7 @@ Checked evidence:
 - `python3 -m rfp_rag.gate_status` reports `overall_ok=true`;
 - `artifacts/guardrails/summary.json` reports
   `guardrail_regression_complete=true`;
-- `Dockerfile` and `.github/workflows/ci.yml` exist;
+- `Dockerfile` exists and `.github/workflows/ci.yml` includes a Docker image
+  build job;
 - `docs/architecture/system-architecture.md` exists and is linked from README;
 - ADR-0014/0015/0016 exist for FastAPI, Docker/CI, and MCP-style ops tooling.

@@ -89,6 +89,12 @@ def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
                 'pytest -m "not real"',
                 "ci_no_real_tests",
             ),
+            _check_text(
+                root,
+                ".github/workflows/ci.yml",
+                "docker build",
+                "ci_docker_build",
+            ),
         ]
     )
 

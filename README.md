@@ -76,9 +76,9 @@ Final evidence bundle check:
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 ```
 
-This check verifies local gate status, guardrail regression, Docker/CI files,
-architecture evidence, and ADR links. It currently passes with explicit deferred
-gaps for `cloud_deployment` and `public_dashboard`.
+This check verifies local gate status, guardrail regression, Docker/CI build
+evidence, architecture evidence, and ADR links. It currently passes with
+explicit deferred gaps for `cloud_deployment` and `public_dashboard`.
 
 ## FastAPI service surface
 
@@ -185,11 +185,14 @@ uv sync --frozen --group dev
 uv run ruff format --check rfp_rag tests
 uv run ruff check rfp_rag tests
 uv run pytest -m "not real"
+docker build -t rfp-rag-service:ci .
 ```
 
 Because `data/` is intentionally gitignored, CI creates a private-data-free
 synthetic 100-row corpus before running tests. Local quality claims still come
 from the real `data/` and `artifacts/` evidence described in the gate sections.
+The CI Docker build proves the service image can be assembled independently of a
+local Docker Desktop daemon.
 
 ## Source parsing lane
 
