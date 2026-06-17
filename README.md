@@ -4,7 +4,7 @@
 
 ## Gate semantics
 
-Contract: `rfp-rag-offline-v3`.
+Contract: `rfp-rag-offline-v4`.
 
 The offline lane (`--provider offline`) is an offline contract gate and does not claim semantic quality. It verifies deterministic corpus/index/retrieval plumbing, citation schema, and abstention behavior without credentials. The offline lane earns `offline_scaffold_complete` only (`thresholds_applied` stays false); `rag_quality_complete` is reserved for the real provider lane below. `--min-score 0.34` is the calibrated section-aware source-first offline retrieval cutoff. The current score distribution includes synthetic exact-section candidate scores for section lookup queries, so use the abstention/in-domain gap in `artifacts/eval/metrics.json` as a lane-specific calibration signal, not as pure vector-similarity evidence.
 
@@ -13,8 +13,9 @@ The offline lane (`--provider offline`) is an offline contract gate and does not
 The final portfolio target is recorded in
 `docs/portfolio/2026-rfp-rag-final-goal.md`. The adversarial readiness review is
 recorded in `docs/portfolio/2026-rfp-rag-adversarial-review.md`. The project
-should be framed as an `LLM/RAG AI Engineer` portfolio for complex-document
-parsing, retrieval quality evaluation, citation-grounded generation, and
+should be framed as a production-grade Agentic RAG system for Korean public RFP
+intelligence: complex-document parsing, retrieval quality evaluation,
+citation-grounded generation, typed agent workflow, service/tool operation, and
 evidence-inspectable RAG/Agent backends, not as a generic RFP chatbot.
 
 The quality contract is source-first:
@@ -29,6 +30,8 @@ The quality contract is source-first:
   semantic quality.
 - Agent artifacts prove workflow routing, verification, audit, checkpoint, and
   HITL behavior after retrieval quality is established.
+- Agent-team operation is bounded by ADR-0013: task를 disjoint write set으로
+  분해해 병렬 writer를 허용하고, main integrator가 최종 검증/통합한다.
 
 Adversarial roadmap lock:
 
@@ -37,9 +40,9 @@ Adversarial roadmap lock:
    contract, source-lineage, query-count, retrieval/reranker, or reaggregation
    evidence.
 2. Continue benchmark hardening beyond the current 100-document metadata,
-   30 hard-negative, 30 section-labeled, 20 cross-document, and 25 reviewed
-   visual/table coverage with paraphrases before claiming retrieval or reranker
-   wins.
+   30 hard-negative, 30 section-labeled, 20 cross-document, 25 reviewed
+   visual/table, and 30 paraphrase questions before claiming retrieval or
+   reranker wins.
 3. Rebuild the real gate on a parsed-source index only after explicit cost
    approval.
 4. Add an evidence surface that shows answers, citations, chunks, source
@@ -60,11 +63,10 @@ python3 -m rfp_rag.gate_status
 ```
 
 `gate_status` is stricter than `report_check`: it reads the local gate artifacts
-and fails stale portfolio evidence. After the no-cost refresh on 2026-06-17,
-`offline_rag`, `agent_offline`, and `visual_candidate` are expected to pass from
-local artifacts. `overall_ok` still remains `false` because `real_rag` requires
-an explicitly approved parsed-source `artifacts/index_real` rebuild and
-`real_openai` evaluation.
+and fails stale portfolio evidence. After the source-first refresh on 2026-06-17,
+`offline_rag`, `real_rag`, `agent_offline`, and `visual_candidate` pass from local
+artifacts. `real_rag` uses `artifacts/index_real` with parsed-source lineage and
+`artifacts/eval_real` contract `rfp-rag-real-v5`.
 
 ## Source parsing lane
 
@@ -338,7 +340,8 @@ also injects exact section-title candidates from `chunks.jsonl` before ranking,
 so the offline section lookup eval is not limited by dense/lexical vector
 collisions.
 
-`evaluate` writes `section_lookup_questions.jsonl` and reports
+`evaluate` writes `section_lookup_questions.jsonl`, `paraphrase_questions.jsonl`,
+and reports
 `section_hit_rate`. With `--visual-records
 artifacts/visual_structure_reviewed/records.jsonl`, it also writes
 `visual_table_questions.jsonl` from reviewed page-level visual/table facts and
@@ -364,19 +367,21 @@ Hybrid retrieval is an experiment lane. It must be calibrated separately before
 being treated as an offline scaffold signal; it does not replace the
 `real_openai` quality gate.
 
-Current section/visual-aware vector offline gate at `--min-score 0.34` over the
-515-query benchmark:
+Current section/visual/paraphrase-aware vector offline gate at `--min-score
+0.34` over the 545-query benchmark:
 
-| mode | queries | recall@5 | all_docs@5 | cross-doc all_docs@5 | mrr | citation_validity | abstention_pass | section_hit_rate | visual_evidence_hit_rate | offline_scaffold_complete |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| vector | `515` | `0.9856` | `0.9732` | `0.4` | `0.9845` | `0.9918` | `1.0` | `1.0` | `0.92` | `true` |
+| mode | queries | recall@5 | all_docs@5 | cross-doc all_docs@5 | paraphrase recall@5 | paraphrase metadata_exact | mrr | citation_validity | abstention_pass | section_hit_rate | visual_evidence_hit_rate | offline_scaffold_complete |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| vector | `545` | `0.9864` | `0.9748` | `0.4` | `1.0` | `0.8667` | `0.9841` | `0.9845` | `1.0` | `1.0` | `0.92` | `true` |
 
 The previous hybrid smoke comparison was run on the smaller benchmark and is no
 longer a same-dataset adoption signal after 100-document metadata expansion.
 Keep `vector` as the offline gate mode until hybrid has its own calibrated
-515-query comparison plus abstention, cross-document, section-lookup, and
-visual/table evidence. The current vector baseline exposes a cross-document
-weakness: top-5 often fills with multiple chunks from one expected document.
+545-query comparison plus abstention, cross-document, section-lookup,
+visual/table, and paraphrase evidence. The current vector baseline exposes two
+remaining weaknesses: cross-document top-5 often fills with multiple chunks from
+one expected document, and paraphrase metadata/citation exactness is lower than
+the aggregate.
 
 ### Reranker
 
@@ -401,7 +406,7 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_op
   --visual-records artifacts/visual_structure_reviewed/records.jsonl
 ```
 
-## Real provider quality lane (rfp-rag-real-v4)
+## Real provider quality lane (rfp-rag-real-v5)
 
 The contract version is bumped for code/report semantics. Regenerate
 `artifacts/eval_real` before using real-lane artifacts as current evidence.
@@ -421,18 +426,33 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
 
 - `rag_quality_complete` requires every threshold in `artifacts/eval_real/metrics.json`
   (`thresholds`) plus `evaluation_valid` (error rate <= 10%).
+- Current local evidence passes the real gate: `rag_quality_complete=true`,
+  `thresholds_met=true`, `evaluation_valid=true`, `error_rate=0.0`,
+  `recall@5=0.9766990291262136`, `citation_presence=1.0`,
+  `faithfulness=0.9834843205574914`, and
+  `answer_relevancy=0.8605370730372667`.
 - After a gate-semantics (contract) change, regenerate evidence without API calls:
   `python3 -m rfp_rag.evaluate --reaggregate --out artifacts/eval_real --provider real_openai`
   recomputes metrics/contract/report from the preserved `predictions.jsonl` and marks
   the output with `reaggregated_from_predictions: true`.
+- Long-running evals write recovery/observability artifacts before final metrics:
+  `eval_progress.jsonl`, `predictions_unjudged_partial.jsonl`,
+  `predictions_unjudged.jsonl`, and `predictions_judged_partial.jsonl`. If the
+  judge stalls or is interrupted, inspect these files before rerunning.
+- For provider rate limits, throttle/retry the long real run without changing the
+  contract: `RFP_EVAL_ANSWER_DELAY_SECONDS`, `RFP_EVAL_ANSWER_RETRY_ATTEMPTS`,
+  `RFP_EVAL_ANSWER_RETRY_DELAY_SECONDS`, and
+  `RFP_EVAL_JUDGE_START_DELAY_SECONDS`.
 - Calibrate `--min-score` per lane from `score_distribution` in `metrics.json`
   (offline lane: 0.34, real lane: 0.47). Record any recalibration rationale in the
   evaluation report.
 - Citation metrics compare retrieved chunks against expected docs (comparable across
   lanes); the LLM's self-reported citations (`last_cited_chunk_ids`) are diagnostic only.
-- Qdrant runs in embedded local mode: single-process only. Delete
-  `artifacts/index_real/qdrant` and rebuild to re-index. Production migration path
-  is a Docker Qdrant server with the same client API.
+- Qdrant runs in embedded local mode: single-process only. A rebuild on the same
+  `--out` path recreates the Qdrant directory, so preserve old evidence by first
+  using a candidate output path or by explicitly approving canonical artifact
+  replacement. Production migration path is a Docker Qdrant server with the same
+  client API.
 - Offline lane stays credential-free: `python3 -m pytest -m "not real"` must pass
   without `OPENAI_API_KEY`.
 - Full real cycle cost estimate: roughly $1 with default models (judge `gpt-5.4-mini`;
@@ -445,7 +465,7 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
 - Assumption: the corpus is trusted public RFP documents; prompt-injection
   robustness against adversarial corpus content is out of scope for this cycle.
 
-## Open lane — 저비용 이터레이션 (rfp-rag-open-v3)
+## Open lane — 저비용 이터레이션 (rfp-rag-open-v4)
 
 The contract version is bumped for code/report semantics. Regenerate
 `artifacts/eval_open` before using open-lane artifacts as current evidence.
@@ -523,3 +543,6 @@ credential-free 불변식에 영향이 없습니다. 키 설정은 `.env.example
 - `artifacts/demo_answer.json`, `artifacts/demo_abstention.json`: cited QA and abstention examples.
 - `artifacts/eval/contract.json`: versioned offline report/evaluation contract.
 - `artifacts/eval/metrics.json`, `artifacts/eval/predictions.jsonl`, `artifacts/eval/report.md`: offline evaluation outputs.
+- `artifacts/eval/eval_progress.jsonl`, `artifacts/eval/predictions_unjudged*.jsonl`,
+  `artifacts/eval/predictions_judged_partial.jsonl`: long-running eval recovery
+  and progress artifacts.

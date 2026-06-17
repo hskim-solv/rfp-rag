@@ -4,6 +4,7 @@ import asyncio
 import math
 import os
 import sys
+from collections.abc import Callable
 from typing import Any
 
 from .providers import require_openai_key
@@ -107,6 +108,7 @@ def _is_total_failure(judge: dict[str, Any], metrics: dict[str, Any]) -> bool:
 def judge_predictions(
     predictions: list[dict[str, Any]],
     metrics: dict[str, Any] | None = None,
+    on_judged: Callable[[int, dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Attach a `judge` dict to each prediction. Failures degrade to None scores."""
     metrics = metrics if metrics is not None else _build_metrics()
@@ -115,14 +117,18 @@ def judge_predictions(
         out: list[dict[str, Any]] = []
         consecutive = 0
         aborted = False
-        for p in predictions:
+        for idx, p in enumerate(predictions):
             if aborted:
                 skipped: dict[str, Any] = {name: None for name in metrics}
                 skipped["warnings"] = ["judge_aborted"]
                 out.append(skipped)
+                if on_judged is not None:
+                    on_judged(idx, dict(p) | {"judge": skipped})
                 continue
             judge = await _score_one(p, metrics)
             out.append(judge)
+            if on_judged is not None:
+                on_judged(idx, dict(p) | {"judge": judge})
             if "judge_skipped_abstention" in judge["warnings"]:
                 continue  # 채점 미시도 — 연속 실패 카운터에 무영향
             if _is_total_failure(judge, metrics):

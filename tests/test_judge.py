@@ -40,6 +40,24 @@ def test_judge_scores_each_prediction() -> None:
     assert judged[0]["judge"]["warnings"] == []
 
 
+def test_judge_progress_callback_receives_judged_rows() -> None:
+    metrics = {"faithfulness": _StubMetric("faithfulness", 0.9)}
+    seen: list[tuple[int, dict]] = []
+
+    judged = judge_predictions(
+        [_prediction(), _prediction(query_type="abstention")],
+        metrics=metrics,
+        on_judged=lambda idx, row: seen.append((idx, row)),
+    )
+
+    assert len(seen) == 2
+    assert seen[0][0] == 0
+    assert seen[0][1]["judge"]["faithfulness"] == 0.9
+    assert seen[1][0] == 1
+    assert "judge_skipped_abstention" in seen[1][1]["judge"]["warnings"]
+    assert judged == [row for _, row in seen]
+
+
 def test_judge_skips_abstention_questions() -> None:
     metrics = {"faithfulness": _StubMetric("faithfulness", 0.9)}
 

@@ -66,17 +66,38 @@ Only after explicit user request:
 
 ```bash
 python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files \
-  --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai
+  --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 \
+  --embedding-provider openai --parse-manifest artifacts/parsed_docs/manifest.jsonl
 python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real \
   --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47 \
   --visual-records artifacts/visual_structure_reviewed/records.jsonl
 python3 -m pytest -m real
 ```
 
+If canonical `artifacts/index_real` evidence must be preserved, first run the
+same build/eval with candidate output paths such as `artifacts/index_real_v5_candidate`
+and `artifacts/eval_real_v5_candidate`. Building to an existing Qdrant path
+recreates that local store.
+
+Long-running evals write `eval_progress.jsonl`,
+`predictions_unjudged_partial.jsonl`, `predictions_unjudged.jsonl`, and
+`predictions_judged_partial.jsonl`. If real judge stalls or is interrupted,
+inspect those files before rerunning; do not assume `metrics.json` exists until
+the run completes.
+
 Cost reduction option:
 
 ```bash
 RFP_JUDGE_MODEL=gpt-5.4-mini
+```
+
+Rate-limit stabilization options for long real/open runs:
+
+```bash
+RFP_EVAL_ANSWER_DELAY_SECONDS=1
+RFP_EVAL_ANSWER_RETRY_ATTEMPTS=5
+RFP_EVAL_ANSWER_RETRY_DELAY_SECONDS=15
+RFP_EVAL_JUDGE_START_DELAY_SECONDS=90
 ```
 
 ## Run comparison

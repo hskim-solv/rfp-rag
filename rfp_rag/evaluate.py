@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable, TypeVar
 
 from .contracts import offline_contract, open_contract, real_contract
 from .corpus import CorpusDocument, load_corpus
 from .providers import build_embeddings, build_generator, normalize_lane
-from .rag_chain import answer_with_store
+from .rag_chain import AnswerStageError, answer_with_store
 from .rerank import RERANKER_NONE, RERANKERS, build_reranker
 from .tracing import flush_tracing
 from .vector_index import (
@@ -43,6 +45,10 @@ DEFAULT_CURATED_DOCS = 10
 DEFAULT_SECTION_LOOKUP_DOCS = 30
 DEFAULT_CROSS_DOCUMENT_QUESTIONS = 20
 DEFAULT_VISUAL_TABLE_QUESTIONS = 30
+DEFAULT_PARAPHRASE_DOCS = 30
+DEFAULT_REAL_RETRY_ATTEMPTS = 3
+
+_T = TypeVar("_T")
 
 VISUAL_TYPE_LABELS = {
     "dashboard_screenshot": "대시보드 화면",
@@ -99,6 +105,81 @@ def _write_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as f:
         for record in records:
             f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+        f.flush()
+
+
+def _is_retryable_model_error(exc: Exception) -> bool:
+    marker = f"{type(exc).__name__}:{exc}"
+    return any(
+        token in marker
+        for token in [
+            "RateLimitError",
+            "APIConnectionError",
+            "APITimeoutError",
+            "TimeoutError",
+            "ReadTimeout",
+        ]
+    )
+
+
+def _call_with_retries(
+    operation: Callable[[], _T],
+    *,
+    max_attempts: int = DEFAULT_REAL_RETRY_ATTEMPTS,
+    base_delay_seconds: float = 0.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> _T:
+    attempts = max(1, max_attempts)
+    delay = max(0.0, base_delay_seconds)
+    for attempt in range(1, attempts + 1):
+        try:
+            return operation()
+        except Exception as exc:
+            if attempt >= attempts or not _is_retryable_model_error(exc):
+                raise
+            if delay:
+                sleep(delay)
+                delay *= 2
+    raise RuntimeError("unreachable retry state")
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    return int(raw)
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    return float(raw)
+
+
+def _clear_final_eval_artifacts(out_dir: Path) -> None:
+    for name in [
+        "metrics.json",
+        "predictions.jsonl",
+        "predictions_unjudged.jsonl",
+        "report.md",
+    ]:
+        path = out_dir / name
+        if path.exists():
+            path.unlink()
+
+
+def _answer_error_warning(exc: Exception) -> str:
+    if isinstance(exc, AnswerStageError):
+        original = exc.original
+        return f"{exc.stage}_error:{type(original).__name__}"
+    return f"answer_error:{type(exc).__name__}"
 
 
 def _digits(text: Any) -> str:
@@ -215,6 +296,54 @@ def generate_curated_text_questions(
                 "must_cite_doc_ids": [doc.doc_id],
                 "label_source": "curated_from_corpus",
             }
+        )
+    return records
+
+
+def generate_paraphrase_questions(
+    docs: list[CorpusDocument], max_docs: int = DEFAULT_PARAPHRASE_DOCS
+) -> list[dict[str, Any]]:
+    templates = [
+        (
+            "budget_krw_int",
+            "{project}에 배정된 예산 규모를 숫자 근거와 함께 알려줘",
+        ),
+        (
+            "bid_end_at_iso",
+            "{project} 제안서를 언제까지 내야 하는지 마감 시각을 확인해줘",
+        ),
+        ("issuer", "{project}를 발주한 기관이 어디인지 찾아줘"),
+        ("summary", "{project}가 어떤 사업인지 핵심만 다시 정리해줘"),
+    ]
+    records: list[dict[str, Any]] = []
+    for idx, doc in enumerate(docs[:max_docs]):
+        field, query_template = templates[idx % len(templates)]
+        md = doc.metadata
+        project = md.get("project_name", "")
+        expected_raw = {
+            "budget_krw_int": md.get("budget_raw"),
+            "bid_end_at_iso": md.get("bid_end_at_raw"),
+            "issuer": md.get("issuer"),
+            "summary": md.get("summary"),
+        }[field]
+        expected_normalized = {
+            "budget_krw_int": _normalize_expected(
+                "budget_krw_int", md.get("budget_krw_int")
+            ),
+            "bid_end_at_iso": md.get("bid_end_at_iso") or md.get("bid_end_at_raw"),
+            "issuer": md.get("issuer"),
+            "summary": (md.get("summary") or "").strip(),
+        }[field]
+        records.append(
+            _metric_record(
+                f"paraphrase_{field}_{doc.csv_row_id}",
+                query_template.format(project=project),
+                "paraphrase",
+                [doc.doc_id],
+                field,
+                expected_raw,
+                expected_normalized,
+            )
         )
     return records
 
@@ -763,6 +892,9 @@ def evaluate_index(
     curated = generate_curated_text_questions(
         docs, max_docs=min(max_docs, DEFAULT_CURATED_DOCS)
     )
+    paraphrase = generate_paraphrase_questions(
+        docs, max_docs=min(max_docs, DEFAULT_PARAPHRASE_DOCS)
+    )
     section_lookup = generate_section_lookup_questions(
         _load_index_chunk_records(index_dir),
         max_docs=min(max_docs, DEFAULT_SECTION_LOOKUP_DOCS),
@@ -780,8 +912,39 @@ def evaluate_index(
     )
     abstentions = generate_abstention_questions()
     queries = (
-        golden + curated + section_lookup + cross_document + visual_table + abstentions
+        golden
+        + curated
+        + section_lookup
+        + cross_document
+        + visual_table
+        + paraphrase
+        + abstentions
     )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    _clear_final_eval_artifacts(out_dir)
+    progress_path = out_dir / "eval_progress.jsonl"
+    unjudged_partial_path = out_dir / "predictions_unjudged_partial.jsonl"
+    judged_partial_path = out_dir / "predictions_judged_partial.jsonl"
+    progress_path.write_text("", encoding="utf-8")
+    unjudged_partial_path.write_text("", encoding="utf-8")
+    judged_partial_path.write_text("", encoding="utf-8")
+    _append_jsonl(
+        progress_path,
+        {
+            "phase": "query_set_ready",
+            "completed": 0,
+            "total": len(queries),
+            "provider_lane": lane,
+        },
+    )
+    _write_jsonl(out_dir / "golden_metadata.jsonl", golden)
+    _write_jsonl(out_dir / "curated_text_questions.jsonl", curated)
+    _write_jsonl(out_dir / "section_lookup_questions.jsonl", section_lookup)
+    _write_jsonl(out_dir / "cross_document_questions.jsonl", cross_document)
+    _write_jsonl(out_dir / "visual_table_questions.jsonl", visual_table)
+    _write_jsonl(out_dir / "paraphrase_questions.jsonl", paraphrase)
+    _write_jsonl(out_dir / "abstention_questions.jsonl", abstentions)
+    _write_json(out_dir / "contract.json", _contract_for(lane))
     index_lane = _index_embedding_lane(index_dir)
     if lane != index_lane:
         raise ValueError(
@@ -793,21 +956,36 @@ def evaluate_index(
     response_reranker = reranker_impl.name if reranker_impl else RERANKER_NONE
     response_rerank_candidate_k = rerank_candidate_k or top_k
 
+    retry_attempts = _env_int("RFP_EVAL_ANSWER_RETRY_ATTEMPTS", 1)
+    retry_base_delay = _env_float("RFP_EVAL_ANSWER_RETRY_DELAY_SECONDS", 0.0)
+    call_delay = _env_float("RFP_EVAL_ANSWER_DELAY_SECONDS", 0.0)
+    if lane in JUDGED_LANES:
+        retry_attempts = _env_int(
+            "RFP_EVAL_ANSWER_RETRY_ATTEMPTS", DEFAULT_REAL_RETRY_ATTEMPTS
+        )
+
     predictions: list[dict[str, Any]] = []
     error_count = 0
     for record in queries:
         try:
-            response = answer_with_store(
-                store,
-                generator,
-                record["query"],
-                top_k=top_k,
-                min_score=min_score,
-                retrieval_mode=retrieval_mode,
-                index_dir=index_dir,
-                reranker=reranker_impl,
-                rerank_candidate_k=rerank_candidate_k,
-                visual_evidence_index=visual_evidence_index,
+            response = _call_with_retries(
+                lambda: answer_with_store(
+                    store,
+                    generator,
+                    record["query"],
+                    top_k=top_k,
+                    min_score=min_score,
+                    retrieval_mode=retrieval_mode,
+                    index_dir=index_dir,
+                    reranker=reranker_impl,
+                    rerank_candidate_k=rerank_candidate_k,
+                    visual_evidence_index=visual_evidence_index,
+                    preserve_generator_abstention_sources=bool(
+                        record.get("expected_doc_ids")
+                    ),
+                ),
+                max_attempts=retry_attempts,
+                base_delay_seconds=retry_base_delay,
             )
         except Exception as exc:  # noqa: BLE001 - isolate per-question API failures
             error_count += 1
@@ -815,7 +993,7 @@ def evaluate_index(
                 "query": record["query"],
                 "answer": "",
                 "sources": [],
-                "warnings": [f"answer_error:{type(exc).__name__}"],
+                "warnings": [_answer_error_warning(exc)],
                 "confidence": "low",
                 "retrieved_doc_ids": [],
                 "retrieved_chunk_ids": [],
@@ -825,39 +1003,94 @@ def evaluate_index(
                 "reranker_scores": [],
             }
         pass_fail = _score_prediction(record, response, top_k=top_k)
-        predictions.append(
+        prediction = {
+            "query_id": record["id"],
+            "query": record["query"],
+            "query_type": record["query_type"],
+            "expected_doc_ids": record.get("expected_doc_ids", []),
+            "expected_section_types": record.get("expected_section_types", []),
+            "expected_section_titles": record.get("expected_section_titles", []),
+            "expected_visual_record_ids": record.get("expected_visual_record_ids", []),
+            "expected_visual_types": record.get("expected_visual_types", []),
+            "expected_visual_pages": record.get("expected_visual_pages", []),
+            "retrieved_doc_ids": response.get("retrieved_doc_ids", []),
+            "retrieved_chunk_ids": response.get("retrieved_chunk_ids", []),
+            "answer": response.get("answer", ""),
+            "sources": response.get("sources", []),
+            "source_texts": response.get("source_texts", []),
+            "warnings": response.get("warnings", []),
+            "scores": response.get("scores", []),
+            "reranker": response.get("reranker", RERANKER_NONE),
+            "rerank_candidate_k": response.get("rerank_candidate_k"),
+            "reranker_scores": response.get("reranker_scores", []),
+            "pass_fail": pass_fail,
+        }
+        predictions.append(prediction)
+        _append_jsonl(unjudged_partial_path, prediction)
+        _append_jsonl(
+            progress_path,
             {
+                "phase": "answer",
+                "completed": len(predictions),
+                "total": len(queries),
                 "query_id": record["id"],
-                "query": record["query"],
                 "query_type": record["query_type"],
-                "expected_doc_ids": record.get("expected_doc_ids", []),
-                "expected_section_types": record.get("expected_section_types", []),
-                "expected_section_titles": record.get("expected_section_titles", []),
-                "expected_visual_record_ids": record.get(
-                    "expected_visual_record_ids", []
-                ),
-                "expected_visual_types": record.get("expected_visual_types", []),
-                "expected_visual_pages": record.get("expected_visual_pages", []),
-                "retrieved_doc_ids": response.get("retrieved_doc_ids", []),
-                "retrieved_chunk_ids": response.get("retrieved_chunk_ids", []),
-                "answer": response.get("answer", ""),
-                "sources": response.get("sources", []),
-                "source_texts": response.get("source_texts", []),
-                "warnings": response.get("warnings", []),
-                "scores": response.get("scores", []),
-                "reranker": response.get("reranker", RERANKER_NONE),
-                "rerank_candidate_k": response.get("rerank_candidate_k"),
-                "reranker_scores": response.get("reranker_scores", []),
-                "pass_fail": pass_fail,
-            }
+            },
         )
+        if call_delay:
+            time.sleep(call_delay)
     error_rate = error_count / len(queries) if queries else 0.0
     evaluation_valid = error_rate <= MAX_ERROR_RATE
+    _write_jsonl(out_dir / "predictions_unjudged.jsonl", predictions)
+    _append_jsonl(
+        progress_path,
+        {
+            "phase": "answers_complete",
+            "completed": len(predictions),
+            "total": len(queries),
+            "error_rate": error_rate,
+        },
+    )
 
     if lane in JUDGED_LANES:
         from .judge import judge_predictions
 
-        predictions = judge_predictions(predictions)
+        judge_start_delay = _env_float("RFP_EVAL_JUDGE_START_DELAY_SECONDS", 0.0)
+        if judge_start_delay:
+            time.sleep(judge_start_delay)
+
+        def _record_judged(idx: int, row: dict[str, Any]) -> None:
+            _append_jsonl(judged_partial_path, row)
+            _append_jsonl(
+                progress_path,
+                {
+                    "phase": "judge",
+                    "completed": idx + 1,
+                    "total": len(predictions),
+                    "query_id": row.get("query_id"),
+                    "query_type": row.get("query_type"),
+                    "warnings": (row.get("judge") or {}).get("warnings", []),
+                },
+            )
+
+        predictions = judge_predictions(predictions, on_judged=_record_judged)
+        _append_jsonl(
+            progress_path,
+            {
+                "phase": "judge_complete",
+                "completed": len(predictions),
+                "total": len(predictions),
+            },
+        )
+    else:
+        _append_jsonl(
+            progress_path,
+            {
+                "phase": "judge_skipped",
+                "completed": len(predictions),
+                "total": len(predictions),
+            },
+        )
 
     aggregate = _lane_aggregate(lane, predictions)
     score_distribution = _score_distribution(predictions)
@@ -878,6 +1111,7 @@ def evaluate_index(
             "section_lookup": len(section_lookup),
             "cross_document": len(cross_document),
             "visual_table": len(visual_table),
+            "paraphrase": len(paraphrase),
             "abstention": len(abstentions),
             "total": len(queries),
         },
@@ -893,12 +1127,22 @@ def evaluate_index(
     _write_jsonl(out_dir / "section_lookup_questions.jsonl", section_lookup)
     _write_jsonl(out_dir / "cross_document_questions.jsonl", cross_document)
     _write_jsonl(out_dir / "visual_table_questions.jsonl", visual_table)
+    _write_jsonl(out_dir / "paraphrase_questions.jsonl", paraphrase)
     _write_jsonl(out_dir / "abstention_questions.jsonl", abstentions)
     _write_json(out_dir / "contract.json", _contract_for(lane))
     _write_json(out_dir / "metrics.json", metrics)
     _write_jsonl(out_dir / "predictions.jsonl", predictions)
     (out_dir / "report.md").write_text(
         _render_report(metrics, predictions), encoding="utf-8"
+    )
+    _append_jsonl(
+        progress_path,
+        {
+            "phase": "complete",
+            "completed": len(predictions),
+            "total": len(predictions),
+            "ok": True,
+        },
     )
     return metrics
 
