@@ -2023,3 +2023,31 @@ This incorporates the useful parts of the multi-agent compiler workflow
 (central source of truth, specialization, external memory, filtered validation)
 without adopting the unsafe parts for this project (unbounded background loops,
 parallel real-cost jobs, or unsupervised artifact mutation).
+
+## 21. FastAPI service surface
+
+ADR-0014 records the service-surface decision. The first production-service
+slice adds a thin FastAPI/Pydantic API around existing source-first RAG and gate
+evidence without changing retrieval or eval semantics.
+
+Implemented endpoints:
+
+| endpoint | purpose |
+|---|---|
+| `GET /healthz` | readiness response |
+| `POST /v1/answer` | typed request/response wrapper around `answer_query` |
+| `POST /v1/answer/stream` | SSE stream with `status` and `final` events |
+| `GET /v1/gates` | local `gate_status` evidence payload |
+
+Current scope:
+
+- async FastAPI path operations with Pydantic schemas;
+- latency in answer response metadata;
+- offline default path remains credential-free;
+- no auth, deployment, dashboard, or background worker yet.
+
+Run locally:
+
+```bash
+uv run uvicorn rfp_rag.service.app:app --host 127.0.0.1 --port 8000
+```

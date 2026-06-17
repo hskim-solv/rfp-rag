@@ -68,6 +68,32 @@ and fails stale portfolio evidence. After the source-first refresh on 2026-06-17
 artifacts. `real_rag` uses `artifacts/index_real` with parsed-source lineage and
 `artifacts/eval_real` contract `rfp-rag-real-v5`.
 
+## FastAPI service surface
+
+The service layer is intentionally thin: it exposes the existing source-first
+RAG chain and local gate evidence without changing eval semantics.
+
+```bash
+uv run uvicorn rfp_rag.service.app:app --host 127.0.0.1 --port 8000
+```
+
+Endpoints:
+
+- `GET /healthz`: service readiness.
+- `POST /v1/answer`: typed Pydantic request/response wrapper around
+  `answer_query`.
+- `POST /v1/answer/stream`: SSE stream with `status` and `final` events.
+- `GET /v1/gates`: local `gate_status` payload for portfolio evidence
+  freshness.
+
+Offline example:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/answer \
+  -H 'content-type: application/json' \
+  -d '{"question":"한영대학교 트랙운영 학사정보시스템 고도화 사업을 요약해줘","index_dir":"artifacts/index","provider":"offline","top_k":5,"min_score":0.34}'
+```
+
 ## Source parsing lane
 
 The RAG path is source-first. `data_list.csv` remains the metadata registry, and

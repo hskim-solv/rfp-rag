@@ -83,6 +83,9 @@ Current safe evidence:
 - The agent lane proves constrained offline workflow routing, verification,
   audit, checkpoint, and HITL behavior against the current offline retrieval
   policy. Optional real smoke still requires explicit cost approval.
+- The FastAPI service slice exposes `/healthz`, `/v1/answer`,
+  `/v1/answer/stream`, and `/v1/gates` as a thin typed API over existing RAG and
+  gate evidence. It is not yet a deployed service or dashboard.
 
 Current unsafe claims:
 
