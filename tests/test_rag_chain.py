@@ -10,6 +10,7 @@ from rfp_rag.index_store import SearchResult
 from rfp_rag.providers import LexicalHashEmbeddings, TemplateAnswerGenerator
 from rfp_rag.rag_chain import answer_query, answer_with_store
 from rfp_rag.vector_index import build_vector_store
+from rfp_rag.visual_sidecar import VisualEvidenceIndex
 
 
 def _store():
@@ -116,6 +117,38 @@ def test_answer_with_store_rejects_hybrid_without_index_dir() -> None:
             "한영대학교 학사정보시스템",
             retrieval_mode="hybrid",
         )
+
+
+def test_answer_with_store_attaches_visual_sidecar_context() -> None:
+    visual_index = VisualEvidenceIndex(
+        by_doc_id={
+            "doc:000": [
+                {
+                    "record_id": "doc:000:p3:gantt_schedule",
+                    "doc_id": "doc:000",
+                    "page": 3,
+                    "visual_type": "gantt_schedule",
+                    "value": "Gantt-style project schedule is present on the selected page",
+                    "extractor": "visual_tesseract_ocr_candidate_v2",
+                    "confidence": 0.81,
+                }
+            ]
+        }
+    )
+
+    response = answer_with_store(
+        _store(),
+        TemplateAnswerGenerator(),
+        "한영대학교 트랙운영 학사정보시스템 고도화 사업을 요약해줘",
+        top_k=3,
+        min_score=0.05,
+        visual_evidence_index=visual_index,
+    )
+
+    assert response["sources"][0]["visual_evidence"][0]["record_id"] == (
+        "doc:000:p3:gantt_schedule"
+    )
+    assert "시각근거:" in response["source_texts"][0]
 
 
 def test_answer_with_store_can_rerank_more_candidates(

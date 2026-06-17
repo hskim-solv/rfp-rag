@@ -156,6 +156,16 @@ def chunk_context_block(result: SearchResult) -> str:
         if md.get("section_page_end") not in (None, md.get("section_page_start")):
             page = f"{page}-{md['section_page_end']}"
         lines.append(f"페이지: {page}")
+    visual_evidence = md.get("visual_evidence") or []
+    if visual_evidence:
+        lines.append("시각근거:")
+        for evidence in visual_evidence:
+            doc_id = evidence.get("doc_id") or result.doc_id
+            page = evidence.get("page")
+            page_label = f"p{page}" if page is not None else "p?"
+            visual_type = evidence.get("visual_type") or "visual"
+            value = evidence.get("value") or ""
+            lines.append(f"- {doc_id} {page_label} {visual_type}: {value}")
     lines.append(f"본문: {result.text}")
     return "\n".join(lines)
 

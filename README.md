@@ -283,6 +283,21 @@ on precision, recall, F1, and rejected-label violations. The gate artifact is
 `artifacts/visual_tesseract_candidate_expanded_gate/summary.json`; this remains
 a local OCR candidate rather than final visual understanding.
 
+Attach gate-passing visual facts to an answer as sidecar context:
+
+```bash
+python3 -m rfp_rag.ask \
+  --index artifacts/index \
+  --query "제안요청서의 일정표나 요구사항표 근거를 함께 보여줘" \
+  --visual-candidates artifacts/visual_tesseract_candidate_expanded/candidate_facts.jsonl \
+  --visual-gate artifacts/visual_tesseract_candidate_expanded_gate/summary.json
+```
+
+The sidecar path keeps source-first boundaries intact. It checks the visual
+candidate gate before loading facts, leaves retrieval ranking and indexed source
+chunks unchanged, renders visual facts under `시각근거:` in the generator/judge
+context, and exposes them as `sources[].visual_evidence`.
+
 ## Section-aware indexing
 
 `build_index` detects coarse RFP sections before chunking. Each chunk carries

@@ -1550,6 +1550,36 @@ The second batch's reviewer decisions are already merged into
 command now selects no new records, which is the intended closeout condition for
 the current visual-structure artifact.
 
+### 13-13. Visual sidecar answer context integration
+
+Gate-passing Tesseract visual facts are now integrated as answer-context
+sidecar evidence rather than merged into source chunks. This preserves the
+source-first boundary: parsed HWP/PDF text remains the indexed RAG body, while
+OCR-derived visual facts are attached only after text retrieval and optional
+reranking have selected chunks.
+
+Usage:
+
+```bash
+python3 -m rfp_rag.ask \
+  --index artifacts/index \
+  --query "제안요청서의 일정표나 요구사항표 근거를 함께 보여줘" \
+  --visual-candidates artifacts/visual_tesseract_candidate_expanded/candidate_facts.jsonl \
+  --visual-gate artifacts/visual_tesseract_candidate_expanded_gate/summary.json
+```
+
+Implementation contract:
+
+| item | behavior |
+|---|---|
+| gate guard | `artifacts/visual_tesseract_candidate_expanded_gate/summary.json` must have `ok=true` |
+| retrieval impact | none; sidecar attachment happens after retrieval/reranking |
+| prompt context | `chunk_context_block()` renders facts under `시각근거:` |
+| source payload | `sources[].visual_evidence` exposes visual record id, page, type, extractor, and confidence |
+| failure mode | failed visual gate raises before candidate facts are used |
+
+Decision record: `docs/adr/0012-visual-sidecar-rag-context.md`.
+
 ## 14. Final portfolio goal and quality contract
 
 The final portfolio target is now recorded in
@@ -1567,7 +1597,7 @@ retrieval and reranking experiments, citation-grounded generation, targeted
 visual-structure validation, agentic verification, and operator-facing quality
 evidence.
 
-Current baseline lock (2026-06-16):
+Current baseline lock (2026-06-17):
 
 ```bash
 env -u OPENAI_API_KEY -u LANGFUSE_PUBLIC_KEY -u LANGFUSE_SECRET_KEY \
@@ -1578,8 +1608,8 @@ Result:
 
 | check | result |
 |---|---:|
-| offline tests | `271 passed, 5 deselected` |
-| runtime | `128.87s` |
+| offline tests | `278 passed, 5 deselected` |
+| runtime | `53.48s` |
 
 ```bash
 uv run python -m rfp_rag.report_check --eval artifacts/eval --readme README.md
@@ -1611,8 +1641,8 @@ Final quality targets:
 
 Next milestone order:
 
-1. M3 Visual MVP closeout: integrate only gate-passing visual facts into
-   retrieval/generation with citation/audit visibility.
+1. M3 Visual MVP closeout: validate sidecar answer-context integration against
+   focused tests and offline regression checks.
 2. M4 Retrieval Ablation: compare dense, BM25, hybrid RRF, and reranked
    retrieval with quality, latency, and cost trade-offs.
 3. M5 Real Quality Gate: rerun only after explicit cost approval.
