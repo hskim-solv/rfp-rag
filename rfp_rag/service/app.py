@@ -6,12 +6,14 @@ from collections.abc import AsyncIterable
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from rfp_rag.gate_status import collect_gate_status
+from rfp_rag.guardrails import check_question_guardrails
+from rfp_rag.ops_metrics import summarize_audit_log, summarize_eval_artifacts
 from rfp_rag.rag_chain import DEFAULT_MIN_SCORE, answer_query
 from rfp_rag.rerank import RERANKER_NONE
 from rfp_rag.vector_index import RETRIEVAL_VECTOR
@@ -73,6 +75,11 @@ class HealthResponse(BaseModel):
     service: str
 
 
+class OpsSummaryResponse(BaseModel):
+    eval: dict[str, Any]
+    tools: dict[str, Any]
+
+
 def _to_answer_response(
     request: AnswerRequest, raw: dict[str, Any], latency_ms: float
 ) -> AnswerResponse:
@@ -98,6 +105,16 @@ def _to_answer_response(
 
 
 async def _answer(request: AnswerRequest) -> AnswerResponse:
+    guardrail = check_question_guardrails(request.question)
+    if not guardrail.allowed:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "guardrail_blocked",
+                "categories": guardrail.categories,
+                "reasons": guardrail.reasons,
+            },
+        )
     started = time.perf_counter()
     raw = await run_in_threadpool(
         answer_query,
@@ -150,6 +167,24 @@ def create_app() -> FastAPI:
     @app.get("/v1/gates")
     async def gates(root: Path = Query(default=Path("."))) -> dict[str, Any]:
         return collect_gate_status(root)
+
+    @app.get("/v1/ops/summary", response_model=OpsSummaryResponse)
+    async def ops_summary(
+        eval_dir: Path = Query(default=Path("artifacts/eval")),
+        audit_path: Path = Query(
+            default=Path("artifacts/eval_agent/agent_artifacts/audit.jsonl")
+        ),
+        input_cost_per_1k: float = Query(default=0.0, ge=0.0),
+        output_cost_per_1k: float = Query(default=0.0, ge=0.0),
+    ) -> OpsSummaryResponse:
+        return OpsSummaryResponse(
+            eval=summarize_eval_artifacts(
+                eval_dir,
+                input_cost_per_1k=input_cost_per_1k,
+                output_cost_per_1k=output_cost_per_1k,
+            ),
+            tools=summarize_audit_log(audit_path),
+        )
 
     return app
 
