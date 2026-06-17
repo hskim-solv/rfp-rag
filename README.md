@@ -107,6 +107,32 @@ Ops summary example:
 curl -s 'http://127.0.0.1:8000/v1/ops/summary?eval_dir=artifacts/eval&audit_path=artifacts/eval_agent/agent_artifacts/audit.jsonl'
 ```
 
+## MCP-style ops tool server
+
+ADR-0016 records the narrow MCP-style ops tool decision. The server is
+dependency-free and JSONL-based so it can run in CI/local shells without
+background daemon, auth, or storage decisions. It exposes read-only local tools
+with explicit allowlist and max tool-call budget guardrails:
+
+- `gate.status`: read `python3 -m rfp_rag.gate_status` equivalent evidence.
+- `ops.summary`: summarize eval predictions and agent audit logs.
+- `eval.metrics`: read a local `metrics.json` artifact.
+
+Example:
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"ops.summary","arguments":{"eval_dir":"artifacts/eval","audit_path":"artifacts/eval_agent/agent_artifacts/audit.jsonl"}}}' \
+  | python3 -m rfp_rag.ops_tool_server --max-tool-calls 3
+```
+
+Restrict a session to a single tool:
+
+```bash
+python3 -m rfp_rag.ops_tool_server --allow-tool gate.status --max-tool-calls 1
+```
+
 ## Docker and CI
 
 ADR-0015 records the Docker/CI baseline. The container image intentionally
