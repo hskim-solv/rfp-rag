@@ -404,6 +404,11 @@ def test_build_parse_record_forces_hwp_pdf_page_citation_evidence(
         assert pdf_path.name == "doc_000.pdf"
         return [(1, "1페이지 본문"), (2, "2페이지 본문")]
 
+    def executable_finder(name: str, *, extra_candidates=()):
+        assert name == "soffice"
+        assert extra_candidates
+        return "soffice"
+
     record = build_parse_record(
         _doc(source, text="CSV 본문입니다"),
         ParseResult(
@@ -417,6 +422,7 @@ def test_build_parse_record_forces_hwp_pdf_page_citation_evidence(
         enable_page_citation=True,
         citation_timeout_seconds=5,
         citation_runner=citation_runner,
+        executable_finder=executable_finder,
         pdf_page_text_extractor=pdf_page_text_extractor,
     )
 

@@ -145,8 +145,8 @@ def test_hitl_approve_saves_report_and_audits(tmp_path: Path) -> None:
     report = Path(resumed["answer"]["report_path"])
     assert report.exists() and report.parent == (tmp_path / "reports").resolve()
     audit = [
-        json.loads(l)
-        for l in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+        json.loads(line)
+        for line in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
     ]
     save_entries = [e for e in audit if e["tool"] == "save_report"]
     assert save_entries and save_entries[-1]["approved"] is True
@@ -177,8 +177,8 @@ def test_hitl_reject_skips_save_and_audits(tmp_path: Path) -> None:
         (tmp_path / "reports").iterdir()
     )
     audit = [
-        json.loads(l)
-        for l in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+        json.loads(line)
+        for line in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
     ]
     save_entries = [e for e in audit if e["tool"] == "save_report"]
     assert save_entries and save_entries[-1]["approved"] is False

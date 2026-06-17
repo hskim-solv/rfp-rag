@@ -90,7 +90,7 @@ def detect_sections(text: str) -> list[SectionSpan]:
             if index + 1 < len(candidates)
             else len(text)
         )
-        body = text[candidate.body_start:char_end]
+        body = text[candidate.body_start : char_end]
         page_end = _page_at(lines, max(candidate.char_start, char_end - 1))
         sections.append(
             SectionSpan(
@@ -167,7 +167,10 @@ def _heading_candidates(lines: list[_Line]) -> list[_HeadingCandidate]:
         if in_toc:
             if _looks_like_toc_entry(line.stripped):
                 continue
-            if _paired_heading(lines, idx) is not None or _direct_heading(line) is not None:
+            if (
+                _paired_heading(lines, idx) is not None
+                or _direct_heading(line) is not None
+            ):
                 in_toc = False
             else:
                 continue
@@ -279,7 +282,9 @@ def _classify_section(section_path: list[str], body: str) -> str:
     haystack = f"{' '.join(section_path)}\n{body[:1500]}"
     if any(term in haystack for term in ("보안", "개인정보", "암호화")):
         return "security"
-    if any(term in haystack for term in ("평가", "배점", "심사", "정량평가", "정성평가")):
+    if any(
+        term in haystack for term in ("평가", "배점", "심사", "정량평가", "정성평가")
+    ):
         return "evaluation_criteria"
     if any(term in haystack for term in ("제출", "접수", "제안서 작성", "제안안내")):
         return "submission"
@@ -287,7 +292,10 @@ def _classify_section(section_path: list[str], body: str) -> str:
         return "eligibility"
     if any(term in haystack for term in ("요구", "과업", "구축범위", "기능", "세부")):
         return "requirements"
-    if any(term in haystack for term in ("사업개요", "사업 안내", "개요", "추진배경", "목적")):
+    if any(
+        term in haystack
+        for term in ("사업개요", "사업 안내", "개요", "추진배경", "목적")
+    ):
         return "project_overview"
     if any(term in haystack for term in ("계약", "납품", "산출물")):
         return "contract"

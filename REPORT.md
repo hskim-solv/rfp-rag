@@ -2051,3 +2051,26 @@ Run locally:
 ```bash
 uv run uvicorn rfp_rag.service.app:app --host 127.0.0.1 --port 8000
 ```
+
+## 22. Docker and credential-free CI baseline
+
+ADR-0015 records the deployment/CI baseline. The project now has a Docker
+runtime package for the FastAPI service and a GitHub Actions workflow for
+credential-free PR/push regression checks.
+
+Implemented surfaces:
+
+| surface | scope |
+|---|---|
+| `Dockerfile` | FastAPI app image with locked uv dependencies |
+| `.dockerignore` | excludes `.env`, `data/`, `artifacts/`, caches, and local outputs |
+| `.github/workflows/ci.yml` | synthetic 100-row corpus fixture, `uv sync --frozen --group dev`, `ruff`, `pytest -m "not real"` |
+
+Boundary:
+
+- raw Korean RFP files and local gate artifacts are not baked into the image;
+- answer/gate endpoints that need local evidence use read-only `data/` and
+  `artifacts/` mounts;
+- CI uses a generated synthetic corpus because `data/` is intentionally
+  gitignored and should not be published as a repository fixture;
+- real/OpenAI quality gates remain explicit cost-bearing runs, not default PR CI.

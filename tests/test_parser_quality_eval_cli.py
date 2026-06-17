@@ -36,7 +36,9 @@ def test_run_parser_quality_eval_writes_artifacts(tmp_path: Path, monkeypatch) -
             },
         )
 
-    monkeypatch.setattr(cli_module, "evaluate_parser_quality", fake_evaluate_parser_quality)
+    monkeypatch.setattr(
+        cli_module, "evaluate_parser_quality", fake_evaluate_parser_quality
+    )
 
     summary = run_parser_quality_eval(parsed_dir, out_dir, quality_threshold=0.7)
 
@@ -50,7 +52,9 @@ def test_main_prints_quality_summary_json(tmp_path: Path, monkeypatch, capsys) -
     parsed_dir = tmp_path / "parsed"
     parsed_dir.mkdir()
 
-    def fake_run_parser_quality_eval(parsed_dir_arg, out_dir_arg, *, quality_threshold: float = 0.6):
+    def fake_run_parser_quality_eval(
+        parsed_dir_arg, out_dir_arg, *, quality_threshold: float = 0.6
+    ):
         assert parsed_dir_arg == parsed_dir
         assert out_dir_arg == tmp_path / "quality"
         return {
@@ -64,7 +68,9 @@ def test_main_prints_quality_summary_json(tmp_path: Path, monkeypatch, capsys) -
             "risk_flag_counts": {},
         }
 
-    monkeypatch.setattr(cli_module, "run_parser_quality_eval", fake_run_parser_quality_eval)
+    monkeypatch.setattr(
+        cli_module, "run_parser_quality_eval", fake_run_parser_quality_eval
+    )
 
     rc = main(
         [

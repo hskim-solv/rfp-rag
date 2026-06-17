@@ -146,10 +146,10 @@ def test_audit_logger_appends_jsonl(tmp_path: Path) -> None:
         approved=False,
     )
     lines = [
-        json.loads(l)
-        for l in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+        json.loads(line)
+        for line in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
     ]
     assert len(lines) == 2
     assert lines[0]["tool"] == "search_rfp" and lines[0]["approved"] is None
     assert lines[1]["approved"] is False and lines[1]["thread_id"] == "t1"
-    assert all("ts" in l for l in lines)
+    assert all("ts" in line for line in lines)

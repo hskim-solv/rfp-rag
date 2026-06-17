@@ -58,7 +58,9 @@ def _write_manifest(path: Path, filenames: list[str]) -> None:
                         "doc_id": f"doc:{idx:03d}",
                         "source_path": str(path.parent / "files" / filename),
                         "source_suffix": suffix,
-                        "parse_status": "parsed" if suffix == ".hwp" else "unsupported_suffix",
+                        "parse_status": "parsed"
+                        if suffix == ".hwp"
+                        else "unsupported_suffix",
                         "text_length": 1000 + idx,
                         "csv_text_length": 100,
                         "parsed_to_csv_length_ratio": 10.0 + idx,
@@ -99,7 +101,9 @@ def _fake_result(sample, *, backend: str) -> BakeoffResult:
     )
 
 
-def test_run_parser_bakeoff_writes_artifacts_with_fake_backend(tmp_path: Path, monkeypatch) -> None:
+def test_run_parser_bakeoff_writes_artifacts_with_fake_backend(
+    tmp_path: Path, monkeypatch
+) -> None:
     files_dir = tmp_path / "files"
     files_dir.mkdir()
     for filename in ["a.hwp", "b.hwp", "c.pdf"]:
@@ -109,10 +113,14 @@ def test_run_parser_bakeoff_writes_artifacts_with_fake_backend(tmp_path: Path, m
     _write_csv(csv_path, ["a.hwp", "b.hwp", "c.pdf"])
     _write_manifest(manifest_path, ["a.hwp", "b.hwp", "c.pdf"])
 
-    def fake_run_backend_for_sample(sample, *, backend: str, out_dir: Path | str, timeout_seconds: int = 60):
+    def fake_run_backend_for_sample(
+        sample, *, backend: str, out_dir: Path | str, timeout_seconds: int = 60
+    ):
         return _fake_result(sample, backend=backend)
 
-    monkeypatch.setattr(cli_module, "run_backend_for_sample", fake_run_backend_for_sample)
+    monkeypatch.setattr(
+        cli_module, "run_backend_for_sample", fake_run_backend_for_sample
+    )
 
     summary = run_parser_bakeoff(
         csv_path,
@@ -126,9 +134,22 @@ def test_run_parser_bakeoff_writes_artifacts_with_fake_backend(tmp_path: Path, m
     )
 
     assert summary["result_count"] == 3
-    assert json.loads((tmp_path / "out" / "summary.json").read_text(encoding="utf-8")) == summary
-    assert len(json.loads((tmp_path / "out" / "samples.json").read_text(encoding="utf-8"))) == 3
-    assert len((tmp_path / "out" / "results.jsonl").read_text(encoding="utf-8").splitlines()) == 3
+    assert (
+        json.loads((tmp_path / "out" / "summary.json").read_text(encoding="utf-8"))
+        == summary
+    )
+    assert (
+        len(json.loads((tmp_path / "out" / "samples.json").read_text(encoding="utf-8")))
+        == 3
+    )
+    assert (
+        len(
+            (tmp_path / "out" / "results.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        )
+        == 3
+    )
 
 
 def test_main_prints_summary_json(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -140,10 +161,14 @@ def test_main_prints_summary_json(tmp_path: Path, monkeypatch, capsys) -> None:
     _write_csv(csv_path, ["a.hwp"])
     _write_manifest(manifest_path, ["a.hwp"])
 
-    def fake_run_backend_for_sample(sample, *, backend: str, out_dir: Path | str, timeout_seconds: int = 60):
+    def fake_run_backend_for_sample(
+        sample, *, backend: str, out_dir: Path | str, timeout_seconds: int = 60
+    ):
         return _fake_result(sample, backend=backend)
 
-    monkeypatch.setattr(cli_module, "run_backend_for_sample", fake_run_backend_for_sample)
+    monkeypatch.setattr(
+        cli_module, "run_backend_for_sample", fake_run_backend_for_sample
+    )
 
     rc = main(
         [

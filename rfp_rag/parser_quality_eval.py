@@ -28,7 +28,11 @@ PdfVisualAnalyzer = Callable[[Path], dict[str, Any]]
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _read_text_path(value: Any) -> str:
@@ -47,7 +51,11 @@ def _read_page_text_path(value: Any) -> tuple[str, int]:
     if not path.is_file():
         return "", 0
     rows = _read_jsonl(path)
-    texts = [str(row.get("text") or "").strip() for row in rows if str(row.get("text") or "").strip()]
+    texts = [
+        str(row.get("text") or "").strip()
+        for row in rows
+        if str(row.get("text") or "").strip()
+    ]
     return "\n".join(texts), len(texts)
 
 
@@ -71,7 +79,11 @@ def _token_overlap(parsed_text: str, page_text: str) -> dict[str, float]:
     overlap = len(parsed_tokens & page_tokens)
     recall = overlap / len(page_tokens)
     precision = overlap / len(parsed_tokens)
-    f1 = 0.0 if recall + precision == 0 else 2 * recall * precision / (recall + precision)
+    f1 = (
+        0.0
+        if recall + precision == 0
+        else 2 * recall * precision / (recall + precision)
+    )
     return {
         "text_pdf_token_recall": _round(recall) or 0.0,
         "text_pdf_token_precision": _round(precision) or 0.0,
@@ -239,10 +251,16 @@ def evaluate_parse_record(
     table_like_recall = (
         1.0
         if table_like_page_line_count == 0
-        else round(min(table_like_parsed_line_count / table_like_page_line_count, 1.0), 4)
+        else round(
+            min(table_like_parsed_line_count / table_like_page_line_count, 1.0), 4
+        )
     )
-    visual_signals = _safe_pdf_visual_signals(record.get("converted_pdf_path"), pdf_visual_analyzer)
-    visual_content_present = bool(visual_signals["pdf_image_count"] or visual_signals["pdf_drawing_count"])
+    visual_signals = _safe_pdf_visual_signals(
+        record.get("converted_pdf_path"), pdf_visual_analyzer
+    )
+    visual_content_present = bool(
+        visual_signals["pdf_image_count"] or visual_signals["pdf_drawing_count"]
+    )
     page_citation_available = bool(record.get("page_citation_available"))
     risk_flags = _risk_flags(
         parsed_text=parsed_text,
@@ -291,10 +309,20 @@ def summarize_quality_records(
 ) -> dict[str, Any]:
     rows = list(records)
     flag_counts = Counter(flag for row in rows for flag in row.get("risk_flags", []))
-    low_quality_count = sum(1 for row in rows if float(row.get("quality_score") or 0.0) < quality_threshold)
-    citation_count = sum(1 for row in rows if row.get("page_citation_available") is True)
-    visual_doc_count = sum(1 for row in rows if row.get("visual_content_present") is True)
-    average_quality_score = round(mean(float(row.get("quality_score") or 0.0) for row in rows), 4) if rows else 0.0
+    low_quality_count = sum(
+        1 for row in rows if float(row.get("quality_score") or 0.0) < quality_threshold
+    )
+    citation_count = sum(
+        1 for row in rows if row.get("page_citation_available") is True
+    )
+    visual_doc_count = sum(
+        1 for row in rows if row.get("visual_content_present") is True
+    )
+    average_quality_score = (
+        round(mean(float(row.get("quality_score") or 0.0) for row in rows), 4)
+        if rows
+        else 0.0
+    )
     return {
         "doc_count": len(rows),
         "quality_threshold": quality_threshold,
@@ -319,7 +347,9 @@ def evaluate_parser_quality(
         evaluate_parse_record(row, pdf_visual_analyzer=pdf_visual_analyzer)
         for row in rows
     ]
-    summary = summarize_quality_records(quality_records, quality_threshold=quality_threshold)
+    summary = summarize_quality_records(
+        quality_records, quality_threshold=quality_threshold
+    )
     return quality_records, summary
 
 
@@ -337,7 +367,9 @@ def write_quality_artifacts(
     risky_rows = [
         row
         for row in rows
-        if row.get("risk_flags") or float(row.get("quality_score") or 0.0) < float(summary.get("quality_threshold") or 0.6)
+        if row.get("risk_flags")
+        or float(row.get("quality_score") or 0.0)
+        < float(summary.get("quality_threshold") or 0.6)
     ]
     with (out / "risky_docs.jsonl").open("w", encoding="utf-8") as f:
         for row in risky_rows:

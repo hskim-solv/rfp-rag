@@ -13,19 +13,19 @@ OUTCOME_REJECTED = "rejected"
 
 
 class AgentState(TypedDict, total=False):
-    question: str                       # 현재(재작성 반영) 질의
+    question: str  # 현재(재작성 반영) 질의
     original_question: str
     route: RouteKind
     save_requested: bool
-    tool_args: dict[str, Any]           # metadata_query 도구 인자 (router가 추출)
-    results: list[dict[str, Any]]       # SearchResult 직렬화 (checkpointer 호환)
-    grade: str                          # sufficient | insufficient
+    tool_args: dict[str, Any]  # metadata_query 도구 인자 (router가 추출)
+    results: list[dict[str, Any]]  # SearchResult 직렬화 (checkpointer 호환)
+    grade: str  # sufficient | insufficient
     rewrite_count: int
     regenerated: bool
     verify_ok: bool
     tool_result: dict[str, Any] | None  # aggregate_metadata 결과
-    answer: dict[str, Any] | None       # 기존 응답 JSON 스키마 (+ agent 확장 필드)
-    outcome: str                        # answered | abstained | rejected
+    answer: dict[str, Any] | None  # 기존 응답 JSON 스키마 (+ agent 확장 필드)
+    outcome: str  # answered | abstained | rejected
     tool_calls: Annotated[list[dict[str, Any]], operator.add]  # audit용 누적
 
 

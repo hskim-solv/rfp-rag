@@ -18,7 +18,11 @@ def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
     readme = Path(readme)
     canonical_contract = offline_contract()
     contract_path = eval_dir / "contract.json"
-    contract = json.loads(contract_path.read_text(encoding="utf-8")) if contract_path.exists() else {}
+    contract = (
+        json.loads(contract_path.read_text(encoding="utf-8"))
+        if contract_path.exists()
+        else {}
+    )
     required_files = list(canonical_contract.get("required_eval_files", []))
     missing_files = [name for name in required_files if not (eval_dir / name).exists()]
     readme_text = readme.read_text(encoding="utf-8") if readme.exists() else ""
@@ -28,7 +32,9 @@ def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
         + list(canonical_contract.get("readme_markers", []))
         + [REAL_CONTRACT_VERSION]
     )
-    missing_readme_snippets = [snippet for snippet in required_readme if snippet not in readme_text]
+    missing_readme_snippets = [
+        snippet for snippet in required_readme if snippet not in readme_text
+    ]
     metrics: dict[str, Any] = {}
     metrics_path = eval_dir / "metrics.json"
     if metrics_path.exists():
@@ -61,7 +67,9 @@ def check_report(eval_dir: Path | str, readme: Path | str) -> dict[str, Any]:
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Check RFP RAG report artifacts and README command evidence.")
+    parser = argparse.ArgumentParser(
+        description="Check RFP RAG report artifacts and README command evidence."
+    )
     parser.add_argument("--eval", required=True, dest="eval_dir", type=Path)
     parser.add_argument("--readme", required=True, type=Path)
     return parser

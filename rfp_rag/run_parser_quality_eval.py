@@ -22,10 +22,21 @@ def run_parser_quality_eval(
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Evaluate parsed RFP source quality against page evidence artifacts.")
-    parser.add_argument("--parsed-dir", required=True, type=Path, help="Path to artifacts/parsed_docs")
-    parser.add_argument("--out", required=True, type=Path, help="Parser quality output directory")
-    parser.add_argument("--quality-threshold", default=0.6, type=float, help="Risk threshold for low-quality docs")
+    parser = argparse.ArgumentParser(
+        description="Evaluate parsed RFP source quality against page evidence artifacts."
+    )
+    parser.add_argument(
+        "--parsed-dir", required=True, type=Path, help="Path to artifacts/parsed_docs"
+    )
+    parser.add_argument(
+        "--out", required=True, type=Path, help="Parser quality output directory"
+    )
+    parser.add_argument(
+        "--quality-threshold",
+        default=0.6,
+        type=float,
+        help="Risk threshold for low-quality docs",
+    )
     return parser
 
 

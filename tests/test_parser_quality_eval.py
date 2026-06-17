@@ -18,7 +18,9 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
             f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
-def test_evaluate_parse_record_scores_text_page_table_and_visual_signals(tmp_path: Path) -> None:
+def test_evaluate_parse_record_scores_text_page_table_and_visual_signals(
+    tmp_path: Path,
+) -> None:
     parsed_text = tmp_path / "text" / "doc_000.txt"
     parsed_text.parent.mkdir()
     parsed_text.write_text(
@@ -77,7 +79,9 @@ def test_evaluate_parse_record_scores_text_page_table_and_visual_signals(tmp_pat
     assert 0.7 <= quality["quality_score"] <= 1.0
 
 
-def test_evaluate_parse_record_flags_low_quality_and_missing_page_text(tmp_path: Path) -> None:
+def test_evaluate_parse_record_flags_low_quality_and_missing_page_text(
+    tmp_path: Path,
+) -> None:
     parsed_text = tmp_path / "text" / "doc_001.txt"
     parsed_text.parent.mkdir()
     parsed_text.write_text("전혀 다른 짧은 내용", encoding="utf-8")
@@ -108,8 +112,13 @@ def test_evaluate_parser_quality_writes_summary_and_risky_docs(tmp_path: Path) -
     page_dir = parsed_dir / "page_text"
     text_dir.mkdir(parents=True)
     page_dir.mkdir()
-    (text_dir / "doc_000.txt").write_text("사업개요 예산 제출 평가 기준 요구사항", encoding="utf-8")
-    _write_jsonl(page_dir / "doc_000.jsonl", [{"page": 1, "text": "사업개요 예산 제출 평가 기준 요구사항"}])
+    (text_dir / "doc_000.txt").write_text(
+        "사업개요 예산 제출 평가 기준 요구사항", encoding="utf-8"
+    )
+    _write_jsonl(
+        page_dir / "doc_000.jsonl",
+        [{"page": 1, "text": "사업개요 예산 제출 평가 기준 요구사항"}],
+    )
     (text_dir / "doc_001.txt").write_text("", encoding="utf-8")
     manifest_rows = [
         {
@@ -135,8 +144,12 @@ def test_evaluate_parser_quality_writes_summary_and_risky_docs(tmp_path: Path) -
     ]
     _write_jsonl(parsed_dir / "manifest.jsonl", manifest_rows)
 
-    quality_records, summary = evaluate_parser_quality(parsed_dir, quality_threshold=0.6)
-    out_summary = write_quality_artifacts(quality_records, summary, tmp_path / "quality")
+    quality_records, summary = evaluate_parser_quality(
+        parsed_dir, quality_threshold=0.6
+    )
+    out_summary = write_quality_artifacts(
+        quality_records, summary, tmp_path / "quality"
+    )
 
     assert summary["doc_count"] == 2
     assert summary["page_citation_coverage"] == 0.5
@@ -146,7 +159,9 @@ def test_evaluate_parser_quality_writes_summary_and_risky_docs(tmp_path: Path) -
     assert (tmp_path / "quality" / "per_doc.jsonl").is_file()
     risky_rows = [
         json.loads(line)
-        for line in (tmp_path / "quality" / "risky_docs.jsonl").read_text(encoding="utf-8").splitlines()
+        for line in (tmp_path / "quality" / "risky_docs.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
     ]
     assert [row["doc_id"] for row in risky_rows] == ["doc:001"]
 
