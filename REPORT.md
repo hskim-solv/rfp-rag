@@ -1608,8 +1608,8 @@ Result:
 
 | check | result |
 |---|---:|
-| offline tests | `281 passed, 5 deselected` |
-| runtime | `66.38s` |
+| offline tests | `285 passed, 5 deselected` |
+| runtime | `343.59s` |
 
 ```bash
 uv run python -m rfp_rag.report_check --eval artifacts/eval --readme README.md
@@ -1641,7 +1641,7 @@ Final quality targets:
 
 Next milestone order after adversarial portfolio review:
 
-1. Gate freshness hardening: make `rfp_rag.gate_status` fail stale or
+1. Gate freshness hardening: `rfp_rag.gate_status` now fails stale or
    lineage-mismatched evidence before it reports portfolio readiness.
 2. Benchmark hardening: expand beyond the current small automatic query set into
    hard negatives, paraphrases, cross-document questions, and
@@ -1800,10 +1800,12 @@ Accepted blockers before senior-ready positioning:
    strong, but the final portfolio needs a small dashboard/service showing
    answer, citations, chunks, source preview, gates, failures, latency, and
    token/cost.
-5. **Gate status is too shallow.** `rfp_rag.gate_status` currently reads boolean
-   gate keys. The next no-cost implementation target is to validate contract
+5. **Gate status was too shallow.** `rfp_rag.gate_status` now validates contract
    version, source lineage, parsed-manifest linkage, query counts,
-   retrieval/reranker mode, freshness, and reaggregation provenance.
+   retrieval/reranker mode, freshness, and reaggregation provenance. The current
+   local status is intentionally `overall_ok=false`: offline evidence is missing
+   reranker metadata, real evidence is still old-contract/non-parsed-source, and
+   agent evidence is still at the previous `--min-score 0.15`.
 
 Claims to avoid until the new gates exist:
 

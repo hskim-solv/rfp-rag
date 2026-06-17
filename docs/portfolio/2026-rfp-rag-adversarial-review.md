@@ -40,7 +40,7 @@ It is narrowed here to mean:
 | F-02 | major: eval set is too small and easy | accept | `rfp_rag/evaluate.py` defaults to `max_docs=10`; current real metrics have `query_set_counts.total=60`; current source-first offline set has `70` queries including section lookup | Add a hardened benchmark milestone before retrieval/reranker claims: stratified 100-document coverage, hard negatives, paraphrases, cross-document questions, section/table/visual slices, and per-slice metrics. |
 | F-03 | major: final resume claim overstates hybrid/reranking/latency/cost | accept | current final claim names hybrid/reranking and latency/cost gates; `REPORT.md` says LLM reranker quality has not been run; hybrid offline has `abstention_pass=0.2` and `offline_scaffold_complete=false` | Split current safe claim from target final claim. Keep reranker as interface evidence until an approved quality/latency/cost run exists. |
 | F-04 | major: evidence UX/service surface is missing | accept | final goal requires a dashboard/service, but repo has no `app/`, `server/`, `dashboard/`, `Dockerfile`, FastAPI, or Streamlit dependency | Keep service/dashboard as a senior-ready milestone, not a completed claim. Require answer, citation, chunk, source preview, gate, failure, latency, and cost visibility. |
-| F-05 | major: gate status is too shallow | accept | `rfp_rag/gate_status.py` reads boolean gate keys and optional metadata only; tests accept minimal true payloads | Promote gate freshness/lineage validation to the next no-cost implementation target. Validate contract version, source lineage, parse manifest, query-set counts, retrieval mode, reranker, and reaggregation status. |
+| F-05 | major: gate status is too shallow | accept, implemented follow-up | `rfp_rag/gate_status.py` previously read boolean gate keys and optional metadata only; focused tests now cover stale real artifacts and stale agent policy | `gate_status` now validates contract version, source lineage, parse manifest, query-set counts, retrieval mode, reranker, and reaggregation status before reporting `overall_ok=true`. |
 | F-06 | major: agent lane is stale relative to current retrieval policy | partial | agent metrics pass, but local artifact records `min_score=0.15` while current contract command uses `--min-score 0.34`; REPORT says real agent smoke was blocked by quota | Keep agent workflow proof, but do not present it as latest retrieval-stack or real-LLM quality. Re-run current offline agent lane and add real smoke only with explicit cost approval. |
 | F-07 | medium: visual lane is candidate-level, not visual understanding | partial | README and ADR already disclaim final visual understanding; visual candidate gate has `precision=0.76923077`, `recall=0.8`, `f1=0.78431373`, `negative_violation_count=3`; sidecar attaches by `doc_id` | Preserve visual-risk evidence, but require page-specific visual/table eval and sidecar on/off answer comparison before stronger claims. |
 | F-08 | medium: parser bakeoff is narrow for backend selection | partial | parser bakeoff covers 6 backend/sample results; 100-doc parser quality is stronger, but REPORT still records `visual_content_unparsed=100` | Treat current parser as text/source lock, not full layout understanding. Expand semantic table/visual validation separately. |
@@ -50,10 +50,10 @@ No finding was rejected.
 ## Forced Roadmap Changes
 
 1. **Gate freshness before more quality claims.**
-   `python3 -m rfp_rag.gate_status` must stop reporting stale artifacts as
-   portfolio-ready. It should validate contract versions, source lineage,
-   parsed-manifest linkage, query-set counts, retrieval mode, reranker mode, and
-   reaggregation provenance.
+   Implemented follow-up: `python3 -m rfp_rag.gate_status` now stops reporting
+   stale artifacts as portfolio-ready. It validates contract versions, source
+   lineage, parsed-manifest linkage, query-set counts, retrieval mode, reranker
+   mode, and reaggregation provenance.
 
 2. **Harden the benchmark before reranker adoption claims.**
    The next retrieval milestone must create a stronger labeled set before

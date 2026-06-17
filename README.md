@@ -33,7 +33,9 @@ The quality contract is source-first:
 Adversarial roadmap lock:
 
 1. Harden `gate_status` so stale or lineage-mismatched artifacts do not look
-   portfolio-ready.
+   portfolio-ready. The command exits non-zero when any lane has stale
+   contract, source-lineage, query-count, retrieval/reranker, or reaggregation
+   evidence.
 2. Expand the benchmark with 100-document coverage, hard negatives,
    paraphrases, cross-document questions, and section/table/visual slices before
    claiming retrieval or reranker wins.
@@ -55,6 +57,13 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index --
 python3 -m rfp_rag.report_check --eval artifacts/eval --readme README.md
 python3 -m rfp_rag.gate_status
 ```
+
+`gate_status` is stricter than `report_check`: it reads the local gate artifacts
+and fails stale portfolio evidence. With the currently checked-in local
+artifacts, the expected state is `overall_ok=false` until the offline eval is
+regenerated with reranker metadata, the agent lane is rerun at `--min-score
+0.34`, and the real lane is rerun on a parsed-source `artifacts/index_real`
+after explicit cost approval.
 
 ## Source parsing lane
 
