@@ -2074,3 +2074,38 @@ Boundary:
 - CI uses a generated synthetic corpus because `data/` is intentionally
   gitignored and should not be published as a repository fixture;
 - real/OpenAI quality gates remain explicit cost-bearing runs, not default PR CI.
+
+## 23. Service observability and basic guardrails
+
+The FastAPI service now exposes a local observability summary and a first
+service-level prompt-injection/secrets tripwire.
+
+Implemented surfaces:
+
+| surface | scope |
+|---|---|
+| `rfp_rag.ops_metrics` | summarizes `metrics.json`, `predictions.jsonl`, and agent `audit.jsonl` |
+| `GET /v1/ops/summary` | prediction count, warning count, answer errors, estimated tokens/cost, tool-call success/failure/rejection |
+| `rfp_rag.guardrails` | blocks instruction-override and credential-exfiltration prompts before retrieval |
+| `/v1/answer`, `/v1/answer/stream` | return `400 guardrail_blocked` for blocked requests |
+
+Current local artifact summary:
+
+| field | value |
+|---|---:|
+| offline predictions | `545` |
+| offline warning count | `37` |
+| offline answer error count | `0` |
+| estimated offline eval tokens | `419312` |
+| estimated offline eval cost | `$0.00` |
+| agent audit tool calls | `416` |
+| agent audit tool failures | `0` |
+
+Boundary:
+
+- token counts are deterministic estimates from artifact text length, not
+  provider-billed usage;
+- cost is configurable by endpoint query parameters and defaults to `$0.00` for
+  offline evidence;
+- guardrails are testable service tripwires, not a complete security red-team
+  claim.

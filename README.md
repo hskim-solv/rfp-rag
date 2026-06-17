@@ -85,6 +85,13 @@ Endpoints:
 - `POST /v1/answer/stream`: SSE stream with `status` and `final` events.
 - `GET /v1/gates`: local `gate_status` payload for portfolio evidence
   freshness.
+- `GET /v1/ops/summary`: local observability summary for prediction warnings,
+  answer errors, estimated tokens/cost, and agent tool-call outcomes.
+
+The answer endpoints run a basic prompt-injection/secrets guardrail before
+retrieval. Requests that try to override instructions or extract credentials are
+blocked with `400 guardrail_blocked`; this is a first service-level tripwire,
+not a full red-team suite.
 
 Offline example:
 
@@ -92,6 +99,12 @@ Offline example:
 curl -s http://127.0.0.1:8000/v1/answer \
   -H 'content-type: application/json' \
   -d '{"question":"한영대학교 트랙운영 학사정보시스템 고도화 사업을 요약해줘","index_dir":"artifacts/index","provider":"offline","top_k":5,"min_score":0.34}'
+```
+
+Ops summary example:
+
+```bash
+curl -s 'http://127.0.0.1:8000/v1/ops/summary?eval_dir=artifacts/eval&audit_path=artifacts/eval_agent/agent_artifacts/audit.jsonl'
 ```
 
 ## Docker and CI
