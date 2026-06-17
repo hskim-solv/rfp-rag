@@ -20,9 +20,9 @@ GATE_SPECS = {
         "expected_query_set_counts": {
             "abstention": 10,
             "curated_text": 10,
-            "golden_metadata": 40,
+            "golden_metadata": 400,
             "section_lookup": 10,
-            "total": 70,
+            "total": 430,
         },
         "expected_retrieval_mode": "vector",
         "expected_reranker": "none",
@@ -48,9 +48,9 @@ GATE_SPECS = {
         "expected_query_set_counts": {
             "abstention": 10,
             "curated_text": 10,
-            "golden_metadata": 40,
+            "golden_metadata": 400,
             "section_lookup": 10,
-            "total": 70,
+            "total": 430,
         },
         "expected_retrieval_mode": "vector",
         "expected_reranker": "none",

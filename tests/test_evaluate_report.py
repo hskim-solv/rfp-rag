@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 from rfp_rag.build_index import build_index
-from rfp_rag.evaluate import evaluate_index
+from rfp_rag.corpus import CorpusDocument
+from rfp_rag.evaluate import _build_arg_parser, evaluate_index, generate_golden_metadata
 from rfp_rag.report_check import check_report
 
 
@@ -22,6 +23,42 @@ def _build_fake_index(tmp_path: Path, parse_manifest_path: Path) -> Path:
         parse_manifest_path=parse_manifest_path,
     )
     return index_dir
+
+
+def _corpus_doc(i: int) -> CorpusDocument:
+    row_id = f"{i:03d}"
+    return CorpusDocument(
+        csv_row_id=row_id,
+        doc_id=f"doc:{row_id}",
+        text=f"문서 {i} 본문",
+        metadata={
+            "project_name": f"프로젝트 {i}",
+            "budget_raw": f"{i},000",
+            "budget_krw_int": i * 1000,
+            "bid_end_at_raw": "2026-01-01 10:00:00",
+            "bid_end_at_iso": "2026-01-01T10:00:00",
+            "issuer": f"기관 {i}",
+            "summary": f"프로젝트 {i} 요약",
+        },
+    )
+
+
+def test_default_golden_metadata_benchmark_covers_100_documents() -> None:
+    records = generate_golden_metadata([_corpus_doc(i) for i in range(120)])
+
+    assert len(records) == 400
+    covered_doc_ids = {
+        expected_doc_id
+        for record in records
+        for expected_doc_id in record["expected_doc_ids"]
+    }
+    assert covered_doc_ids == {f"doc:{i:03d}" for i in range(100)}
+
+
+def test_evaluate_cli_default_max_docs_matches_100_document_benchmark() -> None:
+    args = _build_arg_parser().parse_args(["--out", "artifacts/eval"])
+
+    assert args.max_docs == 100
 
 
 def test_evaluate_index_writes_offline_contract_artifacts(
