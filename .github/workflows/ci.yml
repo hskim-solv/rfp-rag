@@ -92,3 +92,13 @@ jobs:
 
       - name: Offline tests
         run: uv run pytest -m "not real"
+
+  docker-build:
+    name: docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build service image
+        run: docker build -t rfp-rag-service:ci .

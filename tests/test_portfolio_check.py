@@ -15,7 +15,10 @@ def _minimal_ready_root(root: Path) -> None:
     _write(root / "README.md", "docs/architecture/system-architecture.md\n")
     _write(root / "REPORT.md", "Architecture evidence map\n")
     _write(root / "Dockerfile", "FROM python:3.13-slim\n")
-    _write(root / ".github/workflows/ci.yml", 'uv run pytest -m "not real"\n')
+    _write(
+        root / ".github/workflows/ci.yml",
+        'uv run pytest -m "not real"\ndocker build -t rfp-rag-service:ci .\n',
+    )
     _write(
         root / "docs/architecture/system-architecture.md", "## Operational Boundaries\n"
     )
@@ -73,6 +76,24 @@ def test_collect_portfolio_readiness_reports_missing_evidence(
     assert report["portfolio_readiness_check"] is False
     failed = {item["id"] for item in report["failed"]}
     assert {"gate_status", "dockerfile"}.issubset(failed)
+
+
+def test_collect_portfolio_readiness_requires_docker_build_in_ci(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write(tmp_path / ".github/workflows/ci.yml", 'uv run pytest -m "not real"\n')
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is False
+    failed = {item["id"] for item in report["failed"]}
+    assert "ci_docker_build" in failed
 
 
 def test_portfolio_check_cli_writes_report(tmp_path: Path, monkeypatch) -> None:
