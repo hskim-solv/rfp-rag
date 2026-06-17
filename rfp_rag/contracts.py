@@ -19,6 +19,7 @@ REQUIRED_EVAL_FILES = [
     "golden_metadata.jsonl",
     "curated_text_questions.jsonl",
     "section_lookup_questions.jsonl",
+    "cross_document_questions.jsonl",
     "abstention_questions.jsonl",
     "metrics.json",
     "predictions.jsonl",

@@ -73,8 +73,9 @@ flowchart LR
 | golden metadata | 400 | 100개 문서의 금액·마감일·발주기관·요약 metadata 정답 검증 |
 | curated text | 10 | 본문 기반 질의 smoke 검증 |
 | section lookup | 30 | section-aware chunk/search 경로 검증 |
+| cross-document | 20 | 두 문서를 함께 찾아 비교해야 하는 retrieval stress 검증 |
 | abstention | 30 | 근거 없는 near-domain hard negative에 `없는 정보` 반환 검증 |
-| 총합 | 470 | offline contract 검증 |
+| 총합 | 490 | offline contract 검증 |
 
 ## 6. Offline 평가 결과
 
@@ -1648,9 +1649,9 @@ Next milestone order after adversarial portfolio review:
    been regenerated under the current source-first/vector/no-reranker policy, so
    `offline_rag`, `agent_offline`, and `visual_candidate` pass locally.
 3. Benchmark hardening: 100-document metadata coverage, 30 hard-negative
-   abstention questions, and 30 section-labeled lookup questions are now the
-   default offline query contract; next expand into paraphrases, cross-document
-   questions, and table/visual slices.
+   abstention questions, 30 section-labeled lookup questions, and 20
+   cross-document comparison questions are now the default offline query
+   contract; next expand into paraphrases and table/visual slices.
 4. Retrieval and reranker ablation: compare dense, BM25, hybrid RRF, and
    reranked retrieval on the hardened set with quality, abstention, latency, and
    token/cost trade-offs.
@@ -1794,11 +1795,11 @@ Accepted blockers before senior-ready positioning:
 2. **Evaluation set is still incomplete for the final claim.** The current
    offline generated set now covers all 100 documents for metadata
    (`golden_metadata=400`) and includes 30 near-domain hard-negative abstention
-   controls plus 30 section-labeled lookup questions
-   (`query_set_counts.total=470`), but it still lacks the required paraphrases,
-   cross-document questions, and table/visual labeled slices. The existing real
-   run is also stale (`query_set_counts.total=60`) and must not be used as the
-   final benchmark.
+   controls, 30 section-labeled lookup questions, and 20 cross-document
+   comparison questions (`query_set_counts.total=490`). It still lacks the
+   required paraphrases and table/visual labeled slices. The existing real run is
+   also stale (`query_set_counts.total=60`) and must not be used as the final
+   benchmark.
 3. **Hybrid/reranker quality is not proven yet.** The LLM reranker interface and
    artifact fields are implemented, but no real/open reranker quality run has
    been approved. Current hybrid offline evidence has
@@ -1840,13 +1841,17 @@ Result:
 | reranker | `none` |
 | rerank_candidate_k | `5` |
 | query_set_counts.abstention | `30` |
+| query_set_counts.cross_document | `20` |
 | query_set_counts.golden_metadata | `400` |
 | query_set_counts.section_lookup | `30` |
-| query_set_counts.total | `470` |
-| recall@5 | `0.9977272727272727` |
-| mrr | `0.9840909090909091` |
+| query_set_counts.total | `490` |
+| recall@5 | `0.9847826086956522` |
+| all_expected_docs_retrieved@5 | `0.9717391304347827` |
+| cross_document.recall@5 | `0.7` |
+| cross_document.all_expected_docs_retrieved@5 | `0.4` |
+| mrr | `0.9836956521739131` |
 | metadata_exact_match | `0.945` |
-| citation_validity | `0.9977272727272727` |
+| citation_validity | `0.9956521739130435` |
 | section_hit_rate | `1.0` |
 
 ```bash
