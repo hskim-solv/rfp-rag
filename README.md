@@ -93,6 +93,18 @@ retrieval. Requests that try to override instructions or extract credentials are
 blocked with `400 guardrail_blocked`; this is a first service-level tripwire,
 not a full red-team suite.
 
+Run deterministic guardrail regression:
+
+```bash
+python3 -m rfp_rag.guardrail_eval \
+  --cases tests/fixtures/guardrail_cases.jsonl \
+  --out artifacts/guardrails/summary.json
+```
+
+The current fixture covers prompt-injection, secret-exfiltration, and benign RFP
+questions. Local evidence currently passes all 7 cases with block recall,
+allow recall, and category exact match at `1.0`.
+
 Offline example:
 
 ```bash
