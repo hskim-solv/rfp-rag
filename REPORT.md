@@ -1608,8 +1608,8 @@ Result:
 
 | check | result |
 |---|---:|
-| offline tests | `278 passed, 5 deselected` |
-| runtime | `53.48s` |
+| offline tests | `281 passed, 5 deselected` |
+| runtime | `66.38s` |
 
 ```bash
 uv run python -m rfp_rag.report_check --eval artifacts/eval --readme README.md

@@ -23,6 +23,7 @@ Use this skill for `rfp-rag` evaluation work: offline RAG, real RAG, agent lane,
 | offline RAG | free, no key | `artifacts/eval/metrics.json` | `offline_scaffold_complete` |
 | real RAG | `OPENAI_API_KEY`, about $5 full run | `artifacts/eval_real/metrics.json` | `rag_quality_complete` |
 | agent offline | free | `artifacts/eval_agent/metrics.json` | `agent_lane_complete`, plus `gate.failed[]` |
+| visual candidate | free | `artifacts/visual_tesseract_candidate_expanded_gate/summary.json` | `ok` |
 | real agent smoke | `OPENAI_API_KEY`, small cost | pytest result | `pytest -m real` passes |
 
 ## Gate status
@@ -30,16 +31,7 @@ Use this skill for `rfp-rag` evaluation work: offline RAG, real RAG, agent lane,
 Run from repo root:
 
 ```bash
-python3 -c "
-import json
-for p, k in [('artifacts/eval','offline_scaffold_complete'),
-             ('artifacts/eval_real','rag_quality_complete'),
-             ('artifacts/eval_agent','agent_lane_complete')]:
-    try:
-        print(f'{p}: {k} =', json.load(open(p + '/metrics.json'))[k])
-    except FileNotFoundError:
-        print(f'{p}: (run 없음)')
-"
+python3 -m rfp_rag.gate_status
 ```
 
 ## Offline lane
