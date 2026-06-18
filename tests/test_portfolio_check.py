@@ -139,3 +139,37 @@ def test_portfolio_check_reports_second_stage_separately(
     assert report["second_stage_readiness"]["complete"] is False
     assert "security_redteam" in report["second_stage_readiness"]["present"]
     assert "security_redteam" in report["second_stage_readiness"]["failed"]
+
+
+def test_second_stage_readiness_rejects_bool_only_artifacts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    stage2_flags = {
+        "artifacts/eval_stage2/coverage.json": {"eval_set_audit_complete": True},
+        "artifacts/eval_stage2_real/metrics.json": {"holdout_quality_complete": True},
+        "artifacts/eval_agent_stress/metrics.json": {"agent_stress_complete": True},
+        "artifacts/retrieval_bakeoff/summary.json": {
+            "retrieval_bakeoff_complete": True
+        },
+        "artifacts/visual_quality/summary.json": {"visual_quality_complete": True},
+        "artifacts/service_ops/summary.json": {"service_ops_complete": True},
+        "artifacts/security_redteam/summary.json": {"security_redteam_complete": True},
+        "artifacts/cost_budget/summary.json": {"cost_budget_complete": True},
+    }
+    for rel, payload in stage2_flags.items():
+        _write(tmp_path / rel, json.dumps(payload))
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is True
+    assert report["second_stage_readiness"]["complete"] is False
+    assert "eval_stage2_real" in report["second_stage_readiness"]["failed"]
+    details = {item["id"]: item for item in report["second_stage_readiness"]["details"]}
+    assert "eval_set_hash" in details["eval_stage2_real"]["issues"]
+    assert "generation_model_id" in details["eval_stage2_real"]["issues"]

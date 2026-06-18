@@ -12,6 +12,7 @@ from typing import Any, Callable, Iterable, TypeVar
 from .contracts import offline_contract, open_contract, real_contract
 from .corpus import CorpusDocument, load_corpus
 from .providers import build_embeddings, build_generator, normalize_lane
+from .providers import embedding_model_name, generation_model_name, prompt_template_hash
 from .rag_chain import AnswerStageError, answer_with_store
 from .rerank import RERANKER_NONE, RERANKERS, build_reranker
 from .tracing import flush_tracing
@@ -39,6 +40,12 @@ RAGAS_THRESHOLDS = {
     "judge_coverage_faithfulness": 0.90,
     "judge_coverage_answer_relevancy": 0.90,
 }
+PER_TYPE_REAL_QUALITY_THRESHOLDS = {
+    "cross_document.recall@5": 0.85,
+    "cross_document.all_expected_docs_retrieved@5": 0.85,
+    "section_lookup.section_hit_rate": 0.85,
+    "visual_table.visual_evidence_hit_rate": 0.85,
+}
 MAX_ERROR_RATE = 0.10
 DEFAULT_METADATA_DOCS = 100
 DEFAULT_CURATED_DOCS = 10
@@ -60,7 +67,10 @@ VISUAL_TYPE_LABELS = {
 
 
 def decide_gates(
-    lane: str, aggregate: dict[str, Any], evaluation_valid: bool
+    lane: str,
+    aggregate: dict[str, Any],
+    evaluation_valid: bool,
+    per_type: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     def _meets(metric: str, minimum: float) -> bool:
         value = aggregate.get(metric)
@@ -78,12 +88,27 @@ def decide_gates(
             "offline_scaffold_complete": offline_scaffold_complete,
             "rag_quality_complete": False,
         }
+
+    def _per_type_meets(metric_path: str, minimum: float) -> bool:
+        query_type, metric = metric_path.split(".", 1)
+        value = (per_type or {}).get(query_type, {}).get(metric)
+        return value is not None and value >= minimum
+
     thresholds = REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS
-    met = all(_meets(metric, minimum) for metric, minimum in thresholds.items())
+    failed = [
+        metric for metric, minimum in thresholds.items() if not _meets(metric, minimum)
+    ]
+    failed += [
+        metric_path
+        for metric_path, minimum in PER_TYPE_REAL_QUALITY_THRESHOLDS.items()
+        if not _per_type_meets(metric_path, minimum)
+    ]
+    met = not failed
     return {
         # thresholds_applied means "checks were run"; thresholds_met means "checks passed".
         "thresholds_applied": True,
         "thresholds_met": bool(met),
+        "failed": failed,
         "offline_scaffold_complete": offline_scaffold_complete,
         "rag_quality_complete": bool(met and evaluation_valid),
     }
@@ -761,6 +786,14 @@ def _contract_for(lane: str) -> dict[str, Any]:
     return offline_contract()
 
 
+def _judge_model_name(lane: str) -> str:
+    if lane not in JUDGED_LANES:
+        return "not_applicable"
+    from .judge import DEFAULT_JUDGE_MODEL
+
+    return os.environ.get("RFP_JUDGE_MODEL", DEFAULT_JUDGE_MODEL)
+
+
 def _mean(values: Iterable[float | None]) -> float | None:
     materialized = [float(v) for v in values if v is not None]
     if not materialized:
@@ -1094,9 +1127,14 @@ def evaluate_index(
 
     aggregate = _lane_aggregate(lane, predictions)
     score_distribution = _score_distribution(predictions)
-    gates = decide_gates(lane, aggregate, evaluation_valid)
+    per_type = _by_type(predictions)
+    gates = decide_gates(lane, aggregate, evaluation_valid, per_type=per_type)
     metrics: dict[str, Any] = {
         "provider_lane": lane,
+        "generation_model_id": generation_model_name(lane),
+        "judge_model_id": _judge_model_name(lane),
+        "embedding_model_id": embedding_model_name(lane),
+        "prompt_template_hash": prompt_template_hash(),
         "top_k": top_k,
         "min_score": min_score,
         "retrieval_mode": retrieval_mode,
@@ -1116,8 +1154,9 @@ def evaluate_index(
             "total": len(queries),
         },
         "aggregate": aggregate,
-        "per_type": _by_type(predictions),
+        "per_type": per_type,
         "thresholds": REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS,
+        "per_type_thresholds": PER_TYPE_REAL_QUALITY_THRESHOLDS,
         **gates,
         "quality_note": _quality_note(lane),
     }
@@ -1181,9 +1220,17 @@ def reaggregate_metrics(
     error_rate = error_count / len(predictions) if predictions else 0.0
     evaluation_valid = error_rate <= MAX_ERROR_RATE
     aggregate = _lane_aggregate(lane, predictions)
-    gates = decide_gates(lane, aggregate, evaluation_valid)
+    per_type = _by_type(predictions)
+    gates = decide_gates(lane, aggregate, evaluation_valid, per_type=per_type)
     metrics: dict[str, Any] = {
         "provider_lane": lane,
+        "generation_model_id": previous.get("generation_model_id")
+        or generation_model_name(lane),
+        "judge_model_id": previous.get("judge_model_id") or _judge_model_name(lane),
+        "embedding_model_id": previous.get("embedding_model_id")
+        or embedding_model_name(lane),
+        "prompt_template_hash": previous.get("prompt_template_hash")
+        or prompt_template_hash(),
         # 실행 파라미터는 predictions에서 도출할 수 없으므로 이전 run 값을 보존한다.
         "top_k": previous.get("top_k"),
         "min_score": previous.get("min_score"),
@@ -1195,8 +1242,9 @@ def reaggregate_metrics(
         "score_distribution": _score_distribution(predictions),
         "query_set_counts": previous.get("query_set_counts", {}),
         "aggregate": aggregate,
-        "per_type": _by_type(predictions),
+        "per_type": per_type,
         "thresholds": REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS,
+        "per_type_thresholds": PER_TYPE_REAL_QUALITY_THRESHOLDS,
         **gates,
         "reaggregated_from_predictions": True,
         "quality_note": _quality_note(lane),

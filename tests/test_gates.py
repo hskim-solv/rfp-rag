@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from rfp_rag.evaluate import REAL_QUALITY_THRESHOLDS, RAGAS_THRESHOLDS, decide_gates
+from rfp_rag.evaluate import (
+    PER_TYPE_REAL_QUALITY_THRESHOLDS,
+    REAL_QUALITY_THRESHOLDS,
+    RAGAS_THRESHOLDS,
+    decide_gates,
+)
 
 
 def _passing_aggregate() -> dict:
@@ -19,8 +24,24 @@ def _passing_aggregate() -> dict:
     }
 
 
+def _passing_per_type() -> dict:
+    return {
+        "cross_document": {
+            "recall@5": 0.90,
+            "all_expected_docs_retrieved@5": 0.90,
+        },
+        "section_lookup": {"section_hit_rate": 0.90},
+        "visual_table": {"visual_evidence_hit_rate": 0.90},
+    }
+
+
 def test_real_lane_passes_when_all_thresholds_met() -> None:
-    gates = decide_gates("real_openai", _passing_aggregate(), evaluation_valid=True)
+    gates = decide_gates(
+        "real_openai",
+        _passing_aggregate(),
+        evaluation_valid=True,
+        per_type=_passing_per_type(),
+    )
 
     assert gates["thresholds_applied"] is True
     assert gates["thresholds_met"] is True
@@ -30,14 +51,21 @@ def test_real_lane_passes_when_all_thresholds_met() -> None:
 def test_real_lane_fails_below_any_threshold() -> None:
     aggregate = _passing_aggregate() | {"recall@5": 0.8}
 
-    gates = decide_gates("real_openai", aggregate, evaluation_valid=True)
+    gates = decide_gates(
+        "real_openai", aggregate, evaluation_valid=True, per_type=_passing_per_type()
+    )
 
     assert gates["thresholds_met"] is False
     assert gates["rag_quality_complete"] is False
 
 
 def test_real_lane_fails_when_evaluation_invalid() -> None:
-    gates = decide_gates("real_openai", _passing_aggregate(), evaluation_valid=False)
+    gates = decide_gates(
+        "real_openai",
+        _passing_aggregate(),
+        evaluation_valid=False,
+        per_type=_passing_per_type(),
+    )
 
     # thresholds_met alone is not sufficient: evaluation_valid is also required.
     assert gates["thresholds_met"] is True
@@ -82,7 +110,7 @@ def test_contract_for_lane_selects_matching_contract() -> None:
     from rfp_rag.evaluate import _contract_for
 
     assert _contract_for("offline")["contract_version"] == "rfp-rag-offline-v4"
-    assert _contract_for("real_openai")["contract_version"] == "rfp-rag-real-v5"
+    assert _contract_for("real_openai")["contract_version"] == "rfp-rag-real-v6"
     assert _contract_for("open")["contract_version"] == "rfp-rag-open-v4"
 
 
@@ -103,7 +131,9 @@ def test_real_lane_fails_when_judge_coverage_low() -> None:
         "judge_coverage_answer_relevancy": 0.06,
     }
 
-    gates = decide_gates("real_openai", aggregate, evaluation_valid=True)
+    gates = decide_gates(
+        "real_openai", aggregate, evaluation_valid=True, per_type=_passing_per_type()
+    )
 
     assert gates["thresholds_met"] is False
     assert gates["rag_quality_complete"] is False
@@ -113,9 +143,30 @@ def test_real_lane_fails_when_judge_coverage_missing() -> None:
     aggregate = _passing_aggregate()
     del aggregate["judge_coverage_faithfulness"]
 
-    gates = decide_gates("real_openai", aggregate, evaluation_valid=True)
+    gates = decide_gates(
+        "real_openai", aggregate, evaluation_valid=True, per_type=_passing_per_type()
+    )
 
     assert gates["rag_quality_complete"] is False
+
+
+def test_real_lane_fails_when_cross_document_slice_is_incomplete() -> None:
+    per_type = _passing_per_type()
+    per_type["cross_document"] = {
+        "recall@5": 0.65,
+        "all_expected_docs_retrieved@5": 0.30,
+    }
+
+    gates = decide_gates(
+        "real_openai",
+        _passing_aggregate(),
+        evaluation_valid=True,
+        per_type=per_type,
+    )
+
+    assert gates["thresholds_met"] is False
+    assert gates["rag_quality_complete"] is False
+    assert "cross_document.all_expected_docs_retrieved@5" in gates["failed"]
 
 
 def test_judge_coverage_counts_scored_share_of_judged_cases() -> None:
@@ -145,11 +196,11 @@ def test_judge_coverage_counts_scored_share_of_judged_cases() -> None:
     assert coverage["judge_coverage_answer_relevancy"] == 0.5
 
 
-def test_real_contract_version_bumped_for_coverage_gate() -> None:
-    # 게이트 시맨틱 변경(judge coverage 추가)은 contract 버전 bump가 필수 (CLAUDE.md)
+def test_real_contract_version_bumped_for_cross_document_gate() -> None:
+    # 게이트 시맨틱 변경(cross-document hard floor 추가)은 contract 버전 bump가 필수 (CLAUDE.md)
     from rfp_rag.contracts import REAL_CONTRACT_VERSION
 
-    assert REAL_CONTRACT_VERSION == "rfp-rag-real-v5"
+    assert REAL_CONTRACT_VERSION == "rfp-rag-real-v6"
 
 
 def test_thresholds_cover_ragas_metrics() -> None:
@@ -160,3 +211,9 @@ def test_thresholds_cover_ragas_metrics() -> None:
         "judge_coverage_answer_relevancy": 0.90,
     }
     assert "recall@5" in REAL_QUALITY_THRESHOLDS
+    assert PER_TYPE_REAL_QUALITY_THRESHOLDS == {
+        "cross_document.recall@5": 0.85,
+        "cross_document.all_expected_docs_retrieved@5": 0.85,
+        "section_lookup.section_hit_rate": 0.85,
+        "visual_table.visual_evidence_hit_rate": 0.85,
+    }

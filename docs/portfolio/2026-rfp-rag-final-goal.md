@@ -4,23 +4,26 @@
 
 Target portfolio headline:
 
-> Production-grade Agentic RAG System for Korean Public RFP Intelligence.
+> AI Agent Engineer Senior Portfolio: Production-grade Agentic RAG System for
+> Korean Public RFP Intelligence.
 
 The project should not be presented as an RFP chatbot. The final story is:
 
 > A production-grade Agentic RAG backend using Korean public procurement RFPs as
 > the concrete workload: source-first HWP/PDF ingestion, evaluated retrieval,
-> LangGraph orchestration, tool-using workflows, streaming FastAPI service,
-> observability, guardrails, and CI-backed evaluation gates.
+> typed LangGraph orchestration, guarded tool-using workflows, HITL/checkpoint
+> behavior, streaming FastAPI service, observability, guardrails, and CI-backed
+> evaluation gates.
 
 This positioning is stronger for Korean 2026 hiring signals than a narrow
-"Retrieval & Evaluation Engineer" headline. Korean postings usually use broader
-titles such as `LLM/RAG AI Engineer`, `AI Agent Backend Engineer`, `RAG Engine
-Researcher`, or `RAG & Graph Search Engineer`, while still screening for the
-same hard capabilities: Python backend engineering, document parsing, chunking,
-vector/hybrid retrieval, reranking, citation grounding, evaluation, typed agent
-state, API/service operation, observability, latency, cost control, deployment,
-and guardrails.
+"Retrieval & Evaluation Engineer" headline. The target role is senior
+`AI Agent Engineer` or `AI Agent Backend Engineer`, with overlap into
+`LLM/RAG AI Engineer`, `RAG Engine Researcher`, and `RAG & Graph Search
+Engineer`. The hard capabilities to prove are Python backend engineering,
+document parsing, chunking, vector/hybrid retrieval, reranking, citation
+grounding, evaluation, typed agent state, conditional routing, bounded
+retry/reflection, tool safety, API/service operation, observability, latency,
+cost control, deployment, and guardrails.
 
 This document describes the final target, not the current public claim. Current
 safe claims and missing senior-ready evidence are separated below.
@@ -61,8 +64,9 @@ Out of scope for the final portfolio core:
 
 ## Current Evidence Boundary
 
-As of 2026-06-17, the portfolio is **senior-promising-but-not-yet**. It should
-not be described as senior-ready until the blocker items below are closed.
+As of 2026-06-17, the portfolio is **senior-promising-but-not-yet** for an
+AI Agent Engineer target. It should not be described as senior-ready until the
+blocker items below are closed.
 
 Current safe evidence:
 
@@ -70,10 +74,10 @@ Current safe evidence:
   `artifacts/index/manifest.json` records `text_source=parsed`,
   `parse_manifest_path=artifacts/parsed_docs/manifest.jsonl`, and
   `chunk_count=16459`.
-- The latest source-first real lane uses `artifacts/index_real` with
-  `text_source=parsed`, `parse_manifest_path=artifacts/parsed_docs/manifest.jsonl`,
-  contract `rfp-rag-real-v5`, and a 545-query `artifacts/eval_real` run with
-  `rag_quality_complete=true`.
+- The latest source-first real lane evidence using `artifacts/index_real` and
+  parsed-source lineage is historical v5 evidence. Current final quality
+  requires `rfp-rag-real-v6` with cross-document hard floors and model/prompt
+  lineage; it is not yet claimed.
 - The LLM reranker path is an implemented interface with artifact fields and
   credential-free offline guards; no real/open reranker quality claim exists yet.
 - The visual lane has a precision-hardened local OCR candidate, reviewed
@@ -128,6 +132,9 @@ The finished project should expose these user-visible capabilities:
    - Retrieve, grade, rewrite when needed, generate, verify, and abstain.
    - Persist audit records and checkpoint state.
    - Pause for human approval before high-impact report-save actions.
+   - Make state transitions, tool budgets, retry/reflection limits, and failure
+     reasons inspectable enough that a reviewer can audit the agent as an
+     engineered workflow, not a prompt wrapper.
 
 6. Evidence dashboard or service surface
    - Show answer, citations, retrieved chunks, source previews, metrics, and
@@ -306,18 +313,22 @@ Ops/service targets:
 - Stop condition: real-lane cost approval is missing, or the real index manifest
   lacks parsed-source lineage.
 
-### M7. Agent Freshness
+### M7. Agent Workflow Senior Evidence
 
 - Rerun offline agent evaluation with the current retrieval policy.
 - Add trajectory/audit/checkpoint examples to the evidence surface.
+- Show typed state, conditional edges, retry/reflection limits, tool-call
+  budgets, HITL/checkpoint resume, and failure classification as first-class
+  artifacts.
 - Run real agent smoke only after explicit cost approval.
 - Stop condition: agent proof is stale relative to retrieval/index policy.
 
-### M8. Evidence UX And Ops
+### M8. Agent Evidence UX And Ops
 
 - Add dashboard/service view for answers, citations, chunks, source previews,
-  metrics, and failure reasons.
-- Add trace, latency, token/cost, gate status freshness, and failure
+  metrics, agent state transitions, tool calls, checkpoint/HITL status, and
+  failure reasons.
+- Add trace/run lookup, latency, token/cost, gate status freshness, and failure
   classification.
 - Keep offline lane credential-free.
 - Stop condition: UI hides evidence, or observability captures raw secrets,
@@ -352,6 +363,9 @@ Ops/service targets:
   diagram, ADR links, and metric table.
 - Produce a short demo video only after the local/containerized service and
   evidence dashboard are stable.
+- Make the resume/project narrative explicitly target senior AI Agent Engineer
+  review: what the agent decides, which tools it may call, how failures are
+  bounded, how quality is measured, and how operations are inspected.
 - Stop condition: the project still reads as a demo rather than a production-grade
   Agentic RAG system with evidence-backed operations.
 
@@ -386,9 +400,10 @@ The portfolio is not senior-level if any of these remain true:
 Recommended defaults are listed first.
 
 1. Portfolio headline
-   - Recommended: `Production-grade Agentic RAG System for Korean Public RFP
+   - Recommended: `AI Agent Engineer Senior Portfolio: Production-grade
+     Agentic RAG System for Korean Public RFP Intelligence`.
+   - Alternative: `Production-grade Agentic RAG System for Korean Public RFP
      Intelligence`.
-   - Alternative: `LLM/RAG AI Engineer - source-first RAG and agent backend`.
 
 2. Demo surface
    - Recommended: FastAPI plus Streamlit evidence dashboard, with SSE streaming
@@ -432,9 +447,9 @@ closed:
 
 > Built a credential-free source-first RAG/Agent evaluation scaffold for 100
 > Korean public RFP documents, using parsed HWP/PDF artifacts for offline
-> indexing, page/section citations, visual/table and paraphrase benchmark slices,
-> constrained LangGraph workflow evaluation, and artifact-backed regression
-> gates.
+> indexing, page/section citations, visual/table and paraphrase benchmark
+> slices, constrained LangGraph workflow evaluation, guarded tool/audit
+> artifacts, and artifact-backed regression gates.
 
 ## Target Final Resume Claim
 
@@ -442,15 +457,17 @@ This claim is valid only after benchmark hardening, source-first real gate,
 reranker ablation, production service, guardrails, evidence UX, and ops metrics
 pass:
 
-> Built a production-grade Agentic RAG system for 100 Korean public RFP
-> documents, using parsed HWP/PDF artifacts as the body source of truth,
-> section/page-aware chunking, dense/BM25/hybrid/reranked retrieval comparisons,
-> citation-grounded generation, targeted visual/table validation, LangGraph
-> typed-state orchestration with checkpointing and HITL approval, FastAPI
-> Pydantic async/SSE service endpoints, guarded tool/function calling, traceable
-> latency/token/cost evidence, Docker/CI-backed regression gates, and
-> artifact-backed evaluation for recall, MRR, faithfulness, answer relevancy,
-> abstention, and failed-run analysis.
+> Built a production-grade Agentic RAG system as an AI Agent Engineer senior
+> portfolio project for 100 Korean public RFP documents, using parsed HWP/PDF
+> artifacts as the body source of truth, section/page-aware chunking,
+> dense/BM25/hybrid/reranked retrieval comparisons, citation-grounded
+> generation, targeted visual/table validation, LangGraph typed-state
+> orchestration with conditional routing, bounded retry/reflection,
+> checkpointing and HITL approval, FastAPI Pydantic async/SSE service
+> endpoints, guarded tool/function calling, traceable latency/token/cost
+> evidence, Docker/CI-backed regression gates, and artifact-backed evaluation
+> for recall, MRR, faithfulness, answer relevancy, abstention, and failed-run
+> analysis.
 
 Architecture evidence is tracked in
 `docs/architecture/system-architecture.md`; final-readiness claims should point

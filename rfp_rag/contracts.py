@@ -55,7 +55,7 @@ def offline_contract() -> dict[str, Any]:
     }
 
 
-REAL_CONTRACT_VERSION = "rfp-rag-real-v5"
+REAL_CONTRACT_VERSION = "rfp-rag-real-v6"
 
 REAL_REQUIRED_COMMANDS = [
     "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai --parse-manifest artifacts/parsed_docs/manifest.jsonl",
@@ -77,7 +77,15 @@ def real_contract() -> dict[str, Any]:
                 "claims_semantic_quality": True,
                 "allowed_completion_claim": "rag_quality_complete",
                 # rag_quality_complete in metrics.json is the authoritative gate computed by decide_gates.
-                "requires": ["thresholds_met", "evaluation_valid"],
+                "requires": [
+                    "thresholds_met",
+                    "evaluation_valid",
+                    "generation_model_id",
+                    "judge_model_id",
+                    "embedding_model_id",
+                    "prompt_template_hash",
+                    "per_type_thresholds",
+                ],
             }
         },
     }
@@ -108,7 +116,7 @@ def open_contract() -> dict[str, Any]:
     }
 
 
-AGENT_CONTRACT_VERSION = "rfp-agent-v1"
+AGENT_CONTRACT_VERSION = "rfp-agent-v2"
 
 AGENT_REQUIRED_COMMANDS = [
     "python3 -m pytest",
@@ -118,6 +126,7 @@ AGENT_REQUIRED_COMMANDS = [
 AGENT_REQUIRED_EVAL_FILES = [
     "scenarios.jsonl",
     "predictions.jsonl",
+    "agent_artifacts/audit.jsonl",
     "metrics.json",
     "report.md",
     "contract.json",
@@ -130,9 +139,12 @@ def agent_contract() -> dict[str, Any]:
         "required_eval_files": list(AGENT_REQUIRED_EVAL_FILES),
         "required_commands": AGENT_REQUIRED_COMMANDS,
         "gate_semantics": (
-            "agent_lane_complete is decided on the offline lane: graph topology, tools, "
-            "HITL and loop termination are deterministic. Real-lane router/rewriter quality "
-            "is covered by @pytest.mark.real smoke plus a small real evaluation recorded in REPORT.md."
+            "agent_lane_complete is decided on the offline lane for routing, retrieval, "
+            "rewrite, metadata-tool, abstention, loop termination, and audit artifacts. "
+            "HITL/checkpoint behavior is implemented in the graph/CLI and covered by "
+            "unit tests or Stage 2 stress evaluation, not by this lane alone. "
+            "Real-lane router/rewriter quality is covered by @pytest.mark.real smoke "
+            "plus a small real evaluation recorded in REPORT.md."
         ),
         "quality_semantics": {
             "agent_offline": {

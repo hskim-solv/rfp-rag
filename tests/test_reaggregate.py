@@ -60,6 +60,41 @@ def _abstention_prediction(query_id: str) -> dict:
     return pred
 
 
+def _cross_document_prediction(query_id: str) -> dict:
+    pred = _prediction(query_id, query_type="cross_document")
+    pred["expected_doc_ids"] = ["doc:000", "doc:001"]
+    pred["retrieved_doc_ids"] = ["doc:000", "doc:001"]
+    pred["pass_fail"]["all_expected_docs_retrieved@5"] = 1.0
+    pred["judge"] = {
+        "faithfulness": None,
+        "answer_relevancy": None,
+        "warnings": ["judge_skipped_abstention"],
+    }
+    return pred
+
+
+def _section_lookup_prediction(query_id: str) -> dict:
+    pred = _prediction(query_id, query_type="section_lookup")
+    pred["pass_fail"]["section_hit_rate"] = 1.0
+    pred["judge"] = {
+        "faithfulness": None,
+        "answer_relevancy": None,
+        "warnings": ["judge_skipped_abstention"],
+    }
+    return pred
+
+
+def _visual_table_prediction(query_id: str) -> dict:
+    pred = _prediction(query_id, query_type="visual_table")
+    pred["pass_fail"]["visual_evidence_hit_rate"] = 1.0
+    pred["judge"] = {
+        "faithfulness": None,
+        "answer_relevancy": None,
+        "warnings": ["judge_skipped_abstention"],
+    }
+    return pred
+
+
 def _write_eval_dir(tmp_path: Path, predictions: list[dict]) -> Path:
     eval_dir = tmp_path / "eval_real"
     eval_dir.mkdir()
@@ -74,9 +109,12 @@ def _write_eval_dir(tmp_path: Path, predictions: list[dict]) -> Path:
                 "top_k": 5,
                 "min_score": 0.47,
                 "query_set_counts": {
-                    "golden_metadata": 0,
-                    "curated_text": len(predictions),
-                    "abstention": 0,
+                    "golden_metadata": 10,
+                    "curated_text": 10,
+                    "cross_document": 1,
+                    "section_lookup": 1,
+                    "visual_table": 1,
+                    "abstention": 1,
                     "total": len(predictions),
                 },
             }
@@ -98,7 +136,10 @@ def test_reaggregate_recomputes_coverage_and_gates_without_api_calls(
         lambda *a, **k: (_ for _ in ()).throw(AssertionError("RAG call")),
     )
     preds = [_prediction(f"q{i}") for i in range(10)] + [
-        _abstention_prediction("abst_0")
+        _cross_document_prediction("cross_0"),
+        _section_lookup_prediction("section_0"),
+        _visual_table_prediction("visual_0"),
+        _abstention_prediction("abst_0"),
     ]
     eval_dir = _write_eval_dir(tmp_path, preds)
 
