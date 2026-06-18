@@ -8,6 +8,26 @@ Contract: `rfp-rag-offline-v4`.
 
 The offline lane (`--provider offline`) is an offline contract gate and does not claim semantic quality. It verifies deterministic corpus/index/retrieval plumbing, citation schema, and abstention behavior without credentials. The offline lane earns `offline_scaffold_complete` only (`thresholds_applied` stays false); `rag_quality_complete` is reserved for the real provider lane below. `--min-score 0.34` is the calibrated section-aware source-first offline retrieval cutoff. The current score distribution includes synthetic exact-section candidate scores for section lookup queries, so use the abstention/in-domain gap in `artifacts/eval/metrics.json` as a lane-specific calibration signal, not as pure vector-similarity evidence.
 
+## Quality objective and current evidence
+
+The portfolio quality target is gate-based, not a single aggregate benchmark
+score. The final semantic quality gate is the parsed-source `real_openai` lane;
+the offline lane remains a credential-free regression/scaffold gate.
+
+| objective | required evidence | current status |
+|---|---|---|
+| Deterministic offline regression | `offline_rag.offline_scaffold_complete == true` | pass |
+| Final semantic RAG quality | `real_rag.rag_quality_complete == true` and `real_rag.thresholds_met == true` | pass |
+| Agent workflow quality | `agent_offline.agent_lane_complete == true` and `gate.failed == []` | pass |
+| Visual/table evidence candidate | `visual_candidate.ok == true` | pass |
+| Guardrail regression | `guardrail_regression_complete == true` with block/allow/category metrics at `1.0` | pass |
+| Portfolio evidence bundle | `portfolio_readiness_check == true` and `failed == []` | pass |
+| CI/deployment evidence | GitHub Actions `pytest -m "not real"` and `docker build` checks pass | pass |
+
+Current deferred items are explicit scope decisions, not failed gates:
+`cloud_deployment` requires external credentials/spend approval, and
+`public_dashboard` is a separate product/UI scope.
+
 ## Final portfolio contract
 
 The final portfolio target is recorded in
@@ -26,10 +46,8 @@ The quality contract is source-first:
   truth.
 - CSV is a metadata registry only.
 - Offline artifacts prove deterministic plumbing and regression safety.
-- Existing real-lane artifacts prove semantic RAG quality only for their
-  recorded index and contract. The latest parsed-source pipeline needs an
-  explicitly approved source-first real rerun before it can claim binding
-  semantic quality.
+- Current real-lane artifacts prove parsed-source semantic RAG quality for
+  `artifacts/index_real` and contract `rfp-rag-real-v5`.
 - Agent artifacts prove workflow routing, verification, audit, checkpoint, and
   HITL behavior after retrieval quality is established.
 - Agent-team operation is bounded by ADR-0013: task를 disjoint write set으로
@@ -45,10 +63,9 @@ Adversarial roadmap lock:
    30 hard-negative, 30 section-labeled, 20 cross-document, 25 reviewed
    visual/table, and 30 paraphrase questions before claiming retrieval or
    reranker wins.
-3. Rebuild the real gate on a parsed-source index only after explicit cost
-   approval.
-4. Add an evidence surface that shows answers, citations, chunks, source
-   previews, gate freshness, failures, latency, and token/cost estimates.
+3. Keep real-gate reruns explicit because they are cost-bearing.
+4. Keep improving evidence surfaces that show answers, citations, chunks,
+   source previews, gate freshness, failures, latency, and token/cost estimates.
 5. Keep agent and visual claims subordinate to retrieval quality and evidence
    inspectability.
 
