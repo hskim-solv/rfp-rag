@@ -11,18 +11,23 @@ The offline lane (`--provider offline`) is an offline contract gate and does not
 ## Quality objective and current evidence
 
 The portfolio quality target is gate-based, not a single aggregate benchmark
-score. The final semantic quality gate is the parsed-source `real_openai` lane;
-the offline lane remains a credential-free regression/scaffold gate.
+score. The current repository is a local production-grade backend evidence
+bundle, not a finished public senior-ready product claim. The final semantic
+quality gate for the current bundle is the parsed-source `real_openai` lane;
+the offline lane remains a credential-free regression/scaffold gate. Stage 2
+independent holdout, security red-team, ops, and cost gates are tracked
+separately until their artifacts exist and pass.
 
 | objective | required evidence | current status |
 |---|---|---|
 | Deterministic offline regression | `offline_rag.offline_scaffold_complete == true` | pass |
-| Final semantic RAG quality | `real_rag.rag_quality_complete == true` and `real_rag.thresholds_met == true` | pass |
-| Agent workflow quality | `agent_offline.agent_lane_complete == true` and `gate.failed == []` | pass |
+| Current semantic RAG quality | `real_rag.rag_quality_complete == true` and `real_rag.thresholds_met == true` on the curated parsed-source real gate | pass |
+| Current agent workflow quality | `agent_offline.agent_lane_complete == true` and `gate.failed == []` on the offline stress lane | pass |
 | Visual/table evidence candidate | `visual_candidate.ok == true` | pass |
-| Guardrail regression | `guardrail_regression_complete == true` with block/allow/category metrics at `1.0` | pass |
-| Portfolio evidence bundle | `portfolio_readiness_check == true` and `failed == []` | pass |
+| Guardrail smoke regression | `guardrail_regression_complete == true` with block/allow/category metrics at `1.0`; full red-team is Stage 2 | pass |
+| Local portfolio evidence bundle | `portfolio_readiness_check == true` and `failed == []`; `second_stage_readiness.complete` is tracked separately | pass |
 | CI/deployment evidence | GitHub Actions `pytest -m "not real"` and `docker build` checks pass | pass |
+| Stage 2 independent holdout/security/ops/cost gates | `second_stage_readiness.complete == true` after all Stage 2 artifacts pass | not yet claimed |
 
 Current deferred items are explicit scope decisions, not failed gates:
 `cloud_deployment` requires external credentials/spend approval, and

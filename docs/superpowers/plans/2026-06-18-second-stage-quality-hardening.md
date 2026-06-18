@@ -93,14 +93,22 @@ The following become 2차 목표:
 | section/requirements `recall@5` | >= 0.85 |
 | cross-document `recall@5` | >= 0.85 |
 | cross-document `all_expected_docs_retrieved@5` | >= 0.85 |
+| cross-document value exact match | >= 0.85 |
+| cross-document comparison completeness | >= 0.85 |
 | visual/table `visual_evidence_hit_rate` | >= 0.85 |
+| visual/table fact exact hit rate | >= 0.85 |
 | abstention false-positive rate | <= 0.05 |
 | abstention false-negative rate | <= 0.05 |
 | judged-subset `faithfulness` | >= 0.80 |
 | judged-subset `answer_relevancy` | >= 0.70 |
-| judge coverage for judged subset | >= 0.90 |
+| judge coverage per answerable slice | >= 0.90 |
 | curated-vs-holdout `recall@5` drop | <= 0.05 |
 | evaluation set hash matches audited holdout | pass |
+
+Known current baseline note: the existing real aggregate gate passes, but the
+current cross-document hard slice is expected to fail these Stage 2 floors until
+retrieval and answer-comparison scoring are hardened. That failure is a desired
+signal, not a reason to lower thresholds.
 
 ### Stage 2C: Agent Stress Quality
 
@@ -339,24 +347,30 @@ THRESHOLDS = {
     "unique_expected_doc_count": 60,
     "max_questions_per_expected_doc": 4,
     "section_type_count": 5,
-    "visual_doc_count": 20,
-    "visual_doc_coverage": 0.70,
 }
+MIN_VISUAL_DOC_COUNT = 20
+MIN_VISUAL_DOC_COVERAGE = 0.70
 REQUIRED_FIELDS = {
     "id",
     "slice",
     "query",
     "expected_doc_ids",
     "expected_behavior",
+    "source_doc_id",
     "author",
     "reviewer",
     "created_at",
     "source",
+    "provenance_ref",
     "label_rubric_version",
     "review_status",
     "review_passes",
+    "review_notes_hash",
+    "approved_at",
     "leakage_checks",
     "not_generated_from_current_answer",
+    "not_generated_from_predictions",
+    "not_copied_from_current_answer",
 }
 
 
@@ -441,6 +455,11 @@ def audit_eval_set(cases_path: Path, available_visual_doc_count: int) -> dict[st
                 failed.append(name)
         elif value < threshold:
             failed.append(name)
+    if not (
+        metrics["visual_doc_count"] >= MIN_VISUAL_DOC_COUNT
+        or metrics["visual_doc_coverage"] >= MIN_VISUAL_DOC_COVERAGE
+    ):
+        failed.append("visual_doc_coverage")
     if missing_required:
         failed.append("required_fields")
     if generated_from_current_answer:
@@ -628,16 +647,28 @@ STAGE2_THRESHOLDS = {
     "section_requirements_recall@5": 0.85,
     "cross_document_recall@5": 0.85,
     "cross_document_all_expected_docs_retrieved@5": 0.85,
+    "cross_document_value_exact": 0.85,
+    "cross_document_comparison_complete": 0.85,
     "visual_table_visual_evidence_hit_rate": 0.85,
+    "visual_table_visual_fact_exact_hit_rate": 0.85,
     "abstention_false_positive_rate": 0.05,
     "abstention_false_negative_rate": 0.05,
     "judged_subset_faithfulness": 0.80,
     "judged_subset_answer_relevancy": 0.70,
-    "judge_coverage": 0.90,
+    "judge_coverage_faithfulness_min_by_answerable_slice": 0.90,
+    "judge_coverage_answer_relevancy_min_by_answerable_slice": 0.90,
 }
 ```
 
-For `abstention_false_positive_rate` and `abstention_false_negative_rate`, lower is better; all other listed metrics must meet or exceed the threshold. If any required slice is absent, the gate fails with that slice name.
+For `abstention_false_positive_rate` and `abstention_false_negative_rate`, lower is better; all other listed metrics must meet or exceed the threshold. Define false positive as an answerable holdout case that abstains, and false negative as an `abstention_adversarial` case that returns a sourced/high-confidence answer. If any required slice is absent, the gate fails with that slice name.
+
+The fixed holdout runner must bypass the generated query builders in
+`evaluate_index`. Add tests that assert `predictions.query_id` exactly equals
+the JSONL case IDs, `query_set_counts.total == len(cases)`, generated query
+artifacts are not written for the fixed run, and `metrics.eval_set_hash` matches
+the audited coverage hash. Metrics artifacts must also include
+`generation_model_id`, `judge_model_id`, `embedding_model_id`, and
+`prompt_template_hash` so prompt/model drift is visible in gate evidence.
 
 - [ ] **Step 4: Run GREEN**
 
@@ -975,6 +1006,12 @@ def _candidate_failures(baseline: dict[str, Any], candidate: dict[str, Any]) -> 
         failed.append("paired_win_loss")
     if base["metadata_exact_match"] - cand["metadata_exact_match"] > MAX_METADATA_EXACT_MATCH_DROP:
         failed.append("metadata_exact_match")
+    if cand["cross_document_all_expected_docs_retrieved@5"] < base["cross_document_all_expected_docs_retrieved@5"]:
+        failed.append("cross_document_all_expected_docs_retrieved@5")
+    if cand["visual_table_visual_evidence_hit_rate"] < base["visual_table_visual_evidence_hit_rate"]:
+        failed.append("visual_table_visual_evidence_hit_rate")
+    if cand["section_requirements_recall@5"] < base["section_requirements_recall@5"]:
+        failed.append("section_requirements_recall@5")
     if base["abstention_pass"] - cand["abstention_pass"] > MAX_ABSTENTION_DROP:
         failed.append("abstention_pass")
     if cand["p95_latency_ms"] > base["p95_latency_ms"] * MAX_LATENCY_REGRESSION_RATIO:
@@ -1005,6 +1042,11 @@ def compare_retrieval_runs(baseline: dict[str, Any], candidates: list[dict[str, 
         "failed_by_candidate": failed_by_candidate,
     }
 ```
+
+`paired_wins` and `paired_losses` must be computed from query-id aligned
+baseline/candidate predictions in the bakeoff code, not trusted as free-form
+summary inputs. A candidate with missing hard-slice regression metrics is
+ineligible for adoption.
 
 - [ ] **Step 4: Run GREEN**
 
@@ -1297,7 +1339,10 @@ Add a separate script command in README:
 
 ```bash
 docker build -t rfp-rag-service:ci .
-docker run --rm -p 8000:8000 rfp-rag-service:ci
+cid="$(docker run -d -p 8000:8000 rfp-rag-service:ci)"
+trap 'docker rm -f "$cid"' EXIT
+timeout 30 sh -c 'until curl -fsS http://127.0.0.1:8000/healthz; do sleep 1; done'
+curl -fsS http://127.0.0.1:8000/v1/gates >/tmp/rfp-rag-gates.json
 ```
 
 Only add Docker runtime smoke to CI if the repository can start without private `data/` and `artifacts/`.

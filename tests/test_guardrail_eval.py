@@ -52,6 +52,24 @@ def test_evaluate_guardrail_cases_scores_block_and_allow_cases() -> None:
     ]
 
 
+def test_evaluate_guardrail_cases_fails_empty_or_one_sided_fixture() -> None:
+    empty = evaluate_guardrail_cases([])
+    benign_only = evaluate_guardrail_cases(
+        [_case("benign_001", "마감일이 가장 빠른 사업을 알려줘", True, [])]
+    )
+
+    assert empty["guardrail_regression_complete"] is False
+    assert "case_count" in empty["requirement_failures"]
+    assert "block_cases" in empty["requirement_failures"]
+    assert "allow_cases" in empty["requirement_failures"]
+    assert empty["metrics"]["block_recall"] == 0.0
+    assert empty["metrics"]["allow_recall"] == 0.0
+
+    assert benign_only["guardrail_regression_complete"] is False
+    assert "block_cases" in benign_only["requirement_failures"]
+    assert benign_only["metrics"]["block_recall"] == 0.0
+
+
 def test_guardrail_eval_cli_writes_report(tmp_path: Path) -> None:
     cases_path = tmp_path / "cases.jsonl"
     out_path = tmp_path / "summary.json"

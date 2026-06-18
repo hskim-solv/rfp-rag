@@ -7,6 +7,8 @@ from typing import Any
 
 from rfp_rag.guardrails import check_question_guardrails
 
+MIN_CASE_COUNT = 2
+
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
@@ -60,19 +62,29 @@ def evaluate_guardrail_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
 
     passed_count = sum(1 for row in scored if row["passed"])
     case_count = len(scored)
+    requirement_failures: list[str] = []
+    if case_count < MIN_CASE_COUNT:
+        requirement_failures.append("case_count")
+    if block_total == 0:
+        requirement_failures.append("block_cases")
+    if allow_total == 0:
+        requirement_failures.append("allow_cases")
+
     metrics = {
-        "block_recall": _round(block_passed / block_total) if block_total else 1.0,
-        "allow_recall": _round(allow_passed / allow_total) if allow_total else 1.0,
+        "block_recall": _round(block_passed / block_total) if block_total else 0.0,
+        "allow_recall": _round(allow_passed / allow_total) if allow_total else 0.0,
         "category_exact_match": _round(category_passed / case_count)
         if case_count
-        else 1.0,
+        else 0.0,
     }
 
     return {
-        "guardrail_regression_complete": passed_count == case_count,
+        "guardrail_regression_complete": passed_count == case_count
+        and not requirement_failures,
         "case_count": case_count,
         "passed": passed_count,
         "failed": case_count - passed_count,
+        "requirement_failures": requirement_failures,
         "metrics": metrics,
         "cases": scored,
     }

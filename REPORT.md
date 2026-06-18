@@ -8,17 +8,18 @@
 
 ### 최종 품질 목표와 현재 증거
 
-최종 품질 목표는 단일 평균 점수가 아니라 gate 조합으로 정의한다. Offline lane은 credential-free 회귀(regression)/스캐폴드(scaffold) 검증이고, 최종 semantic RAG 품질은 parsed-source `real_openai` lane이 담당한다.
+최종 품질 목표는 단일 평균 점수가 아니라 gate 조합으로 정의한다. 현재 저장소는 로컬 production-grade backend evidence bundle까지 통과한 상태이며, 공개용 senior-ready product claim은 Stage 2 독립 holdout/security/ops/cost gate가 통과할 때까지 보류한다. Offline lane은 credential-free 회귀(regression)/스캐폴드(scaffold) 검증이고, 현재 bundle의 semantic RAG 품질은 parsed-source `real_openai` lane이 담당한다.
 
 | 목표 | 판정 기준 | 현재 상태 |
 |---|---|---|
 | Offline 회귀 안전성 | `offline_rag.offline_scaffold_complete == true` | 통과 |
-| 최종 semantic RAG 품질 | `real_rag.rag_quality_complete == true`, `real_rag.thresholds_met == true` | 통과 |
-| Agent workflow 품질 | `agent_offline.agent_lane_complete == true`, `gate.failed == []` | 통과 |
+| 현재 semantic RAG 품질 | curated parsed-source real gate에서 `real_rag.rag_quality_complete == true`, `real_rag.thresholds_met == true` | 통과 |
+| 현재 Agent workflow 품질 | offline stress lane에서 `agent_offline.agent_lane_complete == true`, `gate.failed == []` | 통과 |
 | Visual/table evidence 후보 | `visual_candidate.ok == true` | 통과 |
-| Guardrail 회귀 | `guardrail_regression_complete == true`, block/allow/category metric `1.0` | 통과 |
-| Portfolio evidence bundle | `portfolio_readiness_check == true`, `failed == []` | 통과 |
+| Guardrail smoke 회귀 | `guardrail_regression_complete == true`, block/allow/category metric `1.0`; full red-team은 Stage 2 | 통과 |
+| Local portfolio evidence bundle | `portfolio_readiness_check == true`, `failed == []`; `second_stage_readiness.complete`는 별도 추적 | 통과 |
 | CI/Deployment 증거 | GitHub Actions `pytest -m "not real"` 및 `docker build` 통과 | 통과 |
+| Stage 2 독립 holdout/security/ops/cost gate | 모든 Stage 2 artifact가 생성되고 `second_stage_readiness.complete == true` | 아직 주장하지 않음 |
 
 명시적으로 남긴 범위는 `cloud_deployment`와 `public_dashboard`다. 둘은 실패 조건이 아니라 외부 credential/비용 또는 별도 제품/UI 범위가 필요한 deferred decision이다.
 
@@ -260,7 +261,7 @@ Operational fixes made during the refresh:
 
 두 lane은 서로 다른 score 척도에서 동작하므로 min_score를 각자 보정했다.
 
-**source-first offline lane (min_score = 0.23)**
+**historical source-first offline lane (min_score = 0.23; superseded by section-aware 0.34 in §13-3)**
 `fake_offline` provider의 lexical/hash 기반 score는 실수치 cosine similarity와 다른 척도를 가진다. parsed source artifacts로 전환한 뒤 `min_score=0.15`는 no-answer control을 과응답했으므로, `artifacts/eval/metrics.json`의 score distribution과 abstention 결과를 기준으로 0.23으로 재보정했다.
 
 **real lane (min_score = 0.47)**
@@ -2233,6 +2234,7 @@ Current local result:
 |---|---|
 | portfolio_readiness_check | `true` |
 | failed | `[]` |
+| second_stage_readiness.complete | `false` until Stage 2 artifacts are generated and pass |
 | deferred | `cloud_deployment`, `public_dashboard` |
 
 Checked evidence:
