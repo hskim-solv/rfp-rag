@@ -99,7 +99,7 @@ Implemented evidence:
 | retry/reflection loop | `grade -> rewrite -> retrieve`, max rewrite count | `loop_termination=1.0` |
 | checkpointer | `sqlite_checkpointer()` and test `MemorySaver` | CLI resume tests |
 | HITL approval | `interrupt()` in `save_report_node` | approve/reject graph tests |
-| tool audit | `AuditLogger` JSONL | `artifacts/eval_agent/agent_artifacts/audit.jsonl` |
+| tool audit | `AuditLogger` JSONL with redacted query-like args | `artifacts/eval_agent/agent_artifacts/audit.jsonl` |
 
 ## Evaluation And Evidence Flow
 
@@ -126,7 +126,7 @@ Current local gate files:
 | lane | artifact | status evidence |
 |---|---|---|
 | offline RAG | `artifacts/eval/metrics.json` | `offline_scaffold_complete=true` |
-| real RAG | `artifacts/eval_real/metrics.json` | `rag_quality_complete=true` |
+| real RAG | `artifacts/eval_real/metrics.json` | expected fail under `rfp-rag-real-v6` until contract, lineage, citation hard gates, and cross-document floors pass |
 | agent offline | `artifacts/eval_agent/metrics.json` | `agent_lane_complete=true` |
 | visual candidate | `artifacts/visual_tesseract_candidate_expanded_gate/summary.json` | `ok=true` |
 | guardrails | `artifacts/guardrails/summary.json` | `guardrail_regression_complete=true` |
@@ -140,6 +140,8 @@ Current local gate files:
   for answer/gate endpoints.
 - `real_openai` evaluation remains cost-bearing and must be explicitly approved.
 - The MCP-style server is read-only JSONL tooling, not full MCP transport/auth.
+- Service and ops tool paths are limited to approved repository artifact
+  locations; arbitrary local path reads are rejected.
 - No public cloud deployment, auth layer, or broad dashboard is claimed yet.
 
 ## Verification Commands

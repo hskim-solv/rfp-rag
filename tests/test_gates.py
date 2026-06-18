@@ -14,7 +14,7 @@ def _passing_aggregate() -> dict:
         "recall@5": 0.95,
         "mrr": 0.9,
         "citation_presence": 1.0,
-        "citation_validity": 0.95,
+        "citation_validity": 1.0,
         "metadata_exact_match": 0.95,
         "abstention_pass": 1.0,
         "faithfulness": 0.85,
@@ -50,6 +50,34 @@ def test_real_lane_passes_when_all_thresholds_met() -> None:
 
 def test_real_lane_fails_below_any_threshold() -> None:
     aggregate = _passing_aggregate() | {"recall@5": 0.8}
+
+    gates = decide_gates(
+        "real_openai", aggregate, evaluation_valid=True, per_type=_passing_per_type()
+    )
+
+    assert gates["thresholds_met"] is False
+    assert gates["rag_quality_complete"] is False
+
+
+def test_real_lane_fails_when_non_abstention_citation_is_missing() -> None:
+    aggregate = _passing_aggregate() | {
+        "uncited_non_abstention_count": 1,
+        "invalid_citation_count": 0,
+    }
+
+    gates = decide_gates(
+        "real_openai", aggregate, evaluation_valid=True, per_type=_passing_per_type()
+    )
+
+    assert gates["thresholds_met"] is False
+    assert gates["rag_quality_complete"] is False
+
+
+def test_real_lane_fails_when_citation_is_invalid() -> None:
+    aggregate = _passing_aggregate() | {
+        "uncited_non_abstention_count": 0,
+        "invalid_citation_count": 1,
+    }
 
     gates = decide_gates(
         "real_openai", aggregate, evaluation_valid=True, per_type=_passing_per_type()

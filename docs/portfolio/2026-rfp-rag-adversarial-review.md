@@ -86,3 +86,19 @@ No finding was rejected.
 - "Artifact-backed latency and cost gates are complete."
 - "Production visual understanding or multimodal RAG is solved."
 - "The repository is senior-ready as a public service/dashboard portfolio."
+
+## Round 3 Independent Review Findings
+
+After PR #50, eight read-only reviewers rechecked the repository against the
+senior AI Agent Engineer portfolio target. `NO_HIGH` was returned for
+documentation claim alignment, CI/Docker reproducibility, and LangGraph agent
+topology. The remaining HIGH findings were accepted and folded into the roadmap
+and gates:
+
+| area | accepted issue | required correction |
+|---|---|---|
+| portfolio readiness | top-level `portfolio_readiness_check` could ignore missing Stage 2 holdout/security/ops/cost artifacts | split `local_evidence_bundle_check` from senior `portfolio_readiness_check`, and require `second_stage_readiness.complete` for the latter |
+| architecture docs | `system-architecture.md` still marked real RAG as `rag_quality_complete=true` | mark real RAG as expected-fail under v6 until contract, lineage, citation hard gates, and cross-document floors pass |
+| service/tool boundary | service and ops tools accepted arbitrary provider/path inputs | restrict answer service to offline approved index path and reject artifact path escapes in service/ops tools |
+| sensitive traces | agent audit stored raw query args | persist query-like inputs as hash/length/safe preview and redact secret/PII-like strings |
+| citation/judge coverage | real gate allowed aggregate citation slack and unjudged answer-bearing slices | require zero uncited/invalid non-abstention answers and judge coverage for all answer-bearing query types |

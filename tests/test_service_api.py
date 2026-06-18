@@ -62,9 +62,56 @@ def test_answer_endpoint_returns_typed_rag_response(monkeypatch) -> None:
     assert body["answer"] == "근거 기반 답변"
     assert body["sources"][0]["chunk_id"] == "doc:000:chunk:0"
     assert body["metadata"]["provider"] == "offline"
-    assert seen["args"] == (Path("artifacts/index"), "테스트 사업 요약해줘")
+    assert seen["args"] == (Path("artifacts/index").resolve(), "테스트 사업 요약해줘")
     assert seen["kwargs"]["top_k"] == 3
     assert seen["kwargs"]["min_score"] == 0.34
+
+
+def test_answer_endpoint_rejects_cost_bearing_provider(monkeypatch) -> None:
+    called = False
+
+    def fake_answer_query(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal called
+        called = True
+        return {"answer": "should not run"}
+
+    monkeypatch.setattr(service_app, "answer_query", fake_answer_query)
+    client = TestClient(service_app.create_app())
+
+    response = client.post(
+        "/v1/answer",
+        json={
+            "question": "테스트 사업 요약해줘",
+            "index_dir": "artifacts/index",
+            "provider": "real_openai",
+        },
+    )
+
+    assert response.status_code == 422
+    assert called is False
+
+
+def test_answer_endpoint_rejects_index_path_escape(monkeypatch, tmp_path: Path) -> None:
+    called = False
+
+    def fake_answer_query(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal called
+        called = True
+        return {"answer": "should not run"}
+
+    monkeypatch.setattr(service_app, "answer_query", fake_answer_query)
+    client = TestClient(service_app.create_app())
+
+    response = client.post(
+        "/v1/answer",
+        json={
+            "question": "테스트 사업 요약해줘",
+            "index_dir": str(tmp_path / "outside-index"),
+        },
+    )
+
+    assert response.status_code == 422
+    assert called is False
 
 
 def test_answer_endpoint_rejects_prompt_injection(monkeypatch) -> None:
@@ -127,7 +174,7 @@ def test_answer_stream_endpoint_emits_sse_events(monkeypatch) -> None:
     assert payload["answer"] == "스트리밍 답변"
 
 
-def test_gates_endpoint_returns_gate_status(monkeypatch, tmp_path: Path) -> None:
+def test_gates_endpoint_returns_gate_status(monkeypatch) -> None:
     def fake_collect_gate_status(root: Path) -> dict[str, Any]:
         return {
             "root": str(root),
@@ -137,16 +184,19 @@ def test_gates_endpoint_returns_gate_status(monkeypatch, tmp_path: Path) -> None
 
     monkeypatch.setattr(service_app, "collect_gate_status", fake_collect_gate_status)
     client = TestClient(service_app.create_app())
-    response = client.get("/v1/gates", params={"root": str(tmp_path)})
+    response = client.get("/v1/gates")
 
     assert response.status_code == 200
     assert response.json()["overall_ok"] is True
-    assert response.json()["root"] == str(tmp_path)
+    assert response.json()["root"] == str(Path(".").resolve())
 
 
-def test_ops_summary_endpoint_reports_artifact_observability(tmp_path: Path) -> None:
-    eval_dir = tmp_path / "eval"
-    eval_dir.mkdir()
+def test_ops_summary_endpoint_reports_artifact_observability(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    eval_dir = tmp_path / "artifacts/eval"
+    eval_dir.mkdir(parents=True)
     (eval_dir / "metrics.json").write_text(
         json.dumps(
             {
@@ -180,8 +230,8 @@ def test_ops_summary_endpoint_reports_artifact_observability(tmp_path: Path) -> 
         "\n".join(json.dumps(row, ensure_ascii=False) for row in predictions) + "\n",
         encoding="utf-8",
     )
-    audit_dir = tmp_path / "agent_artifacts"
-    audit_dir.mkdir()
+    audit_dir = tmp_path / "artifacts/eval_agent/agent_artifacts"
+    audit_dir.mkdir(parents=True)
     audit_rows = [
         {
             "thread_id": "t1",
@@ -210,8 +260,8 @@ def test_ops_summary_endpoint_reports_artifact_observability(tmp_path: Path) -> 
     response = client.get(
         "/v1/ops/summary",
         params={
-            "eval_dir": str(eval_dir),
-            "audit_path": str(audit_dir / "audit.jsonl"),
+            "eval_dir": "artifacts/eval",
+            "audit_path": "artifacts/eval_agent/agent_artifacts/audit.jsonl",
         },
     )
 
@@ -225,3 +275,21 @@ def test_ops_summary_endpoint_reports_artifact_observability(tmp_path: Path) -> 
     assert body["tools"]["total_calls"] == 2
     assert body["tools"]["by_tool"]["search_rfp"]["success"] == 1
     assert body["tools"]["by_tool"]["save_report"]["rejected"] == 1
+
+
+def test_ops_summary_endpoint_rejects_artifact_path_escape(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    client = TestClient(service_app.create_app())
+
+    response = client.get(
+        "/v1/ops/summary",
+        params={
+            "eval_dir": str(tmp_path.parent),
+            "audit_path": "artifacts/eval_agent/agent_artifacts/audit.jsonl",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "artifact_path_not_allowed"

@@ -9,8 +9,8 @@ from rfp_rag.ops_tool_server import ToolGuardrailError, ToolRegistry, handle_req
 
 
 def _write_eval_fixture(path: Path) -> Path:
-    eval_dir = path / "eval"
-    eval_dir.mkdir()
+    eval_dir = path / "artifacts/eval"
+    eval_dir.mkdir(parents=True)
     (eval_dir / "metrics.json").write_text(
         json.dumps({"provider_lane": "offline", "gate": {"ok": True}}),
         encoding="utf-8",
@@ -32,7 +32,8 @@ def _write_eval_fixture(path: Path) -> Path:
 
 
 def _write_audit_fixture(path: Path) -> Path:
-    audit_path = path / "audit.jsonl"
+    audit_path = path / "artifacts/eval_agent/agent_artifacts/audit.jsonl"
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
     audit_path.write_text(
         json.dumps(
             {
@@ -59,7 +60,10 @@ def test_tools_list_exposes_mcp_style_tool_descriptors() -> None:
     assert response["result"]["tools"][0]["inputSchema"]["type"] == "object"
 
 
-def test_ops_summary_tool_call_returns_observability_payload(tmp_path: Path) -> None:
+def test_ops_summary_tool_call_returns_observability_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     eval_dir = _write_eval_fixture(tmp_path)
     audit_path = _write_audit_fixture(tmp_path)
 
@@ -71,8 +75,8 @@ def test_ops_summary_tool_call_returns_observability_payload(tmp_path: Path) -> 
             "params": {
                 "name": "ops.summary",
                 "arguments": {
-                    "eval_dir": str(eval_dir),
-                    "audit_path": str(audit_path),
+                    "eval_dir": str(eval_dir.relative_to(tmp_path)),
+                    "audit_path": str(audit_path.relative_to(tmp_path)),
                 },
             },
         }
@@ -85,6 +89,30 @@ def test_ops_summary_tool_call_returns_observability_payload(tmp_path: Path) -> 
     assert result["content"]["tools"]["total_calls"] == 1
 
 
+def test_ops_summary_tool_rejects_artifact_path_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _write_audit_fixture(tmp_path)
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "call-escape",
+            "method": "tools/call",
+            "params": {
+                "name": "ops.summary",
+                "arguments": {
+                    "eval_dir": str(tmp_path.parent),
+                    "audit_path": "artifacts/eval_agent/agent_artifacts/audit.jsonl",
+                },
+            },
+        }
+    )
+
+    assert response["error"]["code"] == "artifact_path_not_allowed"
+
+
 def test_tool_registry_rejects_tools_outside_allowlist() -> None:
     registry = ToolRegistry(allowed_tools={"gate.status"})
 
@@ -92,11 +120,18 @@ def test_tool_registry_rejects_tools_outside_allowlist() -> None:
         registry.call_tool("ops.summary", {})
 
 
-def test_tool_registry_enforces_max_tool_call_budget(tmp_path: Path) -> None:
+def test_tool_registry_enforces_max_tool_call_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     eval_dir = _write_eval_fixture(tmp_path)
     registry = ToolRegistry(max_tool_calls=1)
 
-    registry.call_tool("eval.metrics", {"eval_dir": str(eval_dir)})
+    registry.call_tool(
+        "eval.metrics", {"eval_dir": str(eval_dir.relative_to(tmp_path))}
+    )
 
     with pytest.raises(ToolGuardrailError, match="tool_budget_exceeded"):
-        registry.call_tool("eval.metrics", {"eval_dir": str(eval_dir)})
+        registry.call_tool(
+            "eval.metrics", {"eval_dir": str(eval_dir.relative_to(tmp_path))}
+        )

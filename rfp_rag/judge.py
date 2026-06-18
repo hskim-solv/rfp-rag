@@ -18,6 +18,10 @@ JUDGED_QUERY_TYPES = {
     "issuer_lookup",
     "project_summary",
     "curated_text",
+    "cross_document",
+    "section_lookup",
+    "visual_table",
+    "paraphrase",
 }
 
 # mini 기본값: §10-11 A/B에서 gpt-5.4 대비 게이트 판정 일치·이탈 보수적·비용 1/6.

@@ -153,3 +153,25 @@ def test_audit_logger_appends_jsonl(tmp_path: Path) -> None:
     assert lines[0]["tool"] == "search_rfp" and lines[0]["approved"] is None
     assert lines[1]["approved"] is False and lines[1]["thread_id"] == "t1"
     assert all("ts" in line for line in lines)
+
+
+def test_audit_logger_redacts_secret_like_args(tmp_path: Path) -> None:
+    audit = AuditLogger(tmp_path / "audit.jsonl")
+    audit.record(
+        thread_id="t1",
+        tool="search_rfp",
+        args={
+            "query": "OPENAI_API_KEY=sk-test-secret 010-1234-5678 사업 요약",
+            "top_k": 5,
+        },
+        outcome="1 results",
+    )
+
+    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    assert "sk-test-secret" not in raw
+    assert "010-1234-5678" not in raw
+    row = json.loads(raw)
+    assert row["args"]["query_hash"]
+    assert row["args"]["query_length"] > 0
+    assert row["args"]["query_preview"] == "[REDACTED]"
+    assert row["args"]["top_k"] == 5
