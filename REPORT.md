@@ -2,9 +2,25 @@
 
 ## 1. 프로젝트 개요
 
-본 프로젝트는 입찰/RFP 문서 100건을 대상으로, 사용자가 자연어로 사업 요약·발주기관·금액·마감일·본문 근거를 질의할 수 있는 **source-first RAG 질의응답 baseline**을 구축하는 것을 목표로 한다.
+본 프로젝트는 입찰/RFP 문서 100건을 대상으로, 사용자가 자연어로 사업 요약·발주기관·금액·마감일·본문 근거를 질의할 수 있는 **source-first Agentic RAG system**을 구축하고, 품질 gate와 운영 증거로 검증하는 것을 목표로 한다.
 
 현재 구현은 `data/files`의 원본 HWP/PDF를 파싱한 artifacts를 RAG 본문 source of truth로 사용한다. `data/data_list.csv`는 사업명, 발주기관, 예산, 마감일, 파일명 등 메타데이터 registry로만 사용한다.
+
+### 최종 품질 목표와 현재 증거
+
+최종 품질 목표는 단일 평균 점수가 아니라 gate 조합으로 정의한다. Offline lane은 credential-free 회귀(regression)/스캐폴드(scaffold) 검증이고, 최종 semantic RAG 품질은 parsed-source `real_openai` lane이 담당한다.
+
+| 목표 | 판정 기준 | 현재 상태 |
+|---|---|---|
+| Offline 회귀 안전성 | `offline_rag.offline_scaffold_complete == true` | 통과 |
+| 최종 semantic RAG 품질 | `real_rag.rag_quality_complete == true`, `real_rag.thresholds_met == true` | 통과 |
+| Agent workflow 품질 | `agent_offline.agent_lane_complete == true`, `gate.failed == []` | 통과 |
+| Visual/table evidence 후보 | `visual_candidate.ok == true` | 통과 |
+| Guardrail 회귀 | `guardrail_regression_complete == true`, block/allow/category metric `1.0` | 통과 |
+| Portfolio evidence bundle | `portfolio_readiness_check == true`, `failed == []` | 통과 |
+| CI/Deployment 증거 | GitHub Actions `pytest -m "not real"` 및 `docker build` 통과 | 통과 |
+
+명시적으로 남긴 범위는 `cloud_deployment`와 `public_dashboard`다. 둘은 실패 조건이 아니라 외부 credential/비용 또는 별도 제품/UI 범위가 필요한 deferred decision이다.
 
 ## 2. 데이터 현황
 
@@ -121,43 +137,49 @@ flowchart LR
 
 ## 8. 한계
 
-1. **서비스/운영 표면 미완성**
-   - 최신 `real_openai` source-first semantic gate는 통과했지만, FastAPI/SSE
-     service, latency/token/cost dashboard, Docker/cloud deployment evidence는
-     아직 최종 산출물로 완성되지 않았다.
+1. **외부 배포는 의도적 보류**
+   - FastAPI/SSE service, ops summary, guardrail regression, Dockerfile, GitHub
+     Actions Docker build evidence는 완료됐다.
+   - 실제 AWS/GCP/Azure 배포는 credential/비용/운영 책임이 생기므로
+     `cloud_deployment` deferred decision으로 남겼다.
 
 2. **Fake lexical retrieval 한계**
-   - 현재 retrieval은 deterministic lexical/hash 기반이므로 실제 semantic similarity를 대체하지 않는다.
+   - Offline lane은 deterministic lexical/hash 기반이므로 실제 semantic similarity를 대체하지 않는다.
+   - 최종 semantic 품질 주장은 `real_openai` parsed-source lane의
+     `rag_quality_complete=true` 증거에만 둔다.
 
 3. **원문 파싱 품질은 별도 artifact lane으로 계속 계측**
    - HWP/PDF 원문 파싱 결과는 `artifacts/parsed_docs`로 계측한다.
    - 현재 RAG index 기본 입력은 parsed source artifacts다.
    - CSV는 본문 fallback이 아니라 metadata registry다.
 
-4. **UI 미구현**
-   - CLI와 artifacts 중심 baseline이다.
+4. **Public dashboard 미구현**
+   - API, CLI, artifacts, architecture/report evidence는 준비됐지만, 별도
+     공개 dashboard는 제품 범위가 커서 `public_dashboard` deferred decision으로
+     남겼다.
 
 ## 9. 다음 단계
 
-우선순위는 다음과 같다.
+핵심 엔지니어링 목표는 완료됐고, 다음 단계는 제출/공개 패키징이다.
 
 1. **제출/발표용 자료 정리**
-   - 본 보고서와 PPT를 기준으로 프로젝트 흐름을 설명한다.
+   - 본 보고서, README, architecture diagram, gate evidence를 기준으로
+     3-5분 demo video와 portfolio summary를 만든다.
 
-2. **Production service 실험**
-   - 통과한 source-first RAG gate를 FastAPI/Pydantic async/SSE service와
-     LangGraph HITL workflow 뒤에 연결한다.
-   - latency/token/cost/tool-failure trace를 gate evidence와 함께 노출한다.
+2. **공개 가능 evidence polish**
+   - private RFP 원문을 노출하지 않는 screenshot, sample answer, citation
+     preview, gate status capture를 정리한다.
 
-3. **검색 개선 실험**
+3. **선택적 검색 개선 실험**
    - BM25
    - hybrid retrieval
    - RRF
    - chunk size / overlap 비교
    - query rewrite
 
-4. **간단 데모 UI**
-   - Streamlit 또는 FastAPI 기반 Q&A 화면을 만든다.
+4. **선택적 public dashboard**
+   - 별도 제품 범위로 승인될 때만 Streamlit/FastAPI 기반 read-only evidence
+     dashboard를 만든다.
 
 5. **Source-aware indexing 고도화**
    - CSV 본문 fallback 없이 parsed source artifacts만 index 본문으로 사용한다.
