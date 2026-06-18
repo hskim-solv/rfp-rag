@@ -9,6 +9,7 @@ from typing import Any, TextIO
 
 from rfp_rag.gate_status import collect_gate_status
 from rfp_rag.ops_metrics import summarize_audit_log, summarize_eval_artifacts
+from rfp_rag.path_safety import ArtifactPathError, safe_artifact_path
 
 
 class ToolGuardrailError(ValueError):
@@ -91,29 +92,41 @@ class ToolRegistry:
         args = arguments or {}
 
         if name == "gate.status":
-            return collect_gate_status(Path(str(args.get("root", "."))))
+            root = safe_artifact_path(
+                Path(str(args.get("root", "."))), allowed_relatives=(".",)
+            )
+            return collect_gate_status(root)
         if name == "ops.summary":
-            return {
-                "eval": summarize_eval_artifacts(
-                    Path(str(args.get("eval_dir", "artifacts/eval"))),
-                    input_cost_per_1k=float(args.get("input_cost_per_1k", 0.0)),
-                    output_cost_per_1k=float(args.get("output_cost_per_1k", 0.0)),
-                ),
-                "tools": summarize_audit_log(
-                    Path(
-                        str(
-                            args.get(
-                                "audit_path",
-                                "artifacts/eval_agent/agent_artifacts/audit.jsonl",
-                            )
+            eval_dir = safe_artifact_path(
+                Path(str(args.get("eval_dir", "artifacts/eval"))),
+                allowed_prefixes=("artifacts",),
+            )
+            audit_path = safe_artifact_path(
+                Path(
+                    str(
+                        args.get(
+                            "audit_path",
+                            "artifacts/eval_agent/agent_artifacts/audit.jsonl",
                         )
                     )
                 ),
+                allowed_prefixes=("artifacts",),
+                expected_name="audit.jsonl",
+            )
+            return {
+                "eval": summarize_eval_artifacts(
+                    eval_dir,
+                    input_cost_per_1k=float(args.get("input_cost_per_1k", 0.0)),
+                    output_cost_per_1k=float(args.get("output_cost_per_1k", 0.0)),
+                ),
+                "tools": summarize_audit_log(audit_path),
             }
         if name == "eval.metrics":
-            metrics_path = (
-                Path(str(args.get("eval_dir", "artifacts/eval"))) / "metrics.json"
+            eval_dir = safe_artifact_path(
+                Path(str(args.get("eval_dir", "artifacts/eval"))),
+                allowed_prefixes=("artifacts",),
             )
+            metrics_path = eval_dir / "metrics.json"
             return json.loads(metrics_path.read_text(encoding="utf-8"))
 
         raise ToolGuardrailError("unknown_tool", f"tool {name!r} is not registered")
@@ -145,6 +158,8 @@ def handle_request(
             content = tool_registry.call_tool(name, arguments)
         except KeyError:
             return _error_response(request_id, "invalid_request", "missing tool name")
+        except ArtifactPathError as exc:
+            return _error_response(request_id, exc.code, exc.message)
         except ToolGuardrailError as exc:
             return _error_response(request_id, exc.code, exc.message)
         return {

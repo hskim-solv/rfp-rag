@@ -99,6 +99,11 @@ def aggregate_metadata(
 
 
 _FILENAME_RE = re.compile(r"^[0-9A-Za-z가-힣._-]+\.md$")
+_SENSITIVE_TEXT_RE = re.compile(
+    r"(sk-[A-Za-z0-9_-]+|[A-Z0-9_]*(?:API|TOKEN|SECRET|KEY)[A-Z0-9_]*\s*=\s*\S+|"
+    r"\b\d{2,3}-\d{3,4}-\d{4}\b)",
+    re.IGNORECASE,
+)
 # 접두("agent_report_") + 해시 접미("-xxxxxxxx") + ".md"를 더해도 255바이트 안에 들어가는 예산
 _MAX_SAFE_ID_BYTES = 100
 
@@ -136,6 +141,45 @@ def save_report_file(reports_dir: Path, filename: str, content: str) -> Path:
     return target
 
 
+def _safe_preview(value: str, limit: int = 80) -> str:
+    if _SENSITIVE_TEXT_RE.search(value):
+        return "[REDACTED]"
+    return value[:limit]
+
+
+def _summarize_sensitive_text(value: str) -> dict[str, Any]:
+    return {
+        "hash": hashlib.sha256(value.encode("utf-8")).hexdigest(),
+        "length": len(value),
+        "preview": _safe_preview(value),
+    }
+
+
+def sanitize_audit_args(args: dict[str, Any]) -> dict[str, Any]:
+    def _sanitize(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {str(k): _sanitize(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_sanitize(v) for v in value]
+        if isinstance(value, str):
+            return "[REDACTED]" if _SENSITIVE_TEXT_RE.search(value) else value
+        return value
+
+    sanitized: dict[str, Any] = {}
+    for key, value in args.items():
+        key_text = str(key)
+        if key_text in {"query", "question", "prompt", "input"} and isinstance(
+            value, str
+        ):
+            summary = _summarize_sensitive_text(value)
+            sanitized[f"{key_text}_hash"] = summary["hash"]
+            sanitized[f"{key_text}_length"] = summary["length"]
+            sanitized[f"{key_text}_preview"] = summary["preview"]
+        else:
+            sanitized[key_text] = _sanitize(value)
+    return sanitized
+
+
 @dataclass
 class AuditLogger:
     """도구 호출 감사 로그 (JSONL append)."""
@@ -156,7 +200,7 @@ class AuditLogger:
             "ts": datetime.now(timezone.utc).isoformat(),
             "thread_id": thread_id,
             "tool": tool,
-            "args": args,
+            "args": sanitize_audit_args(args),
             "outcome": outcome,
             "approved": approved,
         }

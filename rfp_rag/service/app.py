@@ -9,11 +9,12 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from rfp_rag.gate_status import collect_gate_status
 from rfp_rag.guardrails import check_question_guardrails
 from rfp_rag.ops_metrics import summarize_audit_log, summarize_eval_artifacts
+from rfp_rag.path_safety import ArtifactPathError, safe_artifact_path
 from rfp_rag.rag_chain import DEFAULT_MIN_SCORE, answer_query
 from rfp_rag.rerank import RERANKER_NONE
 from rfp_rag.vector_index import RETRIEVAL_VECTOR
@@ -22,14 +23,35 @@ from rfp_rag.vector_index import RETRIEVAL_VECTOR
 class AnswerRequest(BaseModel):
     question: str = Field(min_length=1)
     index_dir: Path = Path("artifacts/index")
-    provider: str | None = None
+    provider: Literal["offline"] | None = None
     top_k: int = Field(default=5, ge=1, le=20)
     min_score: float = DEFAULT_MIN_SCORE
-    retrieval_mode: str = RETRIEVAL_VECTOR
-    reranker: str = RERANKER_NONE
+    retrieval_mode: Literal["vector"] = RETRIEVAL_VECTOR
+    reranker: Literal["none"] = RERANKER_NONE
     rerank_candidate_k: int | None = Field(default=None, ge=1, le=100)
     visual_candidates: Path | None = None
     visual_gate: Path | None = None
+
+    @field_validator("index_dir")
+    @classmethod
+    def _validate_index_dir(cls, value: Path) -> Path:
+        return safe_artifact_path(value, allowed_relatives=("artifacts/index",))
+
+    @model_validator(mode="after")
+    def _validate_visual_paths(self) -> "AnswerRequest":
+        if self.visual_candidates is not None:
+            self.visual_candidates = safe_artifact_path(
+                self.visual_candidates,
+                allowed_prefixes=("artifacts",),
+                expected_name="records.jsonl",
+            )
+        if self.visual_gate is not None:
+            self.visual_gate = safe_artifact_path(
+                self.visual_gate,
+                allowed_prefixes=("artifacts",),
+                expected_name="summary.json",
+            )
+        return self
 
 
 class Source(BaseModel):
@@ -166,7 +188,17 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/gates")
     async def gates(root: Path = Query(default=Path("."))) -> dict[str, Any]:
-        return collect_gate_status(root)
+        try:
+            safe_root = safe_artifact_path(
+                root,
+                allowed_relatives=(".",),
+            )
+        except ArtifactPathError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
+        return collect_gate_status(safe_root)
 
     @app.get("/v1/ops/summary", response_model=OpsSummaryResponse)
     async def ops_summary(
@@ -177,13 +209,27 @@ def create_app() -> FastAPI:
         input_cost_per_1k: float = Query(default=0.0, ge=0.0),
         output_cost_per_1k: float = Query(default=0.0, ge=0.0),
     ) -> OpsSummaryResponse:
+        try:
+            safe_eval_dir = safe_artifact_path(
+                eval_dir, allowed_prefixes=("artifacts",)
+            )
+            safe_audit_path = safe_artifact_path(
+                audit_path,
+                allowed_prefixes=("artifacts",),
+                expected_name="audit.jsonl",
+            )
+        except ArtifactPathError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
         return OpsSummaryResponse(
             eval=summarize_eval_artifacts(
-                eval_dir,
+                safe_eval_dir,
                 input_cost_per_1k=input_cost_per_1k,
                 output_cost_per_1k=output_cost_per_1k,
             ),
-            tools=summarize_audit_log(audit_path),
+            tools=summarize_audit_log(safe_audit_path),
         )
 
     return app

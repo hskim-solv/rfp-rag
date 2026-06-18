@@ -31,7 +31,8 @@ separately until their artifacts exist and pass.
 | Current agent workflow quality | `agent_offline.agent_lane_complete == true`, audit artifact count/schema, and `gate.failed == []` on the offline agent lane | pass after regenerated v2 artifact |
 | Visual/table evidence candidate | `visual_candidate.ok == true` | pass |
 | Guardrail smoke regression | `guardrail_regression_complete == true` with block/allow/category metrics at `1.0`; full red-team is Stage 2 | pass |
-| Local portfolio evidence bundle | `portfolio_readiness_check == true` and `failed == []`; `second_stage_readiness.complete` is tracked separately | not yet claimed under v6 |
+| Local evidence bundle | `local_evidence_bundle_check == true` and `failed == []` | currently blocked by v6 real gate |
+| Senior portfolio readiness | `portfolio_readiness_check == true` and `second_stage_readiness.complete == true` | not yet claimed under v6/Stage 2 |
 | CI/deployment evidence | GitHub Actions `pytest -m "not real"` and `docker build` checks pass | pass |
 | Stage 2 independent holdout/security/ops/cost gates | `second_stage_readiness.complete == true` after all Stage 2 artifacts pass | not yet claimed |
 
@@ -112,8 +113,10 @@ python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 ```
 
 This check verifies local gate status, guardrail regression, Docker/CI build
-evidence, architecture evidence, and ADR links. It currently passes with
-explicit deferred gaps for `cloud_deployment` and `public_dashboard`.
+evidence, architecture evidence, ADR links, and Stage 2 readiness. It currently
+fails closed until `rfp-rag-real-v6` evidence and Stage 2 holdout/security/ops/
+cost artifacts pass. The narrower `local_evidence_bundle_check` field reports
+whether the local non-Stage-2 bundle is complete.
 
 ## FastAPI service surface
 
@@ -139,6 +142,12 @@ The answer endpoints run a basic prompt-injection/secrets guardrail before
 retrieval. Requests that try to override instructions or extract credentials are
 blocked with `400 guardrail_blocked`; this is a first service-level tripwire,
 not a full red-team suite.
+
+Service inputs are intentionally narrow: `/v1/answer` only allows the offline
+provider and the approved local `artifacts/index` path, while ops/gate endpoints
+reject paths that escape the repository artifact boundary. Cost-bearing real
+lanes stay outside the service surface unless a separate approval/auth path is
+designed.
 
 Run deterministic guardrail regression:
 
@@ -682,7 +691,8 @@ python3 -m rfp_rag.agent.run_agent --index artifacts/index --data data/data_list
 - 도구: `search_rfp`(읽기), `aggregate_metadata`(읽기 — 금액/마감일/발주기관
   필터·정렬·건수·합계), `save_report`(쓰기 — 승인 필수, 경로 탈출 차단).
 - 모든 도구 호출은 `<artifacts>/audit.jsonl`에 기록됩니다
-  (`ts/thread_id/tool/args/outcome/approved`).
+  (`ts/thread_id/tool/redacted args/outcome/approved`). Query-like 입력은
+  hash/length/safe preview로 저장하고 secret/PII-like 값은 redaction합니다.
 - 상태는 `<artifacts>/checkpoints.sqlite`에 영속 — 프로세스를 종료해도 같은
   `--thread-id`로 승인 대기를 재개할 수 있습니다.
 

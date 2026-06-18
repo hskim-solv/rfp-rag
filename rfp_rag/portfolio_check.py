@@ -240,8 +240,13 @@ def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
 
     failed = [check for check in checks if not check["ok"]]
     second_stage = _collect_second_stage_readiness(root)
+    local_evidence_bundle_check = not failed
+    portfolio_readiness_check = local_evidence_bundle_check and bool(
+        second_stage["complete"]
+    )
     return {
-        "portfolio_readiness_check": not failed,
+        "portfolio_readiness_check": portfolio_readiness_check,
+        "local_evidence_bundle_check": local_evidence_bundle_check,
         "root": str(root),
         "checks": checks,
         "failed": failed,

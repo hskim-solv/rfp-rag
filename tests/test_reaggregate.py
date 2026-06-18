@@ -40,6 +40,15 @@ def _prediction(
     }
 
 
+def _uncited_prediction(query_id: str) -> dict:
+    pred = _prediction(query_id)
+    pred["sources"] = []
+    pred["source_texts"] = []
+    pred["pass_fail"]["citation_presence"] = 0.0
+    pred["pass_fail"]["citation_validity"] = 0.0
+    return pred
+
+
 def _abstention_prediction(query_id: str) -> dict:
     pred = _prediction(query_id, query_type="abstention")
     pred["pass_fail"] = {
@@ -65,33 +74,36 @@ def _cross_document_prediction(query_id: str) -> dict:
     pred["expected_doc_ids"] = ["doc:000", "doc:001"]
     pred["retrieved_doc_ids"] = ["doc:000", "doc:001"]
     pred["pass_fail"]["all_expected_docs_retrieved@5"] = 1.0
-    pred["judge"] = {
-        "faithfulness": None,
-        "answer_relevancy": None,
-        "warnings": ["judge_skipped_abstention"],
-    }
     return pred
 
 
 def _section_lookup_prediction(query_id: str) -> dict:
     pred = _prediction(query_id, query_type="section_lookup")
     pred["pass_fail"]["section_hit_rate"] = 1.0
-    pred["judge"] = {
-        "faithfulness": None,
-        "answer_relevancy": None,
-        "warnings": ["judge_skipped_abstention"],
-    }
     return pred
 
 
 def _visual_table_prediction(query_id: str) -> dict:
     pred = _prediction(query_id, query_type="visual_table")
     pred["pass_fail"]["visual_evidence_hit_rate"] = 1.0
+    return pred
+
+
+def _unjudged_answer_prediction(query_id: str, query_type: str) -> dict:
+    pred = _prediction(query_id, query_type=query_type)
     pred["judge"] = {
         "faithfulness": None,
         "answer_relevancy": None,
-        "warnings": ["judge_skipped_abstention"],
+        "warnings": ["judge_aborted"],
     }
+    if query_type == "cross_document":
+        pred["expected_doc_ids"] = ["doc:000", "doc:001"]
+        pred["retrieved_doc_ids"] = ["doc:000", "doc:001"]
+        pred["pass_fail"]["all_expected_docs_retrieved@5"] = 1.0
+    elif query_type == "section_lookup":
+        pred["pass_fail"]["section_hit_rate"] = 1.0
+    elif query_type == "visual_table":
+        pred["pass_fail"]["visual_evidence_hit_rate"] = 1.0
     return pred
 
 
@@ -181,6 +193,41 @@ def test_reaggregate_fails_gate_when_coverage_low(tmp_path: Path) -> None:
     metrics = reaggregate_metrics(eval_dir, provider="real_openai")
 
     assert metrics["aggregate"]["judge_coverage_faithfulness"] == pytest.approx(0.1)
+    assert metrics["rag_quality_complete"] is False
+
+
+def test_reaggregate_fails_gate_when_any_non_abstention_answer_is_uncited(
+    tmp_path: Path,
+) -> None:
+    preds = [_prediction(f"q{i}") for i in range(10)] + [
+        _uncited_prediction("uncited"),
+        _cross_document_prediction("cross_0"),
+        _section_lookup_prediction("section_0"),
+        _visual_table_prediction("visual_0"),
+        _abstention_prediction("abst_0"),
+    ]
+    eval_dir = _write_eval_dir(tmp_path, preds)
+
+    metrics = reaggregate_metrics(eval_dir, provider="real_openai")
+
+    assert metrics["aggregate"]["uncited_non_abstention_count"] == 1
+    assert metrics["rag_quality_complete"] is False
+
+
+def test_reaggregate_requires_judge_coverage_for_answer_bearing_slices(
+    tmp_path: Path,
+) -> None:
+    preds = [_prediction(f"q{i}") for i in range(10)] + [
+        _unjudged_answer_prediction("cross_0", "cross_document"),
+        _unjudged_answer_prediction("section_0", "section_lookup"),
+        _unjudged_answer_prediction("visual_0", "visual_table"),
+        _abstention_prediction("abst_0"),
+    ]
+    eval_dir = _write_eval_dir(tmp_path, preds)
+
+    metrics = reaggregate_metrics(eval_dir, provider="real_openai")
+
+    assert metrics["aggregate"]["judge_coverage_faithfulness"] < 1.0
     assert metrics["rag_quality_complete"] is False
 
 

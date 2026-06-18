@@ -18,6 +18,8 @@ real MCP/FastMCP server later.
 - 높음: no-cost, credential-free operation over local artifacts.
 - 높음: explicit tool allowlist and max tool-call budget.
 - 높음: no raw RFP/body text persistence beyond already-local artifacts.
+- 높음: tool arguments must not allow arbitrary local path reads; artifact paths
+  stay under approved repository artifact locations.
 - 중: MCP-compatible mental model (`tools/list`, `tools/call`) without requiring
   a background daemon.
 - 중: easy migration path to FastMCP after core service/guardrails are stable.

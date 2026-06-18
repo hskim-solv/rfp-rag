@@ -26,8 +26,8 @@ from .visual_sidecar import VisualEvidenceIndex, load_reviewed_visual_evidence
 REAL_QUALITY_THRESHOLDS = {
     "recall@3": 0.85,
     "recall@5": 0.90,
-    "citation_presence": 0.95,
-    "citation_validity": 0.90,
+    "citation_presence": 1.0,
+    "citation_validity": 1.0,
     "metadata_exact_match": 0.90,
     "abstention_pass": 0.90,
 }
@@ -103,6 +103,10 @@ def decide_gates(
         for metric_path, minimum in PER_TYPE_REAL_QUALITY_THRESHOLDS.items()
         if not _per_type_meets(metric_path, minimum)
     ]
+    if aggregate.get("uncited_non_abstention_count", 0) != 0:
+        failed.append("uncited_non_abstention_count")
+    if aggregate.get("invalid_citation_count", 0) != 0:
+        failed.append("invalid_citation_count")
     met = not failed
     return {
         # thresholds_applied means "checks were run"; thresholds_met means "checks passed".
@@ -803,6 +807,19 @@ def _mean(values: Iterable[float | None]) -> float | None:
 
 def _aggregate(scored_predictions: list[dict[str, Any]]) -> dict[str, Any]:
     metrics = [p["pass_fail"] for p in scored_predictions]
+    non_abstention = [
+        p for p in scored_predictions if p.get("query_type") != "abstention"
+    ]
+    uncited_non_abstention_count = sum(
+        1
+        for p in non_abstention
+        if (p.get("pass_fail") or {}).get("citation_presence") != 1.0
+    )
+    invalid_citation_count = sum(
+        1
+        for p in non_abstention
+        if (p.get("pass_fail") or {}).get("citation_validity") != 1.0
+    )
     return {
         "recall@3": _mean(m.get("recall@3") for m in metrics),
         "recall@5": _mean(m.get("recall@5") for m in metrics),
@@ -818,6 +835,8 @@ def _aggregate(scored_predictions: list[dict[str, Any]]) -> dict[str, Any]:
         "visual_evidence_hit_rate": _mean(
             m.get("visual_evidence_hit_rate") for m in metrics
         ),
+        "uncited_non_abstention_count": uncited_non_abstention_count,
+        "invalid_citation_count": invalid_citation_count,
     }
 
 

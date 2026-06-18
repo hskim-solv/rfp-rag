@@ -17,7 +17,8 @@
 | 현재 Agent workflow 품질 | `rfp-agent-v2`: offline agent lane에서 `agent_offline.agent_lane_complete == true`, audit count/schema, `gate.failed == []` | 재생성 후 통과 대상 |
 | Visual/table evidence 후보 | `visual_candidate.ok == true` | 통과 |
 | Guardrail smoke 회귀 | `guardrail_regression_complete == true`, block/allow/category metric `1.0`; full red-team은 Stage 2 | 통과 |
-| Local portfolio evidence bundle | `portfolio_readiness_check == true`, `failed == []`; `second_stage_readiness.complete`는 별도 추적 | v6 기준 아직 주장하지 않음 |
+| Local evidence bundle | `local_evidence_bundle_check == true`, `failed == []` | 현재 v6 real gate 때문에 차단 |
+| Senior portfolio readiness | `portfolio_readiness_check == true`, `second_stage_readiness.complete == true` | v6/Stage 2 기준 아직 주장하지 않음 |
 | CI/Deployment 증거 | GitHub Actions `pytest -m "not real"` 및 `docker build` 통과 | 통과 |
 | Stage 2 독립 holdout/security/ops/cost gate | 모든 Stage 2 artifact가 생성되고 `second_stage_readiness.complete == true` | 아직 주장하지 않음 |
 
@@ -146,8 +147,8 @@ flowchart LR
 
 2. **Fake lexical retrieval 한계**
    - Offline lane은 deterministic lexical/hash 기반이므로 실제 semantic similarity를 대체하지 않는다.
-   - 최종 semantic 품질 주장은 `real_openai` parsed-source lane의
-     `rag_quality_complete=true` 증거에만 둔다.
+   - 최종 semantic 품질 주장은 `rfp-rag-real-v6` real_openai parsed-source lane의
+     `rag_quality_complete=true`와 Stage 2 readiness 증거가 함께 있을 때만 둔다.
 
 3. **원문 파싱 품질은 별도 artifact lane으로 계속 계측**
    - HWP/PDF 원문 파싱 결과는 `artifacts/parsed_docs`로 계측한다.
@@ -716,7 +717,8 @@ generate → verify ── ok ──→ (save_requested? → save_report[interru
   interrupt → resume 동작을 실증했다 (`--thread-id demo-1` 실행 → `--approve` 재개).
 - **HITL**: `save_report` 노드가 `interrupt()`로 일시정지, 승인 시에만
   `deliverables` 격리 디렉토리(`artifacts/.../reports/`) 하위에 저장. 승인/거부 모두
-  `audit.jsonl`에 기록 (`ts/thread_id/tool/args/outcome/approved`).
+  `audit.jsonl`에 기록 (`ts/thread_id/tool/redacted args/outcome/approved`). Query-like
+  입력은 원문 대신 hash/length/safe preview로 저장하고 secret/PII-like 값은 redaction한다.
 - **tool calling**: `search_rfp`(읽기), `aggregate_metadata`(읽기 — 필터/정렬/건수/합계),
   `save_report`(쓰기 — 승인 필수 + 경로 탈출 차단).
 
@@ -2078,6 +2080,9 @@ Current scope:
 - async FastAPI path operations with Pydantic schemas;
 - latency in answer response metadata;
 - offline default path remains credential-free;
+- `/v1/answer` allows only the offline provider and the approved
+  `artifacts/index` path;
+- gate/ops endpoints reject paths that escape the repository artifact boundary;
 - no auth, deployment, dashboard, or background worker yet.
 
 Run locally:
@@ -2124,6 +2129,7 @@ Implemented surfaces:
 | `GET /v1/ops/summary` | prediction count, warning count, answer errors, estimated tokens/cost, tool-call success/failure/rejection |
 | `rfp_rag.guardrails` | blocks instruction-override and credential-exfiltration prompts before retrieval |
 | `/v1/answer`, `/v1/answer/stream` | return `400 guardrail_blocked` for blocked requests |
+| `rfp_rag.path_safety` | rejects service/ops artifact paths outside the repo artifact boundary |
 
 Current local artifact summary:
 
@@ -2145,6 +2151,8 @@ Boundary:
   offline evidence;
 - guardrails are testable service tripwires, not a complete security red-team
   claim.
+- service and ops tools do not accept arbitrary local paths or cost-bearing
+  providers.
 
 ### 23-1. Guardrail regression fixture
 
@@ -2243,7 +2251,8 @@ Current local result:
 
 | field | value |
 |---|---|
-| portfolio_readiness_check | `false` until v6 real evidence passes |
+| local_evidence_bundle_check | `false` while v6 real gate fails |
+| portfolio_readiness_check | `false` until v6 real evidence and Stage 2 pass |
 | failed | includes `gate_status` while v6 real evidence is stale/incomplete |
 | second_stage_readiness.complete | `false` until Stage 2 artifacts are generated and pass |
 | deferred | `cloud_deployment`, `public_dashboard` |
