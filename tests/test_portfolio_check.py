@@ -58,6 +58,8 @@ def test_collect_portfolio_readiness_accepts_required_evidence(
     assert report["portfolio_readiness_check"] is True
     assert report["failed"] == []
     assert "cloud_deployment" in report["deferred"]
+    assert report["second_stage_readiness"]["complete"] is False
+    assert "security_redteam" in report["second_stage_readiness"]["missing"]
 
 
 def test_collect_portfolio_readiness_reports_missing_evidence(
@@ -110,3 +112,30 @@ def test_portfolio_check_cli_writes_report(tmp_path: Path, monkeypatch) -> None:
     assert rc == 0
     saved = json.loads(out.read_text(encoding="utf-8"))
     assert saved["portfolio_readiness_check"] is True
+
+
+def test_portfolio_check_reports_second_stage_separately(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write(
+        tmp_path / "artifacts/security_redteam/summary.json",
+        json.dumps(
+            {
+                "security_redteam_complete": False,
+                "failed": ["secrets_block_recall"],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is True
+    assert report["second_stage_readiness"]["complete"] is False
+    assert "security_redteam" in report["second_stage_readiness"]["present"]
+    assert "security_redteam" in report["second_stage_readiness"]["failed"]

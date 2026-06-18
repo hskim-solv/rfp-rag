@@ -9,7 +9,6 @@ from typing import Any, Iterable
 from ..contracts import agent_contract
 from ..corpus import CorpusDocument
 from ..evaluate import (
-    MAX_ERROR_RATE,
     _answer_exact_match,
     generate_abstention_questions,
     generate_golden_metadata,
@@ -271,6 +270,34 @@ def _score_case(case: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     return scored
 
 
+def _score_error_case(case: dict[str, Any], exc: Exception) -> dict[str, Any]:
+    scored: dict[str, Any] = {
+        "id": case["id"],
+        "type": case["type"],
+        "question": case["question"],
+        "route": None,
+        "outcome": "error",
+        "error": str(exc),
+        "rewrite_count": None,
+        "loop_terminated": False,
+    }
+    kind = case["type"]
+    if kind == "routing":
+        scored["routing_correct"] = False
+    elif kind in ("regression", "rewrite"):
+        scored["exact_match"] = False
+        scored["citation_present"] = False
+        scored["citation_valid"] = False
+        scored["doc_hit"] = False
+        if kind == "rewrite":
+            scored["recovered"] = False
+    elif kind == "abstention":
+        scored["abstained"] = False
+    elif kind == "tool":
+        scored["tool_correct"] = False
+    return scored
+
+
 def _mean(flags: list[bool]) -> float | None:
     return None if not flags else sum(1.0 for f in flags if f) / len(flags)
 
@@ -313,6 +340,13 @@ def _render_report(metrics: dict[str, Any], gate: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _prepare_eval_artifacts(out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    audit_path = out_dir / "agent_artifacts" / "audit.jsonl"
+    if audit_path.exists():
+        audit_path.unlink()
+
+
 def evaluate_agent(
     data: Path,
     files: Path,
@@ -322,7 +356,7 @@ def evaluate_agent(
     top_k: int,
     min_score: float,
 ) -> dict[str, Any]:
-    out_dir.mkdir(parents=True, exist_ok=True)
+    _prepare_eval_artifacts(out_dir)
     runtime = build_runtime(
         index_dir,
         data,
@@ -351,19 +385,12 @@ def evaluate_agent(
             )
         except Exception as exc:  # 개별 실패는 기록하고 진행 (기존 evaluate 정책)
             errors += 1
-            scored.append(
-                {
-                    "id": case["id"],
-                    "type": case["type"],
-                    "error": str(exc),
-                    "loop_terminated": True,
-                }
-            )
+            scored.append(_score_error_case(case, exc))
             continue
         scored.append(_score_case(case, result))
     flush_tracing()
-    evaluation_valid = (errors / max(len(scenarios), 1)) <= MAX_ERROR_RATE
-    metrics = _aggregate([s for s in scored if "error" not in s])
+    evaluation_valid = errors == 0
+    metrics = _aggregate(scored)
     gate = decide_agent_gate(metrics, evaluation_valid=evaluation_valid)
     lane = runtime_lane(index_dir, provider)
     metrics_payload = {

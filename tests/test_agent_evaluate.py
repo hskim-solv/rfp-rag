@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from rfp_rag.agent.evaluate_agent import AGENT_THRESHOLDS, decide_agent_gate
+from rfp_rag.agent.evaluate_agent import (
+    AGENT_THRESHOLDS,
+    _aggregate,
+    _prepare_eval_artifacts,
+    _score_error_case,
+    decide_agent_gate,
+)
 from rfp_rag.contracts import agent_contract
 
 
@@ -54,3 +60,31 @@ def test_agent_contract_shape() -> None:
     assert any("evaluate_agent" in cmd for cmd in c["required_commands"])
     semantics = c["quality_semantics"]["agent_offline"]
     assert semantics["allowed_completion_claim"] == "agent_lane_complete"
+
+
+def test_error_case_counts_as_failed_loop_and_accuracy() -> None:
+    row = _score_error_case(
+        {
+            "id": "routing_001",
+            "type": "routing",
+            "question": "recursive failure",
+            "expected_route": "rag_query",
+        },
+        RuntimeError("recursion limit"),
+    )
+
+    metrics = _aggregate([row])
+
+    assert row["loop_terminated"] is False
+    assert metrics["loop_termination"] == 0.0
+    assert metrics["routing_accuracy"] == 0.0
+
+
+def test_prepare_eval_artifacts_rotates_prior_audit(tmp_path) -> None:
+    audit = tmp_path / "agent_artifacts" / "audit.jsonl"
+    audit.parent.mkdir(parents=True)
+    audit.write_text('{"old": true}\n', encoding="utf-8")
+
+    _prepare_eval_artifacts(tmp_path)
+
+    assert not audit.exists()
