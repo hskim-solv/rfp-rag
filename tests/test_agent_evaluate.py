@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from rfp_rag.agent.evaluate_agent import (
     AGENT_THRESHOLDS,
     _aggregate,
@@ -56,7 +58,7 @@ def test_thresholds_match_design() -> None:
 
 def test_agent_contract_shape() -> None:
     c = agent_contract()
-    assert c["contract_version"] == "rfp-agent-v1"
+    assert c["contract_version"] == "rfp-agent-v2"
     assert any("evaluate_agent" in cmd for cmd in c["required_commands"])
     semantics = c["quality_semantics"]["agent_offline"]
     assert semantics["allowed_completion_claim"] == "agent_lane_complete"
@@ -88,3 +90,33 @@ def test_prepare_eval_artifacts_rotates_prior_audit(tmp_path) -> None:
     _prepare_eval_artifacts(tmp_path)
 
     assert not audit.exists()
+
+
+def test_agent_eval_main_returns_nonzero_when_gate_fails(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    def fake_evaluate_agent(*args, **kwargs):
+        return {"agent_lane_complete": False}
+
+    monkeypatch.setattr(
+        "rfp_rag.agent.evaluate_agent.evaluate_agent", fake_evaluate_agent
+    )
+    from rfp_rag.agent.evaluate_agent import main
+
+    rc = main(
+        [
+            "--data",
+            "data/data_list.csv",
+            "--files",
+            "data/files",
+            "--index",
+            "artifacts/index",
+            "--out",
+            str(tmp_path / "eval_agent"),
+            "--provider",
+            "offline",
+        ]
+    )
+
+    assert rc == 1
+    assert '"agent_lane_complete": false' in capsys.readouterr().out

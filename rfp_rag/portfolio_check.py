@@ -24,41 +24,64 @@ SECOND_STAGE_GATES = [
         "id": "eval_stage2_coverage",
         "path": "artifacts/eval_stage2/coverage.json",
         "complete_field": "eval_set_audit_complete",
+        "required_fields": ("eval_set_hash", "metrics", "thresholds", "failed"),
     },
     {
         "id": "eval_stage2_real",
         "path": "artifacts/eval_stage2_real/metrics.json",
         "complete_field": "holdout_quality_complete",
+        "required_fields": (
+            "eval_set_hash",
+            "thresholds_met",
+            "per_slice_failed",
+            "generation_model_id",
+            "judge_model_id",
+            "embedding_model_id",
+            "prompt_template_hash",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "required_metric_fields": (
+            "judge_coverage_faithfulness_min_by_answerable_slice",
+            "judge_coverage_answer_relevancy_min_by_answerable_slice",
+        ),
     },
     {
         "id": "agent_stress",
         "path": "artifacts/eval_agent_stress/metrics.json",
         "complete_field": "agent_stress_complete",
+        "required_fields": ("metrics", "thresholds", "failed"),
     },
     {
         "id": "retrieval_bakeoff",
         "path": "artifacts/retrieval_bakeoff/summary.json",
         "complete_field": "retrieval_bakeoff_complete",
+        "required_fields": ("decision", "metrics", "thresholds", "failed"),
     },
     {
         "id": "visual_quality",
         "path": "artifacts/visual_quality/summary.json",
         "complete_field": "visual_quality_complete",
+        "required_fields": ("metrics", "thresholds", "failed"),
     },
     {
         "id": "service_ops",
         "path": "artifacts/service_ops/summary.json",
         "complete_field": "service_ops_complete",
+        "required_fields": ("metrics", "thresholds", "failed"),
     },
     {
         "id": "security_redteam",
         "path": "artifacts/security_redteam/summary.json",
         "complete_field": "security_redteam_complete",
+        "required_fields": ("metrics", "thresholds", "failed"),
     },
     {
         "id": "cost_budget",
         "path": "artifacts/cost_budget/summary.json",
         "complete_field": "cost_budget_complete",
+        "required_fields": ("metrics", "thresholds", "failed"),
     },
 ]
 
@@ -83,11 +106,50 @@ def _check_text(root: Path, rel: str, needle: str, check_id: str) -> dict[str, A
     return {"id": check_id, "ok": ok, "path": rel, "needle": needle}
 
 
+def _second_stage_gate_issues(
+    gate: dict[str, Any],
+    summary: dict[str, Any],
+    coverage_hash: str | None,
+) -> list[str]:
+    issues: list[str] = []
+    complete_field = gate["complete_field"]
+    if summary.get(complete_field) is not True:
+        issues.append(complete_field)
+    for field in gate.get("required_fields", ()):
+        if field not in summary or summary.get(field) in (None, ""):
+            issues.append(field)
+    failed = summary.get("failed")
+    if failed:
+        issues.append("failed")
+    if gate["id"] == "eval_stage2_real":
+        if summary.get("thresholds_met") is not True:
+            issues.append("thresholds_met")
+        if summary.get("per_slice_failed") != []:
+            issues.append("per_slice_failed")
+        if coverage_hash and summary.get("eval_set_hash") != coverage_hash:
+            issues.append("eval_set_hash_mismatch")
+        metrics = summary.get("metrics")
+        if not isinstance(metrics, dict):
+            issues.append("metrics")
+        else:
+            for field in gate.get("required_metric_fields", ()):
+                if metrics.get(field) is None:
+                    issues.append(field)
+        prompt_hash = summary.get("prompt_template_hash")
+        if not isinstance(prompt_hash, str) or len(prompt_hash) != 64:
+            issues.append("prompt_template_hash")
+    return sorted(set(issues))
+
+
 def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
     present: list[str] = []
     missing: list[str] = []
     failed: list[str] = []
     details: list[dict[str, Any]] = []
+    coverage_summary = _read_json(root / "artifacts/eval_stage2/coverage.json")
+    coverage_hash = coverage_summary.get("eval_set_hash")
+    if not isinstance(coverage_hash, str) or not coverage_hash:
+        coverage_hash = None
     for gate in SECOND_STAGE_GATES:
         path = root / gate["path"]
         if not path.exists():
@@ -95,7 +157,8 @@ def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
             details.append({**gate, "present": False, "ok": False})
             continue
         summary = _read_json(path)
-        ok = bool(summary.get(gate["complete_field"]))
+        issues = _second_stage_gate_issues(gate, summary, coverage_hash)
+        ok = not issues
         present.append(gate["id"])
         if not ok:
             failed.append(gate["id"])
@@ -104,6 +167,7 @@ def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
                 **gate,
                 "present": True,
                 "ok": ok,
+                "issues": issues,
                 "failed": summary.get("failed") or [],
             }
         )

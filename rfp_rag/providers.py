@@ -290,6 +290,19 @@ def embedding_model_name(lane: str) -> str:
     return os.environ.get("RFP_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
 
 
+def generation_model_name(lane: str) -> str:
+    lane = normalize_lane(lane)
+    if lane == LANE_OFFLINE:
+        return "template-answer-v1"
+    if lane == LANE_OPEN:
+        return os.environ.get("RFP_OPEN_MODEL", DEFAULT_OPEN_MODEL)
+    return os.environ.get("RFP_GENERATION_MODEL", "gpt-5.4-mini")
+
+
+def prompt_template_hash() -> str:
+    return hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest()
+
+
 def build_embeddings(lane: str) -> Embeddings:
     lane = normalize_lane(lane)
     if lane == LANE_OFFLINE:

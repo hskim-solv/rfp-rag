@@ -347,6 +347,22 @@ def _prepare_eval_artifacts(out_dir: Path) -> None:
         audit_path.unlink()
 
 
+def _audit_summary(path: Path) -> dict[str, Any]:
+    tool_counts: dict[str, int] = {}
+    line_count = 0
+    if not path.exists():
+        return {"audit_line_count": 0, "audit_tool_counts": tool_counts}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        line_count += 1
+        tool = str(row.get("tool") or "")
+        if tool:
+            tool_counts[tool] = tool_counts.get(tool, 0) + 1
+    return {"audit_line_count": line_count, "audit_tool_counts": tool_counts}
+
+
 def evaluate_agent(
     data: Path,
     files: Path,
@@ -393,11 +409,13 @@ def evaluate_agent(
     metrics = _aggregate(scored)
     gate = decide_agent_gate(metrics, evaluation_valid=evaluation_valid)
     lane = runtime_lane(index_dir, provider)
+    audit = _audit_summary(out_dir / "agent_artifacts" / "audit.jsonl")
     metrics_payload = {
         "lane": lane,
         "top_k": top_k,
         "min_score": min_score,
         "errors": errors,
+        **audit,
         **metrics,
         "gate": gate,
         "agent_lane_complete": gate["agent_lane_complete"],
@@ -472,7 +490,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             ensure_ascii=False,
         )
     )
-    return 0
+    return 0 if payload["agent_lane_complete"] else 1
 
 
 if __name__ == "__main__":

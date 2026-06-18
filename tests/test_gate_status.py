@@ -50,6 +50,27 @@ def _write_valid_portfolio_gates(root: Path) -> None:
     _write_jsonl(root / "artifacts/eval/predictions.jsonl", _records("offline", 545))
     _write_jsonl(root / "artifacts/eval_real/predictions.jsonl", _records("real", 545))
     _write_jsonl(root / "artifacts/eval_agent/predictions.jsonl", _records("agent", 85))
+    _write_jsonl(
+        root / "artifacts/eval_agent/agent_artifacts/audit.jsonl",
+        [
+            {
+                "ts": "2026-06-18T00:00:00+00:00",
+                "thread_id": "eval",
+                "tool": "search_rfp",
+                "args": {"query": "q", "top_k": 5},
+                "outcome": "1 result",
+                "approved": None,
+            },
+            {
+                "ts": "2026-06-18T00:00:01+00:00",
+                "thread_id": "eval",
+                "tool": "aggregate_metadata",
+                "args": {},
+                "outcome": "ok",
+                "approved": None,
+            },
+        ],
+    )
     _write_json(
         root / "artifacts/index/manifest.json",
         {
@@ -84,7 +105,7 @@ def _write_valid_portfolio_gates(root: Path) -> None:
     _write_json(
         root / "artifacts/eval_real/contract.json",
         {
-            "contract_version": "rfp-rag-real-v5",
+            "contract_version": "rfp-rag-real-v6",
             "required_commands": [
                 "python3 -m rfp_rag.build_index --data data/data_list.csv --files data/files --out artifacts/index_real --chunk-size 500 --chunk-overlap 80 --embedding-provider openai --parse-manifest artifacts/parsed_docs/manifest.jsonl",
                 "python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_real --out artifacts/eval_real --provider real_openai --top-k 5 --min-score 0.47 --visual-records artifacts/visual_structure_reviewed/records.jsonl",
@@ -94,7 +115,7 @@ def _write_valid_portfolio_gates(root: Path) -> None:
     _write_json(
         root / "artifacts/eval_agent/contract.json",
         {
-            "contract_version": "rfp-agent-v1",
+            "contract_version": "rfp-agent-v2",
             "required_commands": [
                 "python3 -m rfp_rag.agent.evaluate_agent --data data/data_list.csv --files data/files --index artifacts/index --out artifacts/eval_agent --provider offline --top-k 5 --min-score 0.34",
             ],
@@ -146,6 +167,18 @@ def _write_valid_portfolio_gates(root: Path) -> None:
             "retrieval_mode": "vector",
             "thresholds_met": True,
             "top_k": 5,
+            "generation_model_id": "gpt-5.4-mini",
+            "judge_model_id": "gpt-5.4-mini",
+            "embedding_model_id": "text-embedding-3-small",
+            "prompt_template_hash": "a" * 64,
+            "per_type": {
+                "cross_document": {
+                    "recall@5": 0.90,
+                    "all_expected_docs_retrieved@5": 0.90,
+                },
+                "section_lookup": {"section_hit_rate": 1.0},
+                "visual_table": {"visual_evidence_hit_rate": 1.0},
+            },
         },
     )
     _write_json(
@@ -168,6 +201,8 @@ def _write_valid_portfolio_gates(root: Path) -> None:
             "lane": "offline",
             "min_score": 0.34,
             "top_k": 5,
+            "audit_line_count": 2,
+            "audit_tool_counts": {"aggregate_metadata": 1, "search_rfp": 1},
         },
     )
     _write_json(
@@ -213,6 +248,35 @@ def test_collect_gate_status_validates_fresh_portfolio_artifacts(
         "artifacts/visual_tesseract_candidate_expanded_gate/summary.json"
     )
     assert all(not lane["issues"] for lane in status["lanes"].values())
+
+
+def test_collect_gate_status_fails_real_cross_document_blind_spot(
+    tmp_path: Path,
+) -> None:
+    _write_valid_portfolio_gates(tmp_path)
+    metrics = json.loads(
+        (tmp_path / "artifacts/eval_real/metrics.json").read_text(encoding="utf-8")
+    )
+    metrics["per_type"]["cross_document"] = {
+        "recall@5": 0.65,
+        "all_expected_docs_retrieved@5": 0.30,
+    }
+    _write_json(tmp_path / "artifacts/eval_real/metrics.json", metrics)
+
+    status = collect_gate_status(tmp_path)
+
+    assert status["overall_ok"] is False
+    assert "per_type_threshold_mismatch" in _issue_codes(status["lanes"]["real_rag"])
+
+
+def test_collect_gate_status_requires_agent_audit_artifact(tmp_path: Path) -> None:
+    _write_valid_portfolio_gates(tmp_path)
+    (tmp_path / "artifacts/eval_agent/agent_artifacts/audit.jsonl").unlink()
+
+    status = collect_gate_status(tmp_path)
+
+    assert status["overall_ok"] is False
+    assert "audit_missing" in _issue_codes(status["lanes"]["agent_offline"])
 
 
 def test_collect_gate_status_fails_stale_real_source_evidence(

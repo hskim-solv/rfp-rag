@@ -63,6 +63,18 @@ GATE_SPECS = {
         "expected_reranker": "none",
         "expected_min_score": 0.47,
         "expected_top_k": 5,
+        "required_model_lineage_fields": (
+            "generation_model_id",
+            "judge_model_id",
+            "embedding_model_id",
+            "prompt_template_hash",
+        ),
+        "expected_per_type_thresholds": {
+            "cross_document.recall@5": 0.85,
+            "cross_document.all_expected_docs_retrieved@5": 0.85,
+            "section_lookup.section_hit_rate": 0.85,
+            "visual_table.visual_evidence_hit_rate": 0.85,
+        },
         "index_manifest_path": "artifacts/index_real/manifest.json",
         "expected_index_embedding_provider": "real_openai",
         "requires_predictions": True,
@@ -91,6 +103,8 @@ GATE_SPECS = {
             "routing": 20,
             "tool": 10,
         },
+        "audit_path": "artifacts/eval_agent/agent_artifacts/audit.jsonl",
+        "expected_audit_tools": ("search_rfp", "aggregate_metadata"),
         "index_manifest_path": "artifacts/index/manifest.json",
         "expected_index_embedding_provider": "offline",
         "requires_predictions": True,
@@ -525,6 +539,163 @@ def _validate_predictions(
     return {"predictions_present": True, "predictions_line_count": prediction_count}
 
 
+def _validate_model_lineage(
+    payload: dict[str, Any],
+    spec: dict[str, Any],
+    path: str,
+    issues: list[dict[str, Any]],
+) -> None:
+    for field in spec.get("required_model_lineage_fields", ()):
+        value = payload.get(field)
+        valid = isinstance(value, str) and bool(value.strip())
+        if field == "prompt_template_hash":
+            valid = valid and len(value) == 64
+        if not valid:
+            issues.append(
+                _issue(
+                    "model_lineage_missing",
+                    "metrics artifact is missing required model/prompt lineage",
+                    expected=field,
+                    actual=value,
+                    path=path,
+                )
+            )
+
+
+def _validate_per_type_thresholds(
+    payload: dict[str, Any],
+    spec: dict[str, Any],
+    path: str,
+    issues: list[dict[str, Any]],
+) -> None:
+    thresholds = spec.get("expected_per_type_thresholds") or {}
+    if not thresholds:
+        return
+    per_type = payload.get("per_type")
+    if not isinstance(per_type, dict):
+        issues.append(
+            _issue(
+                "per_type_missing",
+                "metrics artifact is missing per-type metrics",
+                path=path,
+            )
+        )
+        return
+    for metric_path, threshold in thresholds.items():
+        query_type, metric = metric_path.split(".", 1)
+        query_metrics = per_type.get(query_type)
+        value = query_metrics.get(metric) if isinstance(query_metrics, dict) else None
+        if value is None or value < threshold:
+            issues.append(
+                _issue(
+                    "per_type_threshold_mismatch",
+                    "per-type metric does not satisfy gate threshold",
+                    expected={metric_path: threshold},
+                    actual=value,
+                    path=path,
+                )
+            )
+
+
+def _validate_audit(
+    root: Path,
+    spec: dict[str, Any],
+    payload: dict[str, Any],
+    issues: list[dict[str, Any]],
+) -> dict[str, Any]:
+    audit_path_value = spec.get("audit_path")
+    if not audit_path_value:
+        return {}
+    audit_path = root / audit_path_value
+    if not audit_path.exists():
+        issues.append(
+            _issue(
+                "audit_missing",
+                "agent audit artifact is missing",
+                path=audit_path_value,
+            )
+        )
+        return {"audit_present": False}
+    required_fields = {"ts", "thread_id", "tool", "args", "outcome", "approved"}
+    line_count = 0
+    tool_counts: dict[str, int] = {}
+    try:
+        with audit_path.open(encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                line_count += 1
+                missing = required_fields - set(row)
+                if missing:
+                    issues.append(
+                        _issue(
+                            "audit_schema_mismatch",
+                            f"line {line_number} is missing audit fields",
+                            expected=sorted(required_fields),
+                            actual=sorted(row),
+                            path=audit_path_value,
+                        )
+                    )
+                    continue
+                tool = str(row.get("tool") or "")
+                if tool:
+                    tool_counts[tool] = tool_counts.get(tool, 0) + 1
+    except json.JSONDecodeError as exc:
+        issues.append(_issue("audit_invalid_json", str(exc), path=audit_path_value))
+        return {"audit_present": True}
+    if line_count == 0:
+        issues.append(
+            _issue(
+                "audit_empty",
+                "agent audit artifact must contain at least one tool call",
+                path=audit_path_value,
+            )
+        )
+    expected_line_count = payload.get("audit_line_count")
+    if expected_line_count != line_count:
+        issues.append(
+            _issue(
+                "audit_line_count_mismatch",
+                "audit line count must match metrics",
+                expected=expected_line_count,
+                actual=line_count,
+                path=audit_path_value,
+            )
+        )
+    expected_tool_counts = payload.get("audit_tool_counts")
+    if expected_tool_counts != tool_counts:
+        issues.append(
+            _issue(
+                "audit_tool_counts_mismatch",
+                "audit tool counts must match metrics",
+                expected=expected_tool_counts,
+                actual=tool_counts,
+                path=audit_path_value,
+            )
+        )
+    missing_tools = [
+        tool
+        for tool in spec.get("expected_audit_tools", ())
+        if tool_counts.get(tool, 0) == 0
+    ]
+    if missing_tools:
+        issues.append(
+            _issue(
+                "audit_tool_missing",
+                "agent audit artifact is missing required tool calls",
+                expected=list(spec.get("expected_audit_tools", ())),
+                actual=tool_counts,
+                path=audit_path_value,
+            )
+        )
+    return {
+        "audit_present": True,
+        "audit_line_count": line_count,
+        "audit_tool_counts": tool_counts,
+    }
+
+
 def _validate_visual_candidate(
     payload: dict[str, Any],
     spec: dict[str, Any],
@@ -658,6 +829,9 @@ def _lane_status(root: Path, spec: dict[str, Any]) -> dict[str, Any]:
     status.update(_index_status(root, spec, issues))
     if spec.get("requires_predictions"):
         status.update(_validate_predictions(root, relative_path, payload, issues))
+    _validate_model_lineage(payload, spec, relative_path, issues)
+    _validate_per_type_thresholds(payload, spec, relative_path, issues)
+    status.update(_validate_audit(root, spec, payload, issues))
 
     expected_values = (
         ("provider_lane", "expected_provider_lane", "provider_lane_mismatch"),

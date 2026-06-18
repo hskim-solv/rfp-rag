@@ -259,6 +259,10 @@ def test_evaluate_index_writes_offline_contract_artifacts(
     assert metrics["retrieval_mode"] == "vector"
     assert metrics["reranker"] == "none"
     assert metrics["rerank_candidate_k"] == 5
+    assert metrics["generation_model_id"] == "template-answer-v1"
+    assert metrics["embedding_model_id"] == "lexical-hash-v1"
+    assert metrics["judge_model_id"] == "not_applicable"
+    assert len(metrics["prompt_template_hash"]) == 64
     saved_metrics = json.loads((eval_dir / "metrics.json").read_text(encoding="utf-8"))
     assert saved_metrics["retrieval_mode"] == "vector"
     assert saved_metrics["reranker"] == "none"
@@ -642,7 +646,7 @@ def test_report_check_requires_readme_commands_and_eval_outputs(tmp_path: Path) 
                 *contract["required_commands"],
                 *contract["readme_markers"],
                 "The offline lane is an offline contract gate and does not claim semantic quality.",
-                "Real provider quality lane (rfp-rag-real-v5)",
+                "Real provider quality lane (rfp-rag-real-v6)",
             ]
         ),
         encoding="utf-8",
@@ -686,7 +690,7 @@ def test_report_check_flags_real_lane_eval_dir_as_unsupported(tmp_path: Path) ->
     eval_dir = tmp_path / "eval"
     eval_dir.mkdir()
     (eval_dir / "contract.json").write_text(
-        json.dumps({"contract_version": "rfp-rag-real-v5"}), encoding="utf-8"
+        json.dumps({"contract_version": "rfp-rag-real-v6"}), encoding="utf-8"
     )
     readme = tmp_path / "README.md"
     readme.write_text("", encoding="utf-8")
