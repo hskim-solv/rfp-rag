@@ -156,8 +156,13 @@ Current one-command local smoke:
 
 ```bash
 uv run python -m rfp_rag.top_tier_demo
+uv run python -m rfp_rag.observability_report
+uv run python -m rfp_rag.agent_orchestration
+uv run python -m rfp_rag.security_reliability
 ```
 
 Expected current state: `artifacts/top_tier_demo/summary.json` has
-`top_tier_demo_complete=true`, while `top_tier_readiness.complete` remains false
-until the remaining top-tier gates are implemented.
+`top_tier_demo_complete=true`; observability and security/reliability artifacts
+are redacted local evidence; orchestration evidence records a planner-executor
+scenario matrix over the typed LangGraph workflow. `top_tier_readiness.complete`
+remains false until Stage 3 independent holdout is implemented.
