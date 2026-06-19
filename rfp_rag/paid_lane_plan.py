@@ -117,12 +117,15 @@ def _planned_steps() -> list[dict[str, Any]]:
         ),
         _step(
             "stage3_real_eval",
-            "manual fixed-case real evaluation: write "
-            "artifacts/eval_stage3_raw/metrics.json from "
-            "eval_sets/stage3_holdout/cases.jsonl after paid/API approval",
+            "uv run python -m rfp_rag.stage3_eval "
+            "--cases eval_sets/stage3_holdout/cases.jsonl "
+            "--index artifacts/index_real --out artifacts/eval_stage3_raw "
+            "--provider real_openai --top-k 5 --min-score 0.47 "
+            "--visual-records artifacts/visual_structure_reviewed/records.jsonl",
             reads=[
                 "eval_sets/stage3_holdout/cases.jsonl",
                 "artifacts/index_real",
+                "artifacts/visual_structure_reviewed/records.jsonl",
             ],
             writes=["artifacts/eval_stage3_raw/metrics.json"],
             cost_bearing=True,
