@@ -197,6 +197,140 @@ SECOND_STAGE_GATES = [
     },
 ]
 
+TOP_TIER_GATES = [
+    {
+        "id": "top_tier_roadmap",
+        "path": "docs/portfolio/top-tier-roadmap.md",
+        "kind": "document",
+        "required_terms": (
+            "Hosted or one-command reviewer demo",
+            "Stage 3 independent holdout",
+            "Real observability",
+            "Upgraded agent orchestration",
+            "Senior case study",
+            "Failure conditions",
+        ),
+    },
+    {
+        "id": "reviewer_demo",
+        "path": "artifacts/top_tier_demo/summary.json",
+        "complete_field": "top_tier_demo_complete",
+        "required_fields": (
+            "demo_mode",
+            "reviewer_command",
+            "public_exposure_decision",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("one_command_demo_pass", "==", 1.0),
+            ("no_credentials_required", "==", 1.0),
+            ("streaming_demo_pass", "==", 1.0),
+            ("gate_summary_demo_pass", "==", 1.0),
+            ("time_to_first_verified_answer_sec", "<=", 300.0),
+        ),
+    },
+    {
+        "id": "stage3_independent_holdout",
+        "path": "artifacts/eval_stage3_holdout/metrics.json",
+        "complete_field": "stage3_holdout_quality_complete",
+        "required_fields": (
+            "contract_version",
+            "corpus_split_manifest_path",
+            "label_rubric_path",
+            "eval_set_hash",
+            "query_set_counts",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("document_count", ">=", 20),
+            ("query_count", ">=", 100),
+            ("recall@5", ">=", 0.90),
+            ("mrr", ">=", 0.80),
+            ("citation_validity", ">=", 0.95),
+            ("faithfulness", ">=", 0.85),
+            ("answer_relevancy", ">=", 0.78),
+            ("unsupported_visual_claim_rate", "<=", 0.05),
+            ("abstention_precision", ">=", 0.90),
+        ),
+    },
+    {
+        "id": "real_observability",
+        "path": "artifacts/observability/summary.json",
+        "complete_field": "observability_complete",
+        "required_fields": (
+            "trace_provider",
+            "trace_export_path",
+            "failed_run_analysis_path",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("trace_export_present", "==", 1.0),
+            ("latency_p50_ms_recorded", "==", 1.0),
+            ("latency_p95_ms_recorded", "==", 1.0),
+            ("token_cost_recorded", "==", 1.0),
+            ("tool_success_rate_recorded", "==", 1.0),
+            ("failed_run_analysis_count", ">=", 5),
+        ),
+    },
+    {
+        "id": "upgraded_agent_orchestration",
+        "path": "artifacts/agent_orchestration/summary.json",
+        "complete_field": "agent_orchestration_upgrade_complete",
+        "required_fields": (
+            "architecture_pattern",
+            "scenario_matrix_path",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("planner_executor_or_supervisor_worker_pass", "==", 1.0),
+            ("multi_tool_plan_pass", "==", 1.0),
+            ("bounded_retry_reflection_pass", "==", 1.0),
+            ("human_approval_node_pass", "==", 1.0),
+            ("state_schema_validation_pass", "==", 1.0),
+        ),
+    },
+    {
+        "id": "security_reliability_deepening",
+        "path": "artifacts/reliability_security/summary.json",
+        "complete_field": "security_reliability_complete",
+        "required_fields": (
+            "redteam_suite_path",
+            "reliability_suite_path",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("redteam_case_count", ">=", 20),
+            ("prompt_injection_block_recall", "==", 1.0),
+            ("secrets_pii_leak_count", "==", 0),
+            ("fallback_recovery_pass", "==", 1.0),
+            ("deterministic_replay_pass", "==", 1.0),
+        ),
+    },
+    {
+        "id": "senior_case_study",
+        "path": "docs/portfolio/case-study.md",
+        "kind": "document",
+        "required_terms": (
+            "Problem",
+            "Architecture decisions",
+            "Evaluation evidence",
+            "Failure analysis",
+            "Operational boundaries",
+            "Interview defense",
+        ),
+    },
+]
+
 
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -439,6 +573,86 @@ def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
     }
 
 
+def _top_tier_gate_issues(gate: dict[str, Any], summary: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
+    complete_field = gate.get("complete_field")
+    if complete_field and summary.get(complete_field) is not True:
+        issues.append(str(complete_field))
+    for field in gate.get("required_fields", ()):
+        if field not in summary or summary.get(field) in (None, ""):
+            issues.append(field)
+    failed = summary.get("failed")
+    if failed:
+        issues.append("failed")
+    metrics = summary.get("metrics")
+    thresholds = summary.get("thresholds")
+    if not isinstance(metrics, dict):
+        issues.append("metrics")
+        metrics = {}
+    if not isinstance(thresholds, dict):
+        issues.append("thresholds")
+        thresholds = {}
+    for field, op, expected in gate.get("metric_checks", ()):
+        value = metrics.get(field)
+        if value is None or not _metric_passes(value, op, expected):
+            issues.append(field)
+        threshold = thresholds.get(field)
+        if threshold is None or not _threshold_matches(threshold, op, expected):
+            issues.append(f"threshold:{field}")
+    return sorted(set(issues))
+
+
+def _document_gate_issues(root: Path, gate: dict[str, Any]) -> list[str]:
+    text = _read_support_text(root, str(gate["path"]))
+    issues: list[str] = []
+    if not text:
+        issues.append("document_missing")
+    for term in gate.get("required_terms", ()):
+        if term not in text:
+            issues.append(f"term:{term}")
+    return issues
+
+
+def _collect_top_tier_readiness(root: Path) -> dict[str, Any]:
+    present: list[str] = []
+    missing: list[str] = []
+    failed: list[str] = []
+    details: list[dict[str, Any]] = []
+    for gate in TOP_TIER_GATES:
+        path = root / gate["path"]
+        if not path.exists():
+            missing.append(gate["id"])
+            details.append({**gate, "present": False, "ok": False})
+            continue
+        if gate.get("kind") == "document":
+            issues = _document_gate_issues(root, gate)
+            summary_failed: list[str] = []
+        else:
+            summary = _read_json(path)
+            issues = _top_tier_gate_issues(gate, summary)
+            summary_failed = summary.get("failed") or []
+        ok = not issues
+        present.append(gate["id"])
+        if not ok:
+            failed.append(gate["id"])
+        details.append(
+            {
+                **gate,
+                "present": True,
+                "ok": ok,
+                "issues": issues,
+                "failed": summary_failed,
+            }
+        )
+    return {
+        "complete": not missing and not failed,
+        "present": present,
+        "missing": missing,
+        "failed": failed,
+        "details": details,
+    }
+
+
 def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
     root = root.resolve()
     checks: list[dict[str, Any]] = []
@@ -500,6 +714,7 @@ def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
 
     failed = [check for check in checks if not check["ok"]]
     second_stage = _collect_second_stage_readiness(root)
+    top_tier = _collect_top_tier_readiness(root)
     local_evidence_bundle_check = not failed
     stage2_contract_schema_enforced = bool(second_stage["schema_enforced"])
     portfolio_readiness_check = local_evidence_bundle_check and bool(
@@ -513,6 +728,7 @@ def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
         "checks": checks,
         "failed": failed,
         "second_stage_readiness": second_stage,
+        "top_tier_readiness": top_tier,
         "deferred": [gap["id"] for gap in DEFERRED_GAPS],
         "deferred_details": DEFERRED_GAPS,
     }

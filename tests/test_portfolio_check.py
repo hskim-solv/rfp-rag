@@ -307,6 +307,156 @@ def _write_complete_second_stage(root: Path) -> None:
     _write(root / "artifacts/eval_stage2/adjudication.jsonl", "")
 
 
+def _write_complete_top_tier(root: Path) -> None:
+    _write(
+        root / "docs/portfolio/top-tier-roadmap.md",
+        "\n".join(
+            [
+                "# Top-tier roadmap",
+                "Hosted or one-command reviewer demo",
+                "Stage 3 independent holdout",
+                "Real observability",
+                "Upgraded agent orchestration",
+                "Senior case study",
+                "Failure conditions",
+            ]
+        ),
+    )
+    _write(
+        root / "docs/portfolio/case-study.md",
+        "\n".join(
+            [
+                "# Case study",
+                "Problem",
+                "Architecture decisions",
+                "Evaluation evidence",
+                "Failure analysis",
+                "Operational boundaries",
+                "Interview defense",
+            ]
+        ),
+    )
+    top_tier_payloads = {
+        "artifacts/top_tier_demo/summary.json": {
+            "top_tier_demo_complete": True,
+            "demo_mode": "one-command",
+            "reviewer_command": "uv run python -m rfp_rag.top_tier_demo",
+            "public_exposure_decision": "local_only",
+            "metrics": {
+                "one_command_demo_pass": 1.0,
+                "no_credentials_required": 1.0,
+                "streaming_demo_pass": 1.0,
+                "gate_summary_demo_pass": 1.0,
+                "time_to_first_verified_answer_sec": 300.0,
+            },
+            "thresholds": {
+                "one_command_demo_pass": 1.0,
+                "no_credentials_required": 1.0,
+                "streaming_demo_pass": 1.0,
+                "gate_summary_demo_pass": 1.0,
+                "time_to_first_verified_answer_sec": 300.0,
+            },
+            "failed": [],
+        },
+        "artifacts/eval_stage3_holdout/metrics.json": {
+            "stage3_holdout_quality_complete": True,
+            "contract_version": "rfp-rag-stage3-holdout-v1",
+            "corpus_split_manifest_path": "artifacts/eval_stage3_holdout/split_manifest.json",
+            "label_rubric_path": "artifacts/eval_stage3_holdout/label_rubric.md",
+            "eval_set_hash": "stage3-hash",
+            "query_set_counts": {"total": 100},
+            "metrics": {
+                "document_count": 20,
+                "query_count": 100,
+                "recall@5": 0.90,
+                "mrr": 0.80,
+                "citation_validity": 0.95,
+                "faithfulness": 0.85,
+                "answer_relevancy": 0.78,
+                "unsupported_visual_claim_rate": 0.05,
+                "abstention_precision": 0.90,
+            },
+            "thresholds": {
+                "document_count": 20,
+                "query_count": 100,
+                "recall@5": 0.90,
+                "mrr": 0.80,
+                "citation_validity": 0.95,
+                "faithfulness": 0.85,
+                "answer_relevancy": 0.78,
+                "unsupported_visual_claim_rate": 0.05,
+                "abstention_precision": 0.90,
+            },
+            "failed": [],
+        },
+        "artifacts/observability/summary.json": {
+            "observability_complete": True,
+            "trace_provider": "phoenix",
+            "trace_export_path": "artifacts/observability/traces.jsonl",
+            "failed_run_analysis_path": "docs/portfolio/failed-run-analysis.md",
+            "metrics": {
+                "trace_export_present": 1.0,
+                "latency_p50_ms_recorded": 1.0,
+                "latency_p95_ms_recorded": 1.0,
+                "token_cost_recorded": 1.0,
+                "tool_success_rate_recorded": 1.0,
+                "failed_run_analysis_count": 5,
+            },
+            "thresholds": {
+                "trace_export_present": 1.0,
+                "latency_p50_ms_recorded": 1.0,
+                "latency_p95_ms_recorded": 1.0,
+                "token_cost_recorded": 1.0,
+                "tool_success_rate_recorded": 1.0,
+                "failed_run_analysis_count": 5,
+            },
+            "failed": [],
+        },
+        "artifacts/agent_orchestration/summary.json": {
+            "agent_orchestration_upgrade_complete": True,
+            "architecture_pattern": "planner-executor",
+            "scenario_matrix_path": "artifacts/agent_orchestration/scenarios.jsonl",
+            "metrics": {
+                "planner_executor_or_supervisor_worker_pass": 1.0,
+                "multi_tool_plan_pass": 1.0,
+                "bounded_retry_reflection_pass": 1.0,
+                "human_approval_node_pass": 1.0,
+                "state_schema_validation_pass": 1.0,
+            },
+            "thresholds": {
+                "planner_executor_or_supervisor_worker_pass": 1.0,
+                "multi_tool_plan_pass": 1.0,
+                "bounded_retry_reflection_pass": 1.0,
+                "human_approval_node_pass": 1.0,
+                "state_schema_validation_pass": 1.0,
+            },
+            "failed": [],
+        },
+        "artifacts/reliability_security/summary.json": {
+            "security_reliability_complete": True,
+            "redteam_suite_path": "artifacts/reliability_security/redteam.jsonl",
+            "reliability_suite_path": "artifacts/reliability_security/reliability.jsonl",
+            "metrics": {
+                "redteam_case_count": 20,
+                "prompt_injection_block_recall": 1.0,
+                "secrets_pii_leak_count": 0,
+                "fallback_recovery_pass": 1.0,
+                "deterministic_replay_pass": 1.0,
+            },
+            "thresholds": {
+                "redteam_case_count": 20,
+                "prompt_injection_block_recall": 1.0,
+                "secrets_pii_leak_count": 0,
+                "fallback_recovery_pass": 1.0,
+                "deterministic_replay_pass": 1.0,
+            },
+            "failed": [],
+        },
+    }
+    for rel, payload in top_tier_payloads.items():
+        _write(root / rel, json.dumps(payload))
+
+
 def test_collect_portfolio_readiness_accepts_required_evidence(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -325,6 +475,8 @@ def test_collect_portfolio_readiness_accepts_required_evidence(
     assert "cloud_deployment" in report["deferred"]
     assert report["second_stage_readiness"]["complete"] is False
     assert "security_redteam" in report["second_stage_readiness"]["missing"]
+    assert report["top_tier_readiness"]["complete"] is False
+    assert "stage3_independent_holdout" in report["top_tier_readiness"]["missing"]
 
 
 def test_collect_portfolio_readiness_requires_second_stage_for_top_level_ready(
@@ -344,6 +496,7 @@ def test_collect_portfolio_readiness_requires_second_stage_for_top_level_ready(
     assert report["second_stage_readiness"]["complete"] is True
     assert report["stage2_contract_schema_enforced"] is True
     assert report["portfolio_readiness_check"] is True
+    assert report["top_tier_readiness"]["complete"] is False
 
 
 def test_collect_portfolio_readiness_reports_missing_evidence(
@@ -418,6 +571,66 @@ def test_portfolio_check_cli_writes_report(tmp_path: Path, monkeypatch) -> None:
     assert saved["portfolio_readiness_check"] is True
     assert saved["local_evidence_bundle_check"] is True
     assert saved["stage2_contract_schema_enforced"] is True
+    assert saved["top_tier_readiness"]["complete"] is False
+
+
+def test_top_tier_readiness_tracks_next_portfolio_level(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is True
+    assert report["top_tier_readiness"]["complete"] is True
+    assert report["top_tier_readiness"]["missing"] == []
+    assert report["top_tier_readiness"]["failed"] == []
+
+
+def test_top_tier_readiness_rejects_shallow_artifacts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write(
+        tmp_path / "docs/portfolio/top-tier-roadmap.md", "Stage 3 independent holdout\n"
+    )
+    _write(
+        tmp_path / "artifacts/eval_stage3_holdout/metrics.json",
+        json.dumps(
+            {
+                "stage3_holdout_quality_complete": True,
+                "metrics": {"query_count": 10},
+                "thresholds": {"query_count": 100},
+                "failed": [],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is True
+    assert report["top_tier_readiness"]["complete"] is False
+    assert "top_tier_roadmap" in report["top_tier_readiness"]["failed"]
+    assert "stage3_independent_holdout" in report["top_tier_readiness"]["failed"]
+    details = {item["id"]: item for item in report["top_tier_readiness"]["details"]}
+    assert (
+        "term:Hosted or one-command reviewer demo"
+        in details["top_tier_roadmap"]["issues"]
+    )
+    assert "query_count" in details["stage3_independent_holdout"]["issues"]
 
 
 def test_portfolio_check_reports_second_stage_separately(
