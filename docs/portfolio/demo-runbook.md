@@ -159,10 +159,11 @@ uv run python -m rfp_rag.top_tier_demo
 uv run python -m rfp_rag.observability_report
 uv run python -m rfp_rag.agent_orchestration
 uv run python -m rfp_rag.security_reliability
+uv run python -m rfp_rag.stage3_holdout
 ```
 
 Expected current state: `artifacts/top_tier_demo/summary.json` has
 `top_tier_demo_complete=true`; observability and security/reliability artifacts
 are redacted local evidence; orchestration evidence records a planner-executor
 scenario matrix over the typed LangGraph workflow. `top_tier_readiness.complete`
-remains false until Stage 3 independent holdout is implemented.
+remains false until Stage 3 independent cases and real metrics are present.

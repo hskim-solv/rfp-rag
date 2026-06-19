@@ -105,6 +105,40 @@ def _planned_steps() -> list[dict[str, Any]]:
             writes=["artifacts/eval_stage2_real/metrics.json"],
         ),
         _step(
+            "stage3_holdout_case_freeze",
+            "uv run python -m rfp_rag.stage3_holdout "
+            "--cases eval_sets/stage3_holdout/cases.jsonl",
+            reads=["eval_sets/stage3_holdout/cases.jsonl"],
+            writes=[
+                "artifacts/eval_stage3_holdout/split_manifest.json",
+                "artifacts/eval_stage3_holdout/label_rubric.md",
+                "artifacts/eval_stage3_holdout/metrics.json",
+            ],
+        ),
+        _step(
+            "stage3_real_eval",
+            "manual fixed-case real evaluation: write "
+            "artifacts/eval_stage3_raw/metrics.json from "
+            "eval_sets/stage3_holdout/cases.jsonl after paid/API approval",
+            reads=[
+                "eval_sets/stage3_holdout/cases.jsonl",
+                "artifacts/index_real",
+            ],
+            writes=["artifacts/eval_stage3_raw/metrics.json"],
+            cost_bearing=True,
+        ),
+        _step(
+            "stage3_holdout_finalize",
+            "uv run python -m rfp_rag.stage3_holdout "
+            "--cases eval_sets/stage3_holdout/cases.jsonl "
+            "--raw-metrics artifacts/eval_stage3_raw/metrics.json",
+            reads=[
+                "eval_sets/stage3_holdout/cases.jsonl",
+                "artifacts/eval_stage3_raw/metrics.json",
+            ],
+            writes=["artifacts/eval_stage3_holdout/metrics.json"],
+        ),
+        _step(
             "same_set_open_reranker_eval",
             "uv run python -m rfp_rag.evaluate "
             "--data data/data_list.csv --index artifacts/index_open "
@@ -137,6 +171,7 @@ def _planned_steps() -> list[dict[str, Any]]:
                 "artifacts/eval_real",
                 "artifacts/eval_open_rerank",
                 "artifacts/eval_stage2_real",
+                "artifacts/eval_stage3_raw",
             ],
             writes=["artifacts/cost_budget/summary.json"],
         ),
