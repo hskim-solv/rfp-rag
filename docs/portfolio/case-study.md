@@ -48,12 +48,14 @@ The project uses layered evidence rather than one vanity score:
   and cost budget;
 - top-tier evidence: one-command reviewer demo, Stage 3 independent holdout,
   real observability, upgraded orchestration, security/reliability deepening,
-  and this case study are checked separately from hosted-production claims.
+  production-facing readiness artifacts, dependency security hygiene, and this
+  case study are checked separately from hosted-production claims.
 
 Representative current checks:
 
 - `uv run python -m rfp_rag.gate_status`;
 - `uv run python -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json`;
+- `uv run python -m rfp_rag.production_readiness`;
 - `uv run python -m rfp_rag.top_tier_demo`;
 - `uv run python -m pytest -m "not real" -q`.
 
@@ -67,6 +69,7 @@ were portfolio-evidence failures:
 - shallow boolean artifacts that could pass without metrics, thresholds, or
   lineage;
 - unsafe demo artifacts that might expose raw prompts, raw RFP text, or secrets;
+- unresolved dependency alerts that would weaken the public portfolio signal;
 - tool/server payloads that accepted unknown or malformed arguments;
 - agent claims that were broader than the measured checkpoint, HITL, and audit
   evidence.
@@ -88,6 +91,12 @@ What is proven:
 - LangGraph replay evidence for routing, rewriting, abstention, HITL, checkpoint
   closure, and audit redaction;
 - deterministic security smoke and artifact redaction scan;
+- production-facing reviewer package: 3-minute demo storyboard, generated
+  evidence artifacts, hosted-deployment readiness plan, auth/rate-limit and
+  secret-handling boundaries, and dependency security register;
+- dependency security hygiene: vulnerable `ragas` judge dependency removed by
+  ADR-0021, `diskcache` absent, `langchain` locked above the patched floor, and
+  GitHub Dependabot open alert count `0`;
 - cost/token estimates from persisted prediction artifacts;
 - CI-backed credential-free regression and Docker build.
 
@@ -119,8 +128,8 @@ regressions.
 
 Because production-grade requires hosted deployment, auth, rate limits,
 monitoring, incident/failure evidence, and live-operational boundaries. This repo
-proves production-adjacent engineering evidence and explicitly tracks the
-remaining top-tier gates.
+proves production-adjacent engineering evidence and hosted-deployment readiness
+without claiming public traffic.
 
 **What would you build next?**
 
