@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,22 @@ from typing import Any
 from rfp_rag.guardrails import check_question_guardrails
 
 MIN_CASE_COUNT = 2
+SENSITIVE_PREVIEW_PATTERNS = (
+    "openai_api_key",
+    "api key",
+    "secret",
+    "password",
+    ".env",
+    "token",
+    "ignore previous instructions",
+    "system prompt",
+    "developer message",
+    "비밀키",
+    "토큰",
+    "이전 지시를 무시",
+    "개발자 메시지",
+    "시스템 프롬프트",
+)
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -20,6 +37,14 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def _round(value: float) -> float:
     return round(value, 6)
+
+
+def _question_summary(question: str) -> dict[str, Any]:
+    return {
+        "question_hash": hashlib.sha256(question.encode("utf-8")).hexdigest(),
+        "question_length": len(question),
+        "question_preview": "[REDACTED]",
+    }
 
 
 def evaluate_guardrail_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
@@ -50,7 +75,7 @@ def evaluate_guardrail_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
         scored.append(
             {
                 "id": case.get("id"),
-                "question": case.get("question"),
+                **_question_summary(str(case.get("question") or "")),
                 "expected_allowed": expected_allowed,
                 "actual_allowed": result.allowed,
                 "expected_categories": expected_categories,

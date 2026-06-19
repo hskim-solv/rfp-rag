@@ -24,14 +24,33 @@ SECOND_STAGE_GATES = [
         "id": "eval_stage2_coverage",
         "path": "artifacts/eval_stage2/coverage.json",
         "complete_field": "eval_set_audit_complete",
-        "required_fields": ("eval_set_hash", "metrics", "thresholds", "failed"),
+        "required_fields": (
+            "eval_set_hash",
+            "split_manifest_path",
+            "label_rubric_path",
+            "contamination_notes_path",
+            "adjudication_log_path",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("query_count", ">=", 150),
+            ("metadata_doc_coverage", "==", 100),
+            ("hard_negative_count", ">=", 30),
+            ("cross_document_count", ">=", 20),
+            ("visual_table_count", ">=", 30),
+        ),
     },
     {
         "id": "eval_stage2_real",
         "path": "artifacts/eval_stage2_real/metrics.json",
         "complete_field": "holdout_quality_complete",
         "required_fields": (
+            "contract_version",
+            "required_command",
             "eval_set_hash",
+            "query_set_counts",
             "thresholds_met",
             "per_slice_failed",
             "generation_model_id",
@@ -46,42 +65,135 @@ SECOND_STAGE_GATES = [
             "judge_coverage_faithfulness_min_by_answerable_slice",
             "judge_coverage_answer_relevancy_min_by_answerable_slice",
         ),
+        "metric_checks": (
+            ("recall@5", ">=", 0.95),
+            ("recall@3", ">=", 0.90),
+            ("mrr", ">=", 0.85),
+            ("metadata_exact_match", ">=", 0.95),
+            ("faithfulness", ">=", 0.90),
+            ("answer_relevancy", ">=", 0.80),
+            ("judge_coverage_faithfulness_min_by_answerable_slice", ">=", 0.95),
+            ("judge_coverage_answer_relevancy_min_by_answerable_slice", ">=", 0.95),
+            ("citation_presence", "==", 1.0),
+            ("citation_validity", "==", 1.0),
+        ),
     },
     {
         "id": "agent_stress",
         "path": "artifacts/eval_agent_stress/metrics.json",
         "complete_field": "agent_stress_complete",
-        "required_fields": ("metrics", "thresholds", "failed"),
+        "required_fields": (
+            "scenario_matrix_hash",
+            "branch_replay_artifact_path",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("trajectory_pass_rate", "==", 1.0),
+            ("branch_coverage", "==", 1.0),
+            ("thread_id_isolation_pass", "==", 1.0),
+            ("hitl_approval_convergence", "==", 1.0),
+            ("no_side_effect_before_approval", "==", 1.0),
+            ("checkpoint_close_path_pass", "==", 1.0),
+            ("audit_arg_redaction_pass", "==", 1.0),
+            ("ops_tool_budget_violation_count", "==", 0),
+        ),
     },
     {
         "id": "retrieval_bakeoff",
         "path": "artifacts/retrieval_bakeoff/summary.json",
         "complete_field": "retrieval_bakeoff_complete",
-        "required_fields": ("decision", "metrics", "thresholds", "failed"),
+        "required_fields": (
+            "decision",
+            "comparison_set_hash",
+            "compared_modes",
+            "decision_adr_path",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "required_compared_modes": ("vector", "bm25", "hybrid_rrf"),
+        "metric_checks": (
+            ("recall_no_regression", "==", 1.0),
+            ("citation_validity_no_regression", "==", 1.0),
+            ("abstention_no_regression", "==", 1.0),
+            ("section_hit_no_regression", "==", 1.0),
+            ("visual_evidence_no_regression", "==", 1.0),
+            ("latency_budget_pass", "==", 1.0),
+            ("cost_budget_pass", "==", 1.0),
+        ),
     },
     {
         "id": "visual_quality",
         "path": "artifacts/visual_quality/summary.json",
         "complete_field": "visual_quality_complete",
         "required_fields": ("metrics", "thresholds", "failed"),
+        "metric_checks": (
+            ("visual_question_count", ">=", 30),
+            ("visual_evidence_hit_rate", ">=", 0.90),
+            ("unsupported_visual_claim_rate", "<=", 0.10),
+            ("sidecar_citation_no_regression", "==", 1.0),
+            ("sidecar_abstention_no_regression", "==", 1.0),
+        ),
     },
     {
         "id": "service_ops",
         "path": "artifacts/service_ops/summary.json",
         "complete_field": "service_ops_complete",
-        "required_fields": ("metrics", "thresholds", "failed"),
+        "required_fields": ("docker_demo_command", "metrics", "thresholds", "failed"),
+        "metric_checks": (
+            ("healthz_pass", "==", 1.0),
+            ("answer_pass", "==", 1.0),
+            ("stream_pass", "==", 1.0),
+            ("gates_pass", "==", 1.0),
+            ("ops_summary_pass", "==", 1.0),
+            ("path_safety_pass", "==", 1.0),
+            ("latency_p50_ms", ">=", 0.0),
+            ("latency_p95_ms", ">=", 0.0),
+            ("token_cost_distribution_recorded", "==", 1.0),
+        ),
     },
     {
         "id": "security_redteam",
         "path": "artifacts/security_redteam/summary.json",
         "complete_field": "security_redteam_complete",
-        "required_fields": ("metrics", "thresholds", "failed"),
+        "required_fields": (
+            "publishable_allowlist_path",
+            "retention_scope_path",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("block_recall", "==", 1.0),
+            ("malicious_document_pass", "==", 1.0),
+            ("malicious_retrieved_evidence_pass", "==", 1.0),
+            ("malicious_tool_output_pass", "==", 1.0),
+            ("artifact_redaction_scan_pass", "==", 1.0),
+            ("publishable_allowlist_pass", "==", 1.0),
+            ("retention_scope_pass", "==", 1.0),
+            ("secret_pii_leak_count", "==", 0),
+            ("raw_persistence_count", "==", 0),
+            ("tool_policy_violation_count", "==", 0),
+        ),
     },
     {
         "id": "cost_budget",
         "path": "artifacts/cost_budget/summary.json",
         "complete_field": "cost_budget_complete",
-        "required_fields": ("metrics", "thresholds", "failed"),
+        "required_fields": (
+            "real_open_run_cost_estimate_usd",
+            "regression_threshold_rationale",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("token_record_coverage", "==", 1.0),
+            ("cost_record_coverage", "==", 1.0),
+            ("budget_violation_count", "==", 0),
+        ),
     },
 ]
 
@@ -106,10 +218,46 @@ def _check_text(root: Path, rel: str, needle: str, check_id: str) -> dict[str, A
     return {"id": check_id, "ok": ok, "path": rel, "needle": needle}
 
 
+def _check_paid_lane_plan(root: Path) -> dict[str, Any]:
+    rel = "artifacts/paid_lane_plan/summary.json"
+    summary = _read_json(root / rel)
+    required_steps = {
+        "real_index_v6",
+        "real_eval_v6",
+        "stage2_real_eval",
+        "stage2_real_finalize",
+        "same_set_open_reranker_eval",
+        "retrieval_bakeoff",
+        "cost_budget",
+        "gate_status",
+        "portfolio_check",
+    }
+    step_ids = {
+        str(step.get("id"))
+        for step in summary.get("steps", [])
+        if isinstance(step, dict)
+    }
+    ok = (
+        summary.get("paid_lane_plan_complete") is True
+        and summary.get("approval_required") is True
+        and summary.get("does_not_execute_paid_lanes") is True
+        and "OPENAI_API_KEY" in (summary.get("required_env_vars") or [])
+        and required_steps <= step_ids
+    )
+    return {
+        "id": "paid_lane_plan",
+        "ok": ok,
+        "path": rel,
+        "required_steps": sorted(required_steps),
+        "present_steps": sorted(step_ids),
+    }
+
+
 def _second_stage_gate_issues(
     gate: dict[str, Any],
     summary: dict[str, Any],
     coverage_hash: str | None,
+    root: Path,
 ) -> list[str]:
     issues: list[str] = []
     complete_field = gate["complete_field"]
@@ -121,24 +269,134 @@ def _second_stage_gate_issues(
     failed = summary.get("failed")
     if failed:
         issues.append("failed")
+    metrics = summary.get("metrics")
+    thresholds = summary.get("thresholds")
+    if not isinstance(metrics, dict):
+        issues.append("metrics")
+        metrics = {}
+    if not isinstance(thresholds, dict):
+        issues.append("thresholds")
+        thresholds = {}
+    for field, op, expected in gate.get("metric_checks", ()):
+        value = metrics.get(field)
+        if value is None or not _metric_passes(value, op, expected):
+            issues.append(field)
+        threshold = thresholds.get(field)
+        if threshold is None or not _threshold_matches(threshold, op, expected):
+            issues.append(f"threshold:{field}")
+    required_modes = set(gate.get("required_compared_modes", ()))
+    if required_modes:
+        actual_modes = summary.get("compared_modes")
+        if not isinstance(actual_modes, list) or not required_modes <= set(
+            str(mode) for mode in actual_modes
+        ):
+            issues.append("compared_modes")
     if gate["id"] == "eval_stage2_real":
         if summary.get("thresholds_met") is not True:
             issues.append("thresholds_met")
+        if summary.get("contract_version") != "rfp-rag-stage2-real-v1":
+            issues.append("contract_version")
+        required_command = str(summary.get("required_command") or "")
+        if "--out artifacts/eval_stage2_real" not in required_command:
+            issues.append("required_command")
         if summary.get("per_slice_failed") != []:
             issues.append("per_slice_failed")
         if coverage_hash and summary.get("eval_set_hash") != coverage_hash:
             issues.append("eval_set_hash_mismatch")
-        metrics = summary.get("metrics")
-        if not isinstance(metrics, dict):
-            issues.append("metrics")
-        else:
-            for field in gate.get("required_metric_fields", ()):
-                if metrics.get(field) is None:
-                    issues.append(field)
+        coverage_counts = _read_json(root / "artifacts/eval_stage2/coverage.json").get(
+            "counts_by_slice", {}
+        )
+        if isinstance(coverage_counts, dict) and coverage_counts:
+            raw_counts = summary.get("query_set_counts")
+            if not isinstance(raw_counts, dict):
+                issues.append("query_set_counts")
+            else:
+                expected_total = sum(
+                    int(value)
+                    for value in coverage_counts.values()
+                    if isinstance(value, int | float)
+                )
+                if raw_counts.get("total") != expected_total:
+                    issues.append("query_set_counts.total")
+                for coverage_key, raw_key in {
+                    "metadata": "golden_metadata",
+                    "curated_text": "curated_text",
+                    "section_lookup": "section_lookup",
+                    "cross_document": "cross_document",
+                    "visual_table": "visual_table",
+                    "paraphrase": "paraphrase",
+                    "abstention": "abstention",
+                }.items():
+                    if coverage_key in coverage_counts and raw_counts.get(
+                        raw_key
+                    ) != coverage_counts.get(coverage_key):
+                        issues.append(f"query_set_counts.{raw_key}")
+        for field in gate.get("required_metric_fields", ()):
+            if metrics.get(field) is None:
+                issues.append(field)
         prompt_hash = summary.get("prompt_template_hash")
         if not isinstance(prompt_hash, str) or len(prompt_hash) != 64:
             issues.append("prompt_template_hash")
+    if gate["id"] == "eval_stage2_coverage":
+        issues.extend(_stage2_support_issues(root, summary, coverage_hash))
     return sorted(set(issues))
+
+
+def _read_support_text(root: Path, rel: str) -> str:
+    path = root / rel
+    if not path.exists() or not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _stage2_support_issues(
+    root: Path, summary: dict[str, Any], coverage_hash: str | None
+) -> list[str]:
+    issues: list[str] = []
+    split_rel = str(summary.get("split_manifest_path") or "")
+    split = _read_json(root / split_rel) if split_rel else {}
+    if split.get("policy") != "frozen_stage2_evidence_set":
+        issues.append("split_manifest_policy")
+    if split.get("train_dev_holdout_separation_complete") is not True:
+        issues.append("train_dev_holdout_separation_complete")
+    if coverage_hash and split.get("eval_set_hash") != coverage_hash:
+        issues.append("split_manifest_eval_set_hash")
+    if split.get("tuning_after_freeze_allowed") is not False:
+        issues.append("tuning_after_freeze_allowed")
+
+    label_text = _read_support_text(root, str(summary.get("label_rubric_path") or ""))
+    if "TODO" in label_text or "Freeze key" not in label_text:
+        issues.append("label_rubric")
+    contamination_text = _read_support_text(
+        root, str(summary.get("contamination_notes_path") or "")
+    )
+    if "TODO" in contamination_text or "eval-set hash" not in contamination_text:
+        issues.append("contamination_notes")
+
+    adjudication_rel = str(summary.get("adjudication_log_path") or "")
+    adjudication_path = root / adjudication_rel
+    if not adjudication_rel or not adjudication_path.exists():
+        issues.append("adjudication_log_path")
+    return issues
+
+
+def _metric_passes(value: Any, op: str, expected: int | float) -> bool:
+    if not isinstance(value, int | float):
+        return False
+    if op == ">=":
+        return value >= expected
+    if op == "<=":
+        return value <= expected
+    if op == "==":
+        return value == expected
+    raise ValueError(f"unsupported metric operator: {op!r}")
+
+
+def _threshold_matches(value: Any, op: str, expected: int | float) -> bool:
+    if not isinstance(value, int | float):
+        return False
+    # Thresholds define the same floor/ceiling/equality that metrics are checked against.
+    return value == expected
 
 
 def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
@@ -157,7 +415,7 @@ def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
             details.append({**gate, "present": False, "ok": False})
             continue
         summary = _read_json(path)
-        issues = _second_stage_gate_issues(gate, summary, coverage_hash)
+        issues = _second_stage_gate_issues(gate, summary, coverage_hash, root)
         ok = not issues
         present.append(gate["id"])
         if not ok:
@@ -173,6 +431,7 @@ def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
         )
     return {
         "complete": not missing and not failed,
+        "schema_enforced": not missing and not failed,
         "present": present,
         "missing": missing,
         "failed": failed,
@@ -235,18 +494,21 @@ def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
                 "docker build",
                 "ci_docker_build",
             ),
+            _check_paid_lane_plan(root),
         ]
     )
 
     failed = [check for check in checks if not check["ok"]]
     second_stage = _collect_second_stage_readiness(root)
     local_evidence_bundle_check = not failed
+    stage2_contract_schema_enforced = bool(second_stage["schema_enforced"])
     portfolio_readiness_check = local_evidence_bundle_check and bool(
-        second_stage["complete"]
+        second_stage["complete"] and stage2_contract_schema_enforced
     )
     return {
         "portfolio_readiness_check": portfolio_readiness_check,
         "local_evidence_bundle_check": local_evidence_bundle_check,
+        "stage2_contract_schema_enforced": stage2_contract_schema_enforced,
         "root": str(root),
         "checks": checks,
         "failed": failed,

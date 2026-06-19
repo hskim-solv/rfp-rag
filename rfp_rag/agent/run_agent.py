@@ -14,7 +14,13 @@ from ..rag_chain import DEFAULT_MIN_SCORE, _load_manifest
 from ..tracing import flush_tracing, traced_config
 from ..vector_index import load_vector_store
 from .brains import build_rewriter, build_router
-from .graph import build_agent_graph, initial_state, run_config, sqlite_checkpointer
+from .graph import (
+    build_agent_graph,
+    close_checkpointer,
+    initial_state,
+    run_config,
+    sqlite_checkpointer,
+)
 from .nodes import AgentRuntime
 from .tools import AuditLogger
 
@@ -77,6 +83,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(list(argv) if argv is not None else None)
+    checkpointer = None
     if not args.question and not (args.approve or args.reject):
         print(
             "error: --question 또는 --approve/--reject 중 하나가 필요합니다",
@@ -112,6 +119,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         else:
             result = graph.invoke(initial_state(args.question), config)
     finally:
+        close_checkpointer(checkpointer)
         flush_tracing()  # 예외 경로 포함 — 단명 CLI에서 배치 전송 보장
     if "__interrupt__" in result:
         payload = result["__interrupt__"][0].value

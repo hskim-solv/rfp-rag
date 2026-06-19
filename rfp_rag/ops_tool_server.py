@@ -58,6 +58,41 @@ TOOL_DESCRIPTORS: list[dict[str, Any]] = [
 ]
 
 
+def _tool_descriptor(name: str) -> dict[str, Any]:
+    for descriptor in TOOL_DESCRIPTORS:
+        if descriptor["name"] == name:
+            return descriptor
+    raise ToolGuardrailError("unknown_tool", f"tool {name!r} is not registered")
+
+
+def _validate_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    descriptor = _tool_descriptor(name)
+    schema = descriptor["inputSchema"]
+    properties = schema.get("properties", {})
+    if not isinstance(arguments, dict):
+        raise ToolGuardrailError(
+            "invalid_arguments", "tool arguments must be an object"
+        )
+    unknown = sorted(set(arguments) - set(properties))
+    if unknown and schema.get("additionalProperties") is False:
+        raise ToolGuardrailError(
+            "invalid_arguments", f"unknown argument(s): {', '.join(unknown)}"
+        )
+    for key, value in arguments.items():
+        expected_type = (properties.get(key) or {}).get("type")
+        if expected_type == "string" and not isinstance(value, str):
+            raise ToolGuardrailError(
+                "invalid_arguments", f"argument {key!r} must be a string"
+            )
+        if expected_type == "number" and (
+            not isinstance(value, int | float) or isinstance(value, bool)
+        ):
+            raise ToolGuardrailError(
+                "invalid_arguments", f"argument {key!r} must be a number"
+            )
+    return arguments
+
+
 def list_tools() -> list[dict[str, Any]]:
     return TOOL_DESCRIPTORS
 
@@ -89,7 +124,7 @@ class ToolRegistry:
             )
 
         self.tool_call_count += 1
-        args = arguments or {}
+        args = _validate_arguments(name, arguments or {})
 
         if name == "gate.status":
             root = safe_artifact_path(
@@ -113,6 +148,21 @@ class ToolRegistry:
                 allowed_prefixes=("artifacts",),
                 expected_name="audit.jsonl",
             )
+            if not eval_dir.exists() or not eval_dir.is_dir():
+                raise ToolGuardrailError(
+                    "artifact_missing", f"eval artifact directory not found: {eval_dir}"
+                )
+            for required_name in ("metrics.json", "predictions.jsonl"):
+                required_path = eval_dir / required_name
+                if not required_path.exists():
+                    raise ToolGuardrailError(
+                        "artifact_missing",
+                        f"required eval artifact not found: {required_path}",
+                    )
+            if not audit_path.exists():
+                raise ToolGuardrailError(
+                    "artifact_missing", f"audit artifact not found: {audit_path}"
+                )
             return {
                 "eval": summarize_eval_artifacts(
                     eval_dir,
@@ -127,7 +177,16 @@ class ToolRegistry:
                 allowed_prefixes=("artifacts",),
             )
             metrics_path = eval_dir / "metrics.json"
-            return json.loads(metrics_path.read_text(encoding="utf-8"))
+            if not metrics_path.exists():
+                raise ToolGuardrailError(
+                    "metrics_missing", f"metrics artifact not found: {metrics_path}"
+                )
+            try:
+                return json.loads(metrics_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ToolGuardrailError(
+                    "metrics_invalid_json", f"invalid metrics JSON: {exc.msg}"
+                ) from exc
 
         raise ToolGuardrailError("unknown_tool", f"tool {name!r} is not registered")
 
@@ -162,6 +221,8 @@ def handle_request(
             return _error_response(request_id, exc.code, exc.message)
         except ToolGuardrailError as exc:
             return _error_response(request_id, exc.code, exc.message)
+        except ValueError as exc:
+            return _error_response(request_id, "invalid_arguments", str(exc))
         return {
             "jsonrpc": "2.0",
             "id": request_id,

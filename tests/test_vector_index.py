@@ -8,8 +8,10 @@ from rfp_rag.chunking import Chunk
 from rfp_rag.index_store import SearchResult, save_index
 from rfp_rag.providers import LexicalHashEmbeddings
 from rfp_rag.vector_index import (
+    RETRIEVAL_BM25,
     RETRIEVAL_HYBRID,
     RETRIEVAL_VECTOR,
+    add_documents_in_batches,
     build_vector_store,
     load_vector_store,
     search,
@@ -53,6 +55,32 @@ def test_build_and_search_preserves_chunk_identity() -> None:
     assert results[0].metadata["issuer"] == "한영대학"
     assert results[0].score >= results[1].score
     assert "학사정보시스템" in results[0].text
+
+
+def test_add_documents_in_batches_uses_configured_small_batch_size() -> None:
+    calls = []
+
+    class Store:
+        def add_documents(self, *, documents, ids, batch_size):
+            calls.append(
+                {
+                    "documents": documents,
+                    "ids": ids,
+                    "batch_size": batch_size,
+                }
+            )
+
+    add_documents_in_batches(
+        Store(), documents=["a", "b"], ids=["1", "2"], batch_size=7
+    )
+
+    assert calls == [
+        {
+            "documents": ["a", "b"],
+            "ids": ["1", "2"],
+            "batch_size": 7,
+        }
+    ]
 
 
 def test_persist_and_reload_roundtrip(tmp_path: Path) -> None:
@@ -134,6 +162,106 @@ def test_vector_search_with_index_dir_injects_exact_section_title_candidate(
 
     assert results[0].chunk_id == "doc:000:chunk:1"
     assert results[0].metadata["section_title"] == "입찰방식"
+
+
+def test_vector_search_with_index_dir_injects_exact_project_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    index_dir = tmp_path / "index"
+    chunks = [
+        Chunk(
+            chunk_id="doc:021:chunk:0",
+            doc_id="doc:021",
+            csv_row_id="021",
+            text="원 공고 본문",
+            metadata={
+                "project_name": "의료기기산업 종합정보시스템 기능개선 사업",
+                "issuer": "한국보건산업진흥원",
+            },
+        ),
+        Chunk(
+            chunk_id="doc:046:chunk:0",
+            doc_id="doc:046",
+            csv_row_id="046",
+            text="2차 공고 본문",
+            metadata={
+                "project_name": "의료기기산업 종합정보시스템 기능개선 사업(2차)",
+                "issuer": "BioIN",
+            },
+        ),
+    ]
+    save_index(index_dir, {"embedding_provider": "offline"}, chunks)
+
+    def fake_vector_search(store: object, query: str, top_k: int = 5):
+        return [
+            SearchResult(
+                chunk_id="doc:046:chunk:0",
+                doc_id="doc:046",
+                csv_row_id="046",
+                score=0.8,
+                text="2차 공고 본문",
+                metadata=chunks[1].metadata,
+            )
+        ]
+
+    monkeypatch.setattr("rfp_rag.vector_index._vector_search", fake_vector_search)
+
+    results = search(
+        object(),
+        "의료기기산업 종합정보시스템 기능개선 사업 사업 금액은 얼마야?",
+        top_k=1,
+        retrieval_mode=RETRIEVAL_VECTOR,
+        index_dir=index_dir,
+    )
+
+    assert results[0].doc_id == "doc:021"
+
+
+def test_vector_search_with_index_dir_keeps_multiple_project_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    index_dir = tmp_path / "index"
+    chunks = [
+        Chunk(
+            chunk_id="doc:000:chunk:0",
+            doc_id="doc:000",
+            csv_row_id="000",
+            text="A 본문",
+            metadata={"project_name": "A 사업", "issuer": "A 기관"},
+        ),
+        Chunk(
+            chunk_id="doc:050:chunk:0",
+            doc_id="doc:050",
+            csv_row_id="050",
+            text="B 본문",
+            metadata={"project_name": "B 사업", "issuer": "B 기관"},
+        ),
+    ]
+    save_index(index_dir, {"embedding_provider": "offline"}, chunks)
+
+    def fake_vector_search(store: object, query: str, top_k: int = 5):
+        return [
+            SearchResult(
+                chunk_id="doc:000:chunk:0",
+                doc_id="doc:000",
+                csv_row_id="000",
+                score=0.8,
+                text="A 본문",
+                metadata=chunks[0].metadata,
+            )
+        ]
+
+    monkeypatch.setattr("rfp_rag.vector_index._vector_search", fake_vector_search)
+
+    results = search(
+        object(),
+        "A 사업과 B 사업의 사업 금액을 비교해줘",
+        top_k=2,
+        retrieval_mode=RETRIEVAL_VECTOR,
+        index_dir=index_dir,
+    )
+
+    assert {result.doc_id for result in results} == {"doc:000", "doc:050"}
 
 
 def test_vector_section_candidate_cache_refreshes_when_chunks_change(
@@ -221,6 +349,48 @@ def test_hybrid_search_requires_index_dir() -> None:
 
     with pytest.raises(ValueError, match="index_dir is required"):
         search(store, "사업", top_k=1, retrieval_mode=RETRIEVAL_HYBRID)
+
+
+def test_bm25_search_requires_index_dir() -> None:
+    emb = LexicalHashEmbeddings(dim=512)
+    store = build_vector_store(_chunks(), emb, qdrant_path=None, lane="offline")
+
+    with pytest.raises(ValueError, match="index_dir is required"):
+        search(store, "사업", top_k=1, retrieval_mode=RETRIEVAL_BM25)
+
+
+def test_bm25_search_uses_keyword_index(tmp_path: Path) -> None:
+    chunks = [
+        Chunk(
+            chunk_id="doc:000:chunk:0",
+            doc_id="doc:000",
+            csv_row_id="000",
+            text="범용 시스템 유지보수",
+            metadata={"project_name": "일반 유지보수", "issuer": "테스트기관"},
+        ),
+        Chunk(
+            chunk_id="doc:001:chunk:0",
+            doc_id="doc:001",
+            csv_row_id="001",
+            text="AI LMS 추천 엔진 학습 분석",
+            metadata={"project_name": "AI LMS 고도화", "issuer": "테스트기관"},
+        ),
+    ]
+    emb = LexicalHashEmbeddings(dim=512)
+    index_dir = tmp_path / "index"
+    save_index(index_dir, {"embedding_provider": "offline"}, chunks)
+    store = build_vector_store(chunks, emb, qdrant_path=None, lane="offline")
+
+    results = search(
+        store,
+        "AI LMS 추천 엔진",
+        top_k=1,
+        retrieval_mode=RETRIEVAL_BM25,
+        index_dir=index_dir,
+    )
+
+    assert results[0].chunk_id == "doc:001:chunk:0"
+    assert results[0].score > 0
 
 
 def test_hybrid_search_top_k_zero_returns_empty_without_index_dir() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import uuid
 from functools import lru_cache
@@ -17,10 +18,12 @@ from .hybrid_retrieval import BM25Index
 from .index_store import SearchResult
 
 _COLLECTION_PREFIX = "rfp_chunks"
+DEFAULT_QDRANT_ADD_BATCH_SIZE = 16
 
 RETRIEVAL_VECTOR = "vector"
+RETRIEVAL_BM25 = "bm25"
 RETRIEVAL_HYBRID = "hybrid"
-RETRIEVAL_MODES = {RETRIEVAL_VECTOR, RETRIEVAL_HYBRID}
+RETRIEVAL_MODES = {RETRIEVAL_VECTOR, RETRIEVAL_BM25, RETRIEVAL_HYBRID}
 
 
 def collection_name(lane: str) -> str:
@@ -64,6 +67,33 @@ def _point_id(chunk_id: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, chunk_id))
 
 
+def qdrant_add_batch_size() -> int:
+    raw = os.environ.get("RFP_QDRANT_ADD_BATCH_SIZE")
+    if raw is None:
+        return DEFAULT_QDRANT_ADD_BATCH_SIZE
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError("RFP_QDRANT_ADD_BATCH_SIZE must be an integer") from exc
+    if value <= 0:
+        raise ValueError("RFP_QDRANT_ADD_BATCH_SIZE must be positive")
+    return value
+
+
+def add_documents_in_batches(
+    store: QdrantVectorStore,
+    *,
+    documents: list[Document],
+    ids: list[str],
+    batch_size: int | None = None,
+) -> None:
+    store.add_documents(
+        documents=documents,
+        ids=ids,
+        batch_size=batch_size or qdrant_add_batch_size(),
+    )
+
+
 def _client(qdrant_path: Path | None) -> QdrantClient:
     if qdrant_path is None:
         return QdrantClient(":memory:")
@@ -92,7 +122,7 @@ def build_vector_store(
     )
     documents = [chunk_to_document(chunk) for chunk in chunks]
     ids = [_point_id(chunk.chunk_id) for chunk in chunks]
-    store.add_documents(documents=documents, ids=ids)
+    add_documents_in_batches(store, documents=documents, ids=ids)
     return store
 
 
@@ -171,7 +201,7 @@ def _section_metadata_candidates(
         if not section_title or section_title not in query:
             continue
         project_name = str(metadata.get("project_name") or "").strip()
-        score = 0.95 if project_name and project_name in query else 0.85
+        score = 1.0 if project_name and project_name in query else 0.85
         chunk = Chunk(
             chunk_id=str(record["chunk_id"]),
             doc_id=str(record["doc_id"]),
@@ -189,6 +219,42 @@ def _section_metadata_candidates(
                 metadata=metadata,
             )
         )
+    candidates.sort(key=lambda item: (-item.score, item.doc_id, item.chunk_id))
+    return candidates[:limit]
+
+
+def _project_metadata_candidates(
+    index_dir: Path,
+    query: str,
+    limit: int,
+) -> list[SearchResult]:
+    if limit <= 0:
+        return []
+    by_doc: dict[str, SearchResult] = {}
+    for record in _load_chunk_records(index_dir):
+        metadata = dict(record.get("metadata") or {})
+        project_name = str(metadata.get("project_name") or "").strip()
+        if not project_name or project_name not in query:
+            continue
+        chunk = Chunk(
+            chunk_id=str(record["chunk_id"]),
+            doc_id=str(record["doc_id"]),
+            csv_row_id=str(record["csv_row_id"]),
+            text=str(record.get("text") or ""),
+            metadata=metadata,
+        )
+        candidate = SearchResult(
+            chunk_id=chunk.chunk_id,
+            doc_id=chunk.doc_id,
+            csv_row_id=chunk.csv_row_id,
+            score=0.99,
+            text=embedding_text(chunk),
+            metadata=metadata,
+        )
+        existing = by_doc.get(chunk.doc_id)
+        if existing is None or candidate.chunk_id < existing.chunk_id:
+            by_doc[chunk.doc_id] = candidate
+    candidates = list(by_doc.values())
     candidates.sort(key=lambda item: (-item.score, item.doc_id, item.chunk_id))
     return candidates[:limit]
 
@@ -243,14 +309,18 @@ def search(
         vector_results = _vector_search(store, query, top_k=top_k)
         if index_dir is None:
             return vector_results
-        metadata_results = _section_metadata_candidates(
-            index_dir, query, limit=max(top_k * 4, 20)
-        )
+        candidate_limit = max(top_k * 4, 20)
+        metadata_results = [
+            *_project_metadata_candidates(index_dir, query, limit=candidate_limit),
+            *_section_metadata_candidates(index_dir, query, limit=candidate_limit),
+        ]
         if not metadata_results:
             return vector_results
         return _merge_metadata_candidates(vector_results, metadata_results, top_k=top_k)
     if index_dir is None:
-        raise ValueError("index_dir is required for hybrid retrieval")
+        raise ValueError("index_dir is required for non-vector retrieval")
+    if retrieval_mode == RETRIEVAL_BM25:
+        return _load_bm25_index(index_dir).search(query, top_k=top_k)
 
     from .hybrid_retrieval import fuse_ranked_results
 

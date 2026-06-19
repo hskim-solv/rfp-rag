@@ -41,6 +41,28 @@ def _minimal_ready_root(root: Path) -> None:
             }
         ),
     )
+    _write(
+        root / "artifacts/paid_lane_plan/summary.json",
+        json.dumps(
+            {
+                "paid_lane_plan_complete": True,
+                "approval_required": True,
+                "does_not_execute_paid_lanes": True,
+                "required_env_vars": ["OPENAI_API_KEY"],
+                "steps": [
+                    {"id": "real_index_v6"},
+                    {"id": "real_eval_v6"},
+                    {"id": "stage2_real_eval"},
+                    {"id": "stage2_real_finalize"},
+                    {"id": "same_set_open_reranker_eval"},
+                    {"id": "retrieval_bakeoff"},
+                    {"id": "cost_budget"},
+                    {"id": "gate_status"},
+                    {"id": "portfolio_check"},
+                ],
+            }
+        ),
+    )
 
 
 def _write_complete_second_stage(root: Path) -> None:
@@ -49,12 +71,34 @@ def _write_complete_second_stage(root: Path) -> None:
         "artifacts/eval_stage2/coverage.json": {
             "eval_set_audit_complete": True,
             "eval_set_hash": eval_set_hash,
-            "metrics": {"query_count": 150},
-            "thresholds": {"query_count": 150},
+            "split_manifest_path": "artifacts/eval_stage2/split_manifest.json",
+            "label_rubric_path": "artifacts/eval_stage2/label_rubric.md",
+            "contamination_notes_path": "artifacts/eval_stage2/contamination_notes.md",
+            "adjudication_log_path": "artifacts/eval_stage2/adjudication.jsonl",
+            "thresholds": {
+                "query_count": 150,
+                "metadata_doc_coverage": 100,
+                "hard_negative_count": 30,
+                "cross_document_count": 20,
+                "visual_table_count": 30,
+            },
+            "metrics": {
+                "query_count": 150,
+                "metadata_doc_coverage": 100,
+                "hard_negative_count": 30,
+                "cross_document_count": 20,
+                "visual_table_count": 30,
+            },
             "failed": [],
         },
         "artifacts/eval_stage2_real/metrics.json": {
             "holdout_quality_complete": True,
+            "contract_version": "rfp-rag-stage2-real-v1",
+            "required_command": (
+                "python3 -m rfp_rag.evaluate --data data/data_list.csv "
+                "--index artifacts/index_real --out artifacts/eval_stage2_real "
+                "--provider real_openai"
+            ),
             "eval_set_hash": eval_set_hash,
             "thresholds_met": True,
             "per_slice_failed": [],
@@ -62,53 +106,205 @@ def _write_complete_second_stage(root: Path) -> None:
             "judge_model_id": "judge-test",
             "embedding_model_id": "embed-test",
             "prompt_template_hash": "a" * 64,
-            "metrics": {
-                "judge_coverage_faithfulness_min_by_answerable_slice": 1.0,
-                "judge_coverage_answer_relevancy_min_by_answerable_slice": 1.0,
+            "query_set_counts": {
+                "total": 150,
+                "golden_metadata": 100,
+                "abstention": 30,
+                "cross_document": 20,
+                "visual_table": 30,
             },
-            "thresholds": {"recall@5": 0.95},
+            "metrics": {
+                "recall@5": 0.95,
+                "recall@3": 0.90,
+                "mrr": 0.85,
+                "metadata_exact_match": 0.95,
+                "faithfulness": 0.90,
+                "answer_relevancy": 0.80,
+                "judge_coverage_faithfulness_min_by_answerable_slice": 0.95,
+                "judge_coverage_answer_relevancy_min_by_answerable_slice": 0.95,
+                "citation_presence": 1.0,
+                "citation_validity": 1.0,
+            },
+            "thresholds": {
+                "recall@5": 0.95,
+                "recall@3": 0.90,
+                "mrr": 0.85,
+                "metadata_exact_match": 0.95,
+                "faithfulness": 0.90,
+                "answer_relevancy": 0.80,
+                "judge_coverage_faithfulness_min_by_answerable_slice": 0.95,
+                "judge_coverage_answer_relevancy_min_by_answerable_slice": 0.95,
+                "citation_presence": 1.0,
+                "citation_validity": 1.0,
+            },
             "failed": [],
         },
         "artifacts/eval_agent_stress/metrics.json": {
             "agent_stress_complete": True,
-            "metrics": {"pass_rate": 1.0},
-            "thresholds": {"pass_rate": 1.0},
+            "scenario_matrix_hash": "b" * 64,
+            "branch_replay_artifact_path": "artifacts/eval_agent_stress/replay.jsonl",
+            "metrics": {
+                "trajectory_pass_rate": 1.0,
+                "branch_coverage": 1.0,
+                "thread_id_isolation_pass": 1.0,
+                "hitl_approval_convergence": 1.0,
+                "no_side_effect_before_approval": 1.0,
+                "checkpoint_close_path_pass": 1.0,
+                "audit_arg_redaction_pass": 1.0,
+                "ops_tool_budget_violation_count": 0,
+            },
+            "thresholds": {
+                "trajectory_pass_rate": 1.0,
+                "branch_coverage": 1.0,
+                "thread_id_isolation_pass": 1.0,
+                "hitl_approval_convergence": 1.0,
+                "no_side_effect_before_approval": 1.0,
+                "checkpoint_close_path_pass": 1.0,
+                "audit_arg_redaction_pass": 1.0,
+                "ops_tool_budget_violation_count": 0,
+            },
             "failed": [],
         },
         "artifacts/retrieval_bakeoff/summary.json": {
             "retrieval_bakeoff_complete": True,
             "decision": "keep_vector_until_reranker_wins",
-            "metrics": {"winner_margin": 0.0},
-            "thresholds": {"winner_margin": 0.0},
+            "comparison_set_hash": eval_set_hash,
+            "compared_modes": ["vector", "bm25", "hybrid_rrf", "reranker"],
+            "decision_adr_path": "docs/adr/0020-retrieval-bakeoff.md",
+            "metrics": {
+                "recall_no_regression": 1.0,
+                "citation_validity_no_regression": 1.0,
+                "abstention_no_regression": 1.0,
+                "section_hit_no_regression": 1.0,
+                "visual_evidence_no_regression": 1.0,
+                "latency_budget_pass": 1.0,
+                "cost_budget_pass": 1.0,
+            },
+            "thresholds": {
+                "recall_no_regression": 1.0,
+                "citation_validity_no_regression": 1.0,
+                "abstention_no_regression": 1.0,
+                "section_hit_no_regression": 1.0,
+                "visual_evidence_no_regression": 1.0,
+                "latency_budget_pass": 1.0,
+                "cost_budget_pass": 1.0,
+            },
             "failed": [],
         },
         "artifacts/visual_quality/summary.json": {
             "visual_quality_complete": True,
-            "metrics": {"visual_evidence_hit_rate": 1.0},
-            "thresholds": {"visual_evidence_hit_rate": 0.9},
+            "metrics": {
+                "visual_question_count": 30,
+                "visual_evidence_hit_rate": 0.9,
+                "unsupported_visual_claim_rate": 0.1,
+                "sidecar_citation_no_regression": 1.0,
+                "sidecar_abstention_no_regression": 1.0,
+            },
+            "thresholds": {
+                "visual_question_count": 30,
+                "visual_evidence_hit_rate": 0.9,
+                "unsupported_visual_claim_rate": 0.1,
+                "sidecar_citation_no_regression": 1.0,
+                "sidecar_abstention_no_regression": 1.0,
+            },
             "failed": [],
         },
         "artifacts/service_ops/summary.json": {
             "service_ops_complete": True,
-            "metrics": {"healthz_pass": 1.0},
-            "thresholds": {"healthz_pass": 1.0},
+            "docker_demo_command": "docker run --rm rfp-rag-service:ci",
+            "metrics": {
+                "healthz_pass": 1.0,
+                "answer_pass": 1.0,
+                "stream_pass": 1.0,
+                "gates_pass": 1.0,
+                "ops_summary_pass": 1.0,
+                "path_safety_pass": 1.0,
+                "latency_p50_ms": 100.0,
+                "latency_p95_ms": 250.0,
+                "token_cost_distribution_recorded": 1.0,
+            },
+            "thresholds": {
+                "healthz_pass": 1.0,
+                "answer_pass": 1.0,
+                "stream_pass": 1.0,
+                "gates_pass": 1.0,
+                "ops_summary_pass": 1.0,
+                "path_safety_pass": 1.0,
+                "latency_p50_ms": 0.0,
+                "latency_p95_ms": 0.0,
+                "token_cost_distribution_recorded": 1.0,
+            },
             "failed": [],
         },
         "artifacts/security_redteam/summary.json": {
             "security_redteam_complete": True,
-            "metrics": {"block_recall": 1.0},
-            "thresholds": {"block_recall": 1.0},
+            "publishable_allowlist_path": "docs/evidence/publishable-artifacts.md",
+            "retention_scope_path": "docs/evidence/artifact-retention.md",
+            "metrics": {
+                "block_recall": 1.0,
+                "malicious_document_pass": 1.0,
+                "malicious_retrieved_evidence_pass": 1.0,
+                "malicious_tool_output_pass": 1.0,
+                "artifact_redaction_scan_pass": 1.0,
+                "publishable_allowlist_pass": 1.0,
+                "retention_scope_pass": 1.0,
+                "secret_pii_leak_count": 0,
+                "raw_persistence_count": 0,
+                "tool_policy_violation_count": 0,
+            },
+            "thresholds": {
+                "block_recall": 1.0,
+                "malicious_document_pass": 1.0,
+                "malicious_retrieved_evidence_pass": 1.0,
+                "malicious_tool_output_pass": 1.0,
+                "artifact_redaction_scan_pass": 1.0,
+                "publishable_allowlist_pass": 1.0,
+                "retention_scope_pass": 1.0,
+                "secret_pii_leak_count": 0,
+                "raw_persistence_count": 0,
+                "tool_policy_violation_count": 0,
+            },
             "failed": [],
         },
         "artifacts/cost_budget/summary.json": {
             "cost_budget_complete": True,
-            "metrics": {"cost_record_coverage": 1.0},
-            "thresholds": {"cost_record_coverage": 1.0},
+            "real_open_run_cost_estimate_usd": 5.0,
+            "regression_threshold_rationale": "initial budget cap",
+            "metrics": {
+                "token_record_coverage": 1.0,
+                "cost_record_coverage": 1.0,
+                "budget_violation_count": 0,
+            },
+            "thresholds": {
+                "token_record_coverage": 1.0,
+                "cost_record_coverage": 1.0,
+                "budget_violation_count": 0,
+            },
             "failed": [],
         },
     }
     for rel, payload in complete_payloads.items():
         _write(root / rel, json.dumps(payload))
+    _write(
+        root / "artifacts/eval_stage2/split_manifest.json",
+        json.dumps(
+            {
+                "eval_set_hash": eval_set_hash,
+                "policy": "frozen_stage2_evidence_set",
+                "train_dev_holdout_separation_complete": True,
+                "tuning_after_freeze_allowed": False,
+            }
+        ),
+    )
+    _write(
+        root / "artifacts/eval_stage2/label_rubric.md",
+        "# Stage 2 Label Rubric\n\n- Freeze key: eval_set_hash.\n",
+    )
+    _write(
+        root / "artifacts/eval_stage2/contamination_notes.md",
+        "# Stage 2 Contamination Notes\n\n- eval-set hash controls the freeze boundary.\n",
+    )
+    _write(root / "artifacts/eval_stage2/adjudication.jsonl", "")
 
 
 def test_collect_portfolio_readiness_accepts_required_evidence(
@@ -146,6 +342,7 @@ def test_collect_portfolio_readiness_requires_second_stage_for_top_level_ready(
 
     assert report["local_evidence_bundle_check"] is True
     assert report["second_stage_readiness"]["complete"] is True
+    assert report["stage2_contract_schema_enforced"] is True
     assert report["portfolio_readiness_check"] is True
 
 
@@ -187,6 +384,23 @@ def test_collect_portfolio_readiness_requires_docker_build_in_ci(
     assert "ci_docker_build" in failed
 
 
+def test_collect_portfolio_readiness_requires_paid_lane_plan(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    (tmp_path / "artifacts/paid_lane_plan/summary.json").unlink()
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    failed = {item["id"] for item in report["failed"]}
+    assert "paid_lane_plan" in failed
+
+
 def test_portfolio_check_cli_writes_report(tmp_path: Path, monkeypatch) -> None:
     _minimal_ready_root(tmp_path)
     _write_complete_second_stage(tmp_path)
@@ -203,6 +417,7 @@ def test_portfolio_check_cli_writes_report(tmp_path: Path, monkeypatch) -> None:
     saved = json.loads(out.read_text(encoding="utf-8"))
     assert saved["portfolio_readiness_check"] is True
     assert saved["local_evidence_bundle_check"] is True
+    assert saved["stage2_contract_schema_enforced"] is True
 
 
 def test_portfolio_check_reports_second_stage_separately(
@@ -266,3 +481,96 @@ def test_second_stage_readiness_rejects_bool_only_artifacts(
     details = {item["id"]: item for item in report["second_stage_readiness"]["details"]}
     assert "eval_set_hash" in details["eval_stage2_real"]["issues"]
     assert "generation_model_id" in details["eval_stage2_real"]["issues"]
+
+
+def test_second_stage_readiness_rejects_shallow_contract_payloads(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    eval_set_hash = "stage2-eval-set-v1"
+    shallow_payloads = {
+        "artifacts/eval_stage2/coverage.json": {
+            "eval_set_audit_complete": True,
+            "eval_set_hash": eval_set_hash,
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+        "artifacts/eval_stage2_real/metrics.json": {
+            "holdout_quality_complete": True,
+            "eval_set_hash": eval_set_hash,
+            "thresholds_met": True,
+            "per_slice_failed": [],
+            "generation_model_id": "gpt-test",
+            "judge_model_id": "judge-test",
+            "embedding_model_id": "embed-test",
+            "prompt_template_hash": "a" * 64,
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+        "artifacts/eval_agent_stress/metrics.json": {
+            "agent_stress_complete": True,
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+        "artifacts/retrieval_bakeoff/summary.json": {
+            "retrieval_bakeoff_complete": True,
+            "decision": "keep_vector_until_reranker_wins",
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+        "artifacts/visual_quality/summary.json": {
+            "visual_quality_complete": True,
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+        "artifacts/service_ops/summary.json": {
+            "service_ops_complete": True,
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+        "artifacts/security_redteam/summary.json": {
+            "security_redteam_complete": True,
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+        "artifacts/cost_budget/summary.json": {
+            "cost_budget_complete": True,
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+    }
+    for rel, payload in shallow_payloads.items():
+        _write(tmp_path / rel, json.dumps(payload))
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is False
+    assert report["stage2_contract_schema_enforced"] is False
+    assert set(report["second_stage_readiness"]["failed"]) == {
+        "eval_stage2_coverage",
+        "eval_stage2_real",
+        "agent_stress",
+        "retrieval_bakeoff",
+        "visual_quality",
+        "service_ops",
+        "security_redteam",
+        "cost_budget",
+    }
+    details = {item["id"]: item for item in report["second_stage_readiness"]["details"]}
+    assert "query_count" in details["eval_stage2_coverage"]["issues"]
+    assert "trajectory_pass_rate" in details["agent_stress"]["issues"]
+    assert "healthz_pass" in details["service_ops"]["issues"]
+    assert "secret_pii_leak_count" in details["security_redteam"]["issues"]

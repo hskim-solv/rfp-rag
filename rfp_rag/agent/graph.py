@@ -48,6 +48,20 @@ def sqlite_checkpointer(path: Path) -> BaseCheckpointSaver:
     return SqliteSaver(sqlite3.connect(str(path), check_same_thread=False))
 
 
+def close_checkpointer(checkpointer: BaseCheckpointSaver | None) -> bool:
+    if checkpointer is None:
+        return True
+    close = getattr(checkpointer, "close", None)
+    if callable(close):
+        close()
+        return True
+    connection = getattr(checkpointer, "conn", None)
+    if connection is not None and hasattr(connection, "close"):
+        connection.close()
+        return True
+    return False
+
+
 def build_agent_graph(
     runtime: AgentRuntime, checkpointer: BaseCheckpointSaver | None = None
 ):
