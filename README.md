@@ -161,6 +161,18 @@ exercise the local service/gate surfaces without credentials. It does not make
 the full `top_tier_readiness` claim until the Stage 3, observability,
 orchestration, security/reliability, and case-study gates are also present.
 
+Top-tier observability and security/reliability artifacts:
+
+```bash
+uv run python -m rfp_rag.observability_report
+uv run python -m rfp_rag.agent_orchestration
+uv run python -m rfp_rag.security_reliability
+```
+
+These write redacted trace/failure-analysis artifacts, planner-executor
+orchestration evidence, and a 20-case security/reliability deepening suite.
+They reuse local evidence and do not call external telemetry or model providers.
+
 Stage 2 contract scaffold:
 
 ```bash
