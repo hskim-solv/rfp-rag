@@ -41,6 +41,19 @@ The contract finalizer is:
 uv run python -m rfp_rag.stage3_holdout
 ```
 
+After the cases are frozen and paid/API execution is approved, run the fixed-case
+real evaluation:
+
+```bash
+uv run python -m rfp_rag.stage3_eval \
+  --cases eval_sets/stage3_holdout/cases.jsonl \
+  --index artifacts/index_real \
+  --out artifacts/eval_stage3_raw \
+  --provider real_openai \
+  --top-k 5 \
+  --min-score 0.47
+```
+
 Without `cases.jsonl` and a real metrics artifact, it writes a fail-closed
 `artifacts/eval_stage3_holdout/metrics.json`. That is intentional: a missing or
 unmeasured independent holdout must not look complete.

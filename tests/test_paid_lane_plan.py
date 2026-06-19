@@ -55,6 +55,11 @@ def test_build_paid_lane_plan_records_required_approval_and_artifacts(
         "artifacts/eval_stage3_raw/metrics.json"
     ]
     assert (
+        "uv run python -m rfp_rag.stage3_eval"
+        in _step(summary, "stage3_real_eval")["command"]
+    )
+    assert "--provider real_openai" in _step(summary, "stage3_real_eval")["command"]
+    assert (
         "--raw-metrics artifacts/eval_stage3_raw/metrics.json"
         in _step(summary, "stage3_holdout_finalize")["command"]
     )
