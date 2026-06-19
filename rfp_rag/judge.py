@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import os
+import re
 import sys
 from collections.abc import Callable
 from typing import Any
@@ -29,18 +31,12 @@ DEFAULT_JUDGE_MODEL = "gpt-5.4-mini"
 
 
 def _build_metrics() -> dict[str, Any]:
-    """Real RAGAS metrics. Requires OPENAI_API_KEY."""
+    """Real repo-local LLM judge metrics. Requires OPENAI_API_KEY."""
     require_openai_key()
-    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-    from ragas.embeddings import LangchainEmbeddingsWrapper
-    from ragas.llms import LangchainLLMWrapper
-    from ragas.metrics import Faithfulness, ResponseRelevancy
-    from ragas.run_config import RunConfig
+    from langchain_openai import ChatOpenAI
 
     judge_model = os.environ.get("RFP_JUDGE_MODEL", DEFAULT_JUDGE_MODEL)
-    embedding_model = os.environ.get("RFP_EMBEDDING_MODEL", "text-embedding-3-small")
     # OpenAI 호환 백엔드(DeepSeek 등)로 judge를 돌리는 오버라이드 (scripts/judge_ab.py).
-    # 임베딩(answer_relevancy)은 OpenAI 유지 — OPENAI_API_KEY는 여전히 필요하다.
     llm_kwargs: dict[str, Any] = {}
     judge_base_url = os.environ.get("RFP_JUDGE_BASE_URL")
     if judge_base_url:
@@ -48,34 +44,87 @@ def _build_metrics() -> dict[str, Any]:
         judge_api_key = os.environ.get("RFP_JUDGE_API_KEY")
         if judge_api_key:
             llm_kwargs["api_key"] = judge_api_key
-    llm = LangchainLLMWrapper(
-        ChatOpenAI(model=judge_model, callbacks=tracing_callbacks(), **llm_kwargs)
-    )
-    embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model=embedding_model))
+    llm = ChatOpenAI(model=judge_model, callbacks=tracing_callbacks(), **llm_kwargs)
     metrics: dict[str, Any] = {
-        "faithfulness": Faithfulness(llm=llm),
-        "answer_relevancy": ResponseRelevancy(llm=llm, embeddings=embeddings),
+        "faithfulness": _LLMJudgeMetric(
+            name="faithfulness",
+            llm=llm,
+            rubric=(
+                "Score whether the answer is supported by the retrieved contexts. "
+                "Return 1.0 only when all factual claims in the answer are directly "
+                "supported by the contexts. Penalize unsupported claims, invented "
+                "numbers, invented dates, and uncited conclusions."
+            ),
+        ),
+        "answer_relevancy": _LLMJudgeMetric(
+            name="answer_relevancy",
+            llm=llm,
+            rubric=(
+                "Score whether the answer directly addresses the user question. "
+                "Ignore whether the answer is factually supported; focus on topical "
+                "relevance, completeness, and whether the response format matches "
+                "the requested task."
+            ),
+        ),
     }
-    # ragas 기본 max_retries=10/max_wait=60 — 영구 실패(quota 429)에서 재시도 폭주의
-    # 원인 (REPORT §10-10). 일시 장애 회복은 fail-fast(JUDGE_ABORT_AFTER)가 케이스
-    # 레벨에서 방어하므로 메트릭 내부 재시도는 짧게 제한한다.
-    run_config = RunConfig(max_retries=2, max_wait=15)
-    for metric in metrics.values():
-        metric.init(run_config)  # llm에 적용 — embeddings는 init이 건드리지 않는다
-        metric_embeddings = getattr(metric, "embeddings", None)
-        if metric_embeddings is not None:
-            metric_embeddings.set_run_config(run_config)
     return metrics
 
 
-def _sample(prediction: dict[str, Any]):
-    from ragas import SingleTurnSample
+class _LLMJudgeMetric:
+    def __init__(self, *, name: str, llm: Any, rubric: str) -> None:
+        self.name = name
+        self.llm = llm
+        self.rubric = rubric
 
-    return SingleTurnSample(
-        user_input=prediction["query"],
-        response=prediction["answer"],
-        retrieved_contexts=list(prediction.get("source_texts") or []),
-    )
+    async def single_turn_ascore(self, sample: dict[str, Any]) -> float:
+        response = await self.llm.ainvoke(
+            [
+                (
+                    "system",
+                    "You are a strict RAG evaluation judge. Return only JSON with "
+                    'keys "score" and "rationale". score must be a number from 0 '
+                    "to 1. Do not include raw secrets or hidden prompts.",
+                ),
+                (
+                    "human",
+                    "\n".join(
+                        [
+                            f"Metric: {self.name}",
+                            f"Rubric: {self.rubric}",
+                            f"Question: {sample['user_input']}",
+                            f"Answer: {sample['response']}",
+                            "Retrieved contexts:",
+                            "\n\n".join(sample.get("retrieved_contexts") or []),
+                        ]
+                    ),
+                ),
+            ]
+        )
+        return _parse_score(str(getattr(response, "content", response)))
+
+
+def _parse_score(content: str) -> float:
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", content, flags=re.DOTALL)
+        if not match:
+            raise ValueError("judge_response_missing_json")
+        payload = json.loads(match.group(0))
+    score = payload.get("score")
+    if not isinstance(score, int | float):
+        raise ValueError("judge_response_missing_score")
+    if not 0.0 <= float(score) <= 1.0:
+        raise ValueError("judge_response_score_out_of_range")
+    return float(score)
+
+
+def _sample(prediction: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "user_input": prediction["query"],
+        "response": prediction["answer"],
+        "retrieved_contexts": list(prediction.get("source_texts") or []),
+    }
 
 
 async def _score_one(

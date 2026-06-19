@@ -455,6 +455,75 @@ def _write_complete_top_tier(root: Path) -> None:
             },
             "failed": [],
         },
+        "artifacts/deployment_readiness/summary.json": {
+            "deployment_readiness_complete": True,
+            "deployment_mode": "readiness_plan_no_public_exposure",
+            "hosted_deployment_plan_path": "docs/portfolio/hosted-deployment-plan.md",
+            "public_deployment_decision": "requires_explicit_owner_approval",
+            "auth_boundary": "signed reviewer token",
+            "rate_limit_boundary": "per-token request rate",
+            "secret_handling_boundary": "secret manager only",
+            "metrics": {
+                "auth_boundary_documented": 1.0,
+                "rate_limit_plan_documented": 1.0,
+                "secret_handling_documented": 1.0,
+                "public_exposure_requires_approval": 1.0,
+                "one_command_fallback_documented": 1.0,
+            },
+            "thresholds": {
+                "auth_boundary_documented": 1.0,
+                "rate_limit_plan_documented": 1.0,
+                "secret_handling_documented": 1.0,
+                "public_exposure_requires_approval": 1.0,
+                "one_command_fallback_documented": 1.0,
+            },
+            "failed": [],
+        },
+        "artifacts/interview_demo_package/summary.json": {
+            "interview_demo_package_complete": True,
+            "storyboard_path": "docs/portfolio/demo-storyboard.md",
+            "generated_artifact_paths": [
+                "docs/evidence/demo-package/01-entrypoint.md",
+                "docs/evidence/demo-package/02-answer-citations.md",
+                "docs/evidence/demo-package/03-trace-failure-cost.md",
+                "docs/evidence/demo-package/04-security-boundaries.md",
+            ],
+            "reviewer_time_budget_minutes": 10,
+            "demo_duration_minutes": 3,
+            "metrics": {
+                "three_minute_storyboard_present": 1.0,
+                "generated_artifact_count": 4.0,
+                "one_command_path_documented": 1.0,
+                "ten_minute_reviewer_path_documented": 1.0,
+                "security_observability_evidence_mapped": 1.0,
+            },
+            "thresholds": {
+                "three_minute_storyboard_present": 1.0,
+                "generated_artifact_count": 4.0,
+                "one_command_path_documented": 1.0,
+                "ten_minute_reviewer_path_documented": 1.0,
+                "security_observability_evidence_mapped": 1.0,
+            },
+            "failed": [],
+        },
+        "artifacts/security_alerts/summary.json": {
+            "dependency_security_complete": True,
+            "risk_register_path": "docs/security/dependency-risk-register.md",
+            "remediated_alerts": [],
+            "open_alerts": [],
+            "residual_risk_approval": "accepted",
+            "metrics": {
+                "langchain_patched": 1.0,
+                "diskcache_absent": 1.0,
+                "unresolved_unaccepted_alert_count": 0,
+            },
+            "thresholds": {
+                "langchain_patched": 1.0,
+                "diskcache_absent": 1.0,
+                "unresolved_unaccepted_alert_count": 0,
+            },
+            "failed": [],
+        },
     }
     for rel, payload in top_tier_payloads.items():
         _write(root / rel, json.dumps(payload))
@@ -499,6 +568,7 @@ def test_collect_portfolio_readiness_requires_second_stage_for_top_level_ready(
     assert report["second_stage_readiness"]["complete"] is True
     assert report["stage2_contract_schema_enforced"] is True
     assert report["portfolio_readiness_check"] is True
+    assert report["interview_readiness_check"] is False
     assert report["top_tier_readiness"]["complete"] is False
 
 
@@ -557,7 +627,9 @@ def test_collect_portfolio_readiness_requires_paid_lane_plan(
     assert "paid_lane_plan" in failed
 
 
-def test_portfolio_check_cli_writes_report(tmp_path: Path, monkeypatch) -> None:
+def test_portfolio_check_cli_requires_interview_readiness(
+    tmp_path: Path, monkeypatch
+) -> None:
     _minimal_ready_root(tmp_path)
     _write_complete_second_stage(tmp_path)
     out = tmp_path / "portfolio_readiness.json"
@@ -569,9 +641,10 @@ def test_portfolio_check_cli_writes_report(tmp_path: Path, monkeypatch) -> None:
 
     rc = main(["--root", str(tmp_path), "--out", str(out)])
 
-    assert rc == 0
+    assert rc == 1
     saved = json.loads(out.read_text(encoding="utf-8"))
     assert saved["portfolio_readiness_check"] is True
+    assert saved["interview_readiness_check"] is False
     assert saved["local_evidence_bundle_check"] is True
     assert saved["stage2_contract_schema_enforced"] is True
     assert saved["top_tier_readiness"]["complete"] is False
@@ -592,6 +665,7 @@ def test_top_tier_readiness_tracks_next_portfolio_level(
     report = collect_portfolio_readiness(tmp_path)
 
     assert report["portfolio_readiness_check"] is True
+    assert report["interview_readiness_check"] is True
     assert report["top_tier_readiness"]["complete"] is True
     assert report["top_tier_readiness"]["missing"] == []
     assert report["top_tier_readiness"]["failed"] == []
@@ -625,6 +699,7 @@ def test_top_tier_readiness_rejects_shallow_artifacts(
     report = collect_portfolio_readiness(tmp_path)
 
     assert report["portfolio_readiness_check"] is True
+    assert report["interview_readiness_check"] is False
     assert report["top_tier_readiness"]["complete"] is False
     assert "top_tier_roadmap" in report["top_tier_readiness"]["failed"]
     assert "stage3_independent_holdout" in report["top_tier_readiness"]["failed"]

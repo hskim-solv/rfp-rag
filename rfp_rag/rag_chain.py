@@ -157,7 +157,7 @@ def answer_with_store(
         "query": query,
         "answer": answer,
         "sources": [_source_from_result(r) for r in results],
-        # source_texts feed the RAGAS judge as retrieved_contexts and MUST match
+        # source_texts feed the LLM judge as retrieved_contexts and MUST match
         # what build_answer_prompt showed the generator (metadata lines + body),
         # otherwise metadata-grounded answers get judged unfaithful.
         "source_texts": [chunk_context_block(r) for r in results],

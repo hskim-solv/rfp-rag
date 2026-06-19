@@ -6,6 +6,7 @@ or presenting, rerun:
 ```bash
 python3 -m rfp_rag.gate_status
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
+uv run python -m rfp_rag.production_readiness
 uv run python -m pytest -m "not real" -q
 ```
 
@@ -31,7 +32,12 @@ PATH="$PWD/.venv/bin:$PATH" python3 -m pytest -m "not real" -q
 - Verified current readiness with `gate_status overall_ok=true`,
   `portfolio_readiness_check=true`,
   `stage2_contract_schema_enforced=true`, and credential-free offline tests
-  passing without provider credentials.
+  passing without provider credentials; the stricter
+  `interview_readiness_check` additionally requires top-tier and dependency
+  security evidence.
+- Added production-facing reviewer packaging: 3-minute demo storyboard,
+  generated evidence artifacts, hosted-deployment readiness plan, auth/rate-limit
+  and secret-handling boundaries, and a fail-closed dependency security register.
 - Measured parsed-source real-lane quality under `rfp-rag-real-v6` with
   `recall@5=1.0`, `mrr=0.9922`, citation presence/validity `1.0`,
   `faithfulness=0.9369`, and `answer_relevancy=0.8109`; Stage 2 answer
@@ -52,8 +58,9 @@ FastAPI service surface, constrained LangGraph typed-state orchestration,
 guarded tools, checkpoint/HITL behavior, and artifact-backed gates for
 retrieval, generation, agent stress, visual/table evidence, service smoke,
 deterministic security smoke, and token/cost estimates. The repo does not ask
-reviewers to trust a demo; `gate_status`, `portfolio_check`, and credential-free
-tests prove whether the local/container evidence bundle is current. I also
+reviewers to trust a demo; `gate_status`, `portfolio_check`,
+`production_readiness`, and credential-free tests prove whether the
+local/container evidence bundle is current. I also
 documented trade-offs honestly: vector remains the baseline until hybrid or
 reranking wins on the same frozen set, and cloud/live-traffic evidence is
 deferred rather than implied.
@@ -98,3 +105,11 @@ The repo does not claim public cloud deployment, auth/session/rate-limit
 operation, live production traffic SLOs, provider billing telemetry, or a public
 dashboard. Those are separate product, credential, and disclosure decisions. The
 current claim is local/containerized portfolio evidence with passing gates.
+
+**What dependency risk remains?**
+
+`langchain` is absent or patched in the lockfile, unused vulnerable `diskcache`
+is excluded, and `ragas` `GHSA-95ww-475f-pr4f` is resolved by ADR-0021. The
+judge now uses a repo-local LLM rubric instead of carrying the unpatched
+package; future paid real-lane reruns should treat judge score distributions as
+new calibration evidence.

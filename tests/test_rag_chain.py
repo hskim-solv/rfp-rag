@@ -49,7 +49,7 @@ def test_in_domain_question_returns_cited_answer() -> None:
     assert response["warnings"] == []
     assert response["confidence"] in {"medium", "high"}
     assert response["source_texts"]
-    # 생성기 프롬프트와 RAGAS judge가 같은 컨텍스트를 봐야 한다: 메타데이터 라인 + 본문
+    # 생성기 프롬프트와 LLM judge가 같은 컨텍스트를 봐야 한다: 메타데이터 라인 + 본문
     assert "발주기관: 한영대학" in response["source_texts"][0]
     assert (
         "한영대학교 트랙운영 학사정보시스템 고도화 사업 제안요청서 본문"

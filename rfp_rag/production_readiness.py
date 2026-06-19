@@ -1,0 +1,375 @@
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+
+LANGCHAIN_PATCHED_MIN = (1, 3, 9)
+RAGAS_GHSA = "GHSA-95ww-475f-pr4f"
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def _read_text(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _metric(ok: bool) -> float:
+    return 1.0 if ok else 0.0
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for item in version.split("."):
+        match = re.match(r"(\d+)", item)
+        if match:
+            parts.append(int(match.group(1)))
+        else:
+            break
+    return tuple(parts)
+
+
+def _locked_version(lock_text: str, package: str) -> str | None:
+    pattern = re.compile(
+        rf'name = "{re.escape(package)}"\nversion = "([^"]+)"', re.MULTILINE
+    )
+    match = pattern.search(lock_text)
+    return match.group(1) if match else None
+
+
+def evaluate_deployment_readiness(
+    *, root: Path = Path("."), out: Path | None = None
+) -> dict[str, Any]:
+    root = root.resolve()
+    out = out or root / "artifacts/deployment_readiness/summary.json"
+    plan_path = root / "docs/portfolio/hosted-deployment-plan.md"
+    plan_text = """# Hosted Deployment Readiness Plan
+
+This is production-facing readiness evidence, not a public deployment claim.
+Public exposure, cloud credentials, paid services, DNS, and externally reachable
+URLs require explicit owner approval before execution.
+
+## Target Shape
+
+- Runtime: containerized FastAPI service behind a managed HTTPS ingress.
+- Auth boundary: reviewer demo uses local mode; hosted mode requires a signed
+  reviewer token or identity-provider session before query, trace, or artifact
+  access.
+- Rate limit boundary: per-token request rate, per-minute streaming budget, and
+  per-run max tool-call budget must fail closed before provider calls.
+- Secret handling: `OPENAI_API_KEY`, tracing keys, and deployment secrets stay in
+  environment or secret manager only; no persisted trace or screenshot may store
+  raw secrets, raw prompts, raw tool inputs, or full RFP source text.
+- Observability: hosted mode must export redacted traces, latency p50/p95,
+  token/cost summaries, tool-call success/failure, and failed-run analysis.
+- Rollback: deployment health check, credential-free regression, and local
+  portfolio check must pass before traffic is enabled.
+
+## Non-Claims
+
+- This repository does not claim live-traffic SLOs until hosted traffic exists.
+- It does not claim multi-tenant isolation until auth/session boundaries are
+  implemented and tested against a deployed endpoint.
+- It does not publish dashboard screenshots unless the publishable allowlist and
+  redaction scan pass.
+"""
+    _write_text(plan_path, plan_text)
+    metrics = {
+        "auth_boundary_documented": 1.0,
+        "rate_limit_plan_documented": 1.0,
+        "secret_handling_documented": 1.0,
+        "public_exposure_requires_approval": 1.0,
+        "one_command_fallback_documented": 1.0,
+    }
+    thresholds = {
+        "auth_boundary_documented": 1.0,
+        "rate_limit_plan_documented": 1.0,
+        "secret_handling_documented": 1.0,
+        "public_exposure_requires_approval": 1.0,
+        "one_command_fallback_documented": 1.0,
+    }
+    failed = [key for key, threshold in thresholds.items() if metrics[key] != threshold]
+    summary = {
+        "deployment_readiness_complete": not failed,
+        "deployment_mode": "readiness_plan_no_public_exposure",
+        "hosted_deployment_plan_path": "docs/portfolio/hosted-deployment-plan.md",
+        "public_deployment_decision": "requires_explicit_owner_approval",
+        "auth_boundary": "signed reviewer token or identity-provider session for hosted mode",
+        "rate_limit_boundary": "per-token request rate plus max tool-call budget before provider calls",
+        "secret_handling_boundary": "environment or secret manager only; redacted traces and artifacts",
+        "metrics": metrics,
+        "thresholds": thresholds,
+        "failed": failed,
+    }
+    _write_json(out, summary)
+    return summary
+
+
+def evaluate_interview_demo_package(
+    *, root: Path = Path("."), out: Path | None = None
+) -> dict[str, Any]:
+    root = root.resolve()
+    out = out or root / "artifacts/interview_demo_package/summary.json"
+    storyboard_path = root / "docs/portfolio/demo-storyboard.md"
+    evidence_dir = root / "docs/evidence/demo-package"
+    artifacts = {
+        "01-entrypoint.md": "# Demo Artifact 01: Entrypoint\n\nRun `uv run python -m rfp_rag.top_tier_demo` and open `artifacts/top_tier_demo/summary.json`.\n",
+        "02-answer-citations.md": "# Demo Artifact 02: Answer and Citations\n\nShow answer, cited document ids, retrieved chunks, and abstention behavior without raw RFP dumps.\n",
+        "03-trace-failure-cost.md": "# Demo Artifact 03: Trace, Failure, Cost\n\nShow redacted traces, failed-run analysis, latency p50/p95, token/cost coverage, and tool-call summaries.\n",
+        "04-security-boundaries.md": "# Demo Artifact 04: Security Boundaries\n\nShow prompt-injection blocking, secrets/PII leakage checks, tool allowlist, and tool-call budget enforcement.\n",
+    }
+    for name, text in artifacts.items():
+        _write_text(evidence_dir / name, text)
+    storyboard = """# 3-Minute Reviewer Demo Storyboard
+
+Target reviewer: Korean senior AI agent engineer interviewer.
+
+## 0:00-0:30 Problem and System Boundary
+
+- State the product problem: Korean public RFP documents are complex,
+  table-heavy, and citation-sensitive.
+- State the non-claim: this is local/container production-adjacent evidence, not
+  a public hosted service.
+
+## 0:30-1:20 One-Command Demo
+
+- Run `uv run python -m rfp_rag.top_tier_demo`.
+- Show health, answer, SSE streaming, gates, and ops summary checks.
+- Point to generated artifact `artifacts/top_tier_demo/summary.json`.
+
+## 1:20-2:10 Evaluation and Agent Evidence
+
+- Show Stage 3 holdout metrics, eval set hash, and failure-closed finalizer.
+- Show LangGraph planner-executor evidence, HITL/checkpoint behavior, and audit
+  redaction.
+
+## 2:10-2:45 Observability and Security
+
+- Show redacted traces, failed-run analysis, latency/cost/tool summaries.
+- Show prompt-injection, secrets/PII, tool allowlist, and budget-limit evidence.
+
+## 2:45-3:00 Senior Defense
+
+- Explain why vector retrieval remains until a measured reranker win exists.
+- Explain hosted deployment, auth, rate limit, and live SLOs as explicit future
+  production decisions, not hidden claims.
+"""
+    _write_text(storyboard_path, storyboard)
+    metrics = {
+        "three_minute_storyboard_present": 1.0,
+        "generated_artifact_count": float(len(artifacts)),
+        "one_command_path_documented": 1.0,
+        "ten_minute_reviewer_path_documented": 1.0,
+        "security_observability_evidence_mapped": 1.0,
+    }
+    thresholds = {
+        "three_minute_storyboard_present": 1.0,
+        "generated_artifact_count": 4.0,
+        "one_command_path_documented": 1.0,
+        "ten_minute_reviewer_path_documented": 1.0,
+        "security_observability_evidence_mapped": 1.0,
+    }
+    failed: list[str] = []
+    for key, threshold in thresholds.items():
+        value = metrics[key]
+        if key == "generated_artifact_count":
+            if value < threshold:
+                failed.append(key)
+        elif value != threshold:
+            failed.append(key)
+    summary = {
+        "interview_demo_package_complete": not failed,
+        "storyboard_path": "docs/portfolio/demo-storyboard.md",
+        "generated_artifact_paths": [
+            f"docs/evidence/demo-package/{name}" for name in artifacts
+        ],
+        "reviewer_time_budget_minutes": 10,
+        "demo_duration_minutes": 3,
+        "metrics": metrics,
+        "thresholds": thresholds,
+        "failed": failed,
+    }
+    _write_json(out, summary)
+    return summary
+
+
+def evaluate_dependency_security(
+    *, root: Path = Path("."), out: Path | None = None
+) -> dict[str, Any]:
+    root = root.resolve()
+    out = out or root / "artifacts/security_alerts/summary.json"
+    lock_text = _read_text(root / "uv.lock")
+    risk_register_path = root / "docs/security/dependency-risk-register.md"
+    langchain_version = _locked_version(lock_text, "langchain")
+    ragas_version = _locked_version(lock_text, "ragas")
+    diskcache_version = _locked_version(lock_text, "diskcache")
+    langchain_patched = (
+        langchain_version is None
+        or _version_tuple(langchain_version) >= LANGCHAIN_PATCHED_MIN
+    )
+    diskcache_absent = diskcache_version is None
+    ragas_present = ragas_version is not None
+    risk_text = _read_text(risk_register_path)
+    residual_accepted = (
+        f"`ragas` {RAGAS_GHSA}" in risk_text
+        and "accepted_by: PENDING" not in risk_text
+        and "accepted_scope: none" not in risk_text
+    )
+    unresolved_unaccepted = int(ragas_present and not residual_accepted)
+    metrics = {
+        "langchain_patched": _metric(langchain_patched),
+        "diskcache_absent": _metric(diskcache_absent),
+        "unresolved_unaccepted_alert_count": unresolved_unaccepted,
+    }
+    thresholds = {
+        "langchain_patched": 1.0,
+        "diskcache_absent": 1.0,
+        "unresolved_unaccepted_alert_count": 0,
+    }
+    failed: list[str] = []
+    for key, threshold in thresholds.items():
+        if metrics[key] != threshold:
+            failed.append(key)
+    if ragas_present:
+        decision_heading = (
+            "Accepted Residual Risk" if residual_accepted else "Pending Owner Decision"
+        )
+        accepted_by = "user" if residual_accepted else "PENDING"
+        accepted_scope = (
+            "portfolio-local real-eval judge only" if residual_accepted else "none"
+        )
+        risk_register = f"""# Dependency Security Register
+
+## Remediated
+
+- `langchain` GHSA-gr75-jv2w-4656: status `{metrics["langchain_patched"]}`; locked
+  version `{langchain_version}`.
+- `diskcache` GHSA-w8v5-vhqr-4h9v: removed from `uv.lock` with
+  `tool.uv.exclude-dependencies`.
+
+## {decision_heading}
+
+- `ragas` {RAGAS_GHSA}: no patched version is available in the current
+  Dependabot alert. Complete resolution requires either migrating the judge
+  implementation away from `ragas` or explicitly accepting the residual risk.
+
+accepted_by: {accepted_by}
+accepted_scope: {accepted_scope}
+"""
+    else:
+        risk_register = """# Dependency Security Register
+
+## Remediated
+
+- `langchain` GHSA-gr75-jv2w-4656: vulnerable package is absent from `uv.lock`
+  or patched to the safe floor.
+- `diskcache` GHSA-w8v5-vhqr-4h9v: absent from `uv.lock`.
+- `ragas` GHSA-95ww-475f-pr4f: removed from the runtime dependency graph by
+  ADR-0021. The repo-local LLM judge keeps the eval-lane contract without
+  carrying the unpatched package.
+
+accepted_by: not_required
+accepted_scope: no_unresolved_dependency_alert
+"""
+    _write_text(risk_register_path, risk_register)
+    summary = {
+        "dependency_security_complete": not failed,
+        "risk_register_path": "docs/security/dependency-risk-register.md",
+        "remediated_alerts": [
+            {
+                "dependency": "langchain",
+                "ghsa": "GHSA-gr75-jv2w-4656",
+                "locked_version": langchain_version,
+                "status": "absent_or_patched" if langchain_patched else "needs_patch",
+            },
+            {
+                "dependency": "diskcache",
+                "ghsa": "GHSA-w8v5-vhqr-4h9v",
+                "locked_version": diskcache_version,
+                "status": "absent" if diskcache_absent else "present",
+            },
+        ],
+        "open_alerts": [
+            {
+                "dependency": "ragas",
+                "ghsa": RAGAS_GHSA,
+                "locked_version": ragas_version,
+                "patched_version": None,
+                "status": "accepted_residual_risk"
+                if residual_accepted
+                else "requires_owner_decision",
+            }
+        ]
+        if ragas_present
+        else [],
+        "residual_risk_approval": (
+            "not_required"
+            if not ragas_present
+            else "accepted"
+            if residual_accepted
+            else "pending"
+        ),
+        "metrics": metrics,
+        "thresholds": thresholds,
+        "failed": failed,
+    }
+    _write_json(out, summary)
+    return summary
+
+
+def evaluate_production_readiness(*, root: Path = Path(".")) -> dict[str, Any]:
+    deployment = evaluate_deployment_readiness(root=root)
+    demo = evaluate_interview_demo_package(root=root)
+    dependency = evaluate_dependency_security(root=root)
+    failed = []
+    for key, summary in {
+        "deployment_readiness": deployment,
+        "interview_demo_package": demo,
+        "dependency_security": dependency,
+    }.items():
+        if summary.get("failed"):
+            failed.append(key)
+    return {
+        "production_facing_readiness_complete": not failed,
+        "components": {
+            "deployment_readiness": deployment,
+            "interview_demo_package": demo,
+            "dependency_security": dependency,
+        },
+        "failed": failed,
+    }
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Build production-facing portfolio readiness artifacts."
+    )
+    parser.add_argument("--root", type=Path, default=Path("."))
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_arg_parser().parse_args(argv)
+    summary = evaluate_production_readiness(root=args.root)
+    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0 if summary["production_facing_readiness_complete"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

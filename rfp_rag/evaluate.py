@@ -31,7 +31,7 @@ REAL_QUALITY_THRESHOLDS = {
     "metadata_exact_match": 0.90,
     "abstention_pass": 0.90,
 }
-RAGAS_THRESHOLDS = {
+JUDGE_THRESHOLDS = {
     "faithfulness": 0.80,
     "answer_relevancy": 0.70,
     # 채점 커버리지 — judge_error/judge_aborted/NaN 케이스는 점수가 None이라 _mean에서
@@ -94,7 +94,7 @@ def decide_gates(
         value = (per_type or {}).get(query_type, {}).get(metric)
         return value is not None and value >= minimum
 
-    thresholds = REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS
+    thresholds = REAL_QUALITY_THRESHOLDS | JUDGE_THRESHOLDS
     failed = [
         metric for metric, minimum in thresholds.items() if not _meets(metric, minimum)
     ]
@@ -723,7 +723,7 @@ def _judge_coverage(predictions: list[dict[str, Any]]) -> dict[str, float | None
     return coverage
 
 
-# judge(ragas)를 실행하고 그 점수를 aggregate에 싣는 lane들.
+# repo-local LLM judge를 실행하고 그 점수를 aggregate에 싣는 lane들.
 # real은 게이트 판정용, open은 저비용 이터레이션 신호용 (게이트는 주장하지 않음).
 JUDGED_LANES = {"real_openai", "open"}
 
@@ -1174,7 +1174,7 @@ def evaluate_index(
         },
         "aggregate": aggregate,
         "per_type": per_type,
-        "thresholds": REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS,
+        "thresholds": REAL_QUALITY_THRESHOLDS | JUDGE_THRESHOLDS,
         "per_type_thresholds": PER_TYPE_REAL_QUALITY_THRESHOLDS,
         **gates,
         "quality_note": _quality_note(lane),
@@ -1262,7 +1262,7 @@ def reaggregate_metrics(
         "query_set_counts": previous.get("query_set_counts", {}),
         "aggregate": aggregate,
         "per_type": per_type,
-        "thresholds": REAL_QUALITY_THRESHOLDS | RAGAS_THRESHOLDS,
+        "thresholds": REAL_QUALITY_THRESHOLDS | JUDGE_THRESHOLDS,
         "per_type_thresholds": PER_TYPE_REAL_QUALITY_THRESHOLDS,
         **gates,
         "reaggregated_from_predictions": True,
