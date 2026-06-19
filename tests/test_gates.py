@@ -3,7 +3,7 @@ from __future__ import annotations
 from rfp_rag.evaluate import (
     PER_TYPE_REAL_QUALITY_THRESHOLDS,
     REAL_QUALITY_THRESHOLDS,
-    RAGAS_THRESHOLDS,
+    JUDGE_THRESHOLDS,
     decide_gates,
 )
 
@@ -231,8 +231,8 @@ def test_real_contract_version_bumped_for_cross_document_gate() -> None:
     assert REAL_CONTRACT_VERSION == "rfp-rag-real-v6"
 
 
-def test_thresholds_cover_ragas_metrics() -> None:
-    assert RAGAS_THRESHOLDS == {
+def test_thresholds_cover_judge_metrics() -> None:
+    assert JUDGE_THRESHOLDS == {
         "faithfulness": 0.80,
         "answer_relevancy": 0.70,
         "judge_coverage_faithfulness": 0.90,

@@ -329,6 +329,69 @@ TOP_TIER_GATES = [
             "Interview defense",
         ),
     },
+    {
+        "id": "deployment_readiness",
+        "path": "artifacts/deployment_readiness/summary.json",
+        "complete_field": "deployment_readiness_complete",
+        "required_fields": (
+            "deployment_mode",
+            "hosted_deployment_plan_path",
+            "public_deployment_decision",
+            "auth_boundary",
+            "rate_limit_boundary",
+            "secret_handling_boundary",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("auth_boundary_documented", "==", 1.0),
+            ("rate_limit_plan_documented", "==", 1.0),
+            ("secret_handling_documented", "==", 1.0),
+            ("public_exposure_requires_approval", "==", 1.0),
+            ("one_command_fallback_documented", "==", 1.0),
+        ),
+    },
+    {
+        "id": "interview_demo_package",
+        "path": "artifacts/interview_demo_package/summary.json",
+        "complete_field": "interview_demo_package_complete",
+        "required_fields": (
+            "storyboard_path",
+            "generated_artifact_paths",
+            "reviewer_time_budget_minutes",
+            "demo_duration_minutes",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("three_minute_storyboard_present", "==", 1.0),
+            ("generated_artifact_count", ">=", 4.0),
+            ("one_command_path_documented", "==", 1.0),
+            ("ten_minute_reviewer_path_documented", "==", 1.0),
+            ("security_observability_evidence_mapped", "==", 1.0),
+        ),
+    },
+    {
+        "id": "dependency_security",
+        "path": "artifacts/security_alerts/summary.json",
+        "complete_field": "dependency_security_complete",
+        "required_fields": (
+            "risk_register_path",
+            "remediated_alerts",
+            "open_alerts",
+            "residual_risk_approval",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("langchain_patched", "==", 1.0),
+            ("diskcache_absent", "==", 1.0),
+            ("unresolved_unaccepted_alert_count", "==", 0),
+        ),
+    },
 ]
 
 
@@ -723,8 +786,10 @@ def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
     portfolio_readiness_check = local_evidence_bundle_check and bool(
         second_stage["complete"] and stage2_contract_schema_enforced
     )
+    interview_readiness_check = portfolio_readiness_check and bool(top_tier["complete"])
     return {
         "portfolio_readiness_check": portfolio_readiness_check,
+        "interview_readiness_check": interview_readiness_check,
         "local_evidence_bundle_check": local_evidence_bundle_check,
         "stage2_contract_schema_enforced": stage2_contract_schema_enforced,
         "root": str(root),
@@ -756,7 +821,7 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    return 0 if report["portfolio_readiness_check"] else 1
+    return 0 if report["interview_readiness_check"] else 1
 
 
 if __name__ == "__main__":

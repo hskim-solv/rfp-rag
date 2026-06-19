@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from rfp_rag.judge import judge_predictions
+from rfp_rag.judge import _parse_score, judge_predictions
 
 
 class _StubMetric:
@@ -95,9 +95,6 @@ def test_judge_empty_predictions_returns_empty_list() -> None:
     assert judge_predictions([], metrics={}) == []
 
 
-@pytest.mark.filterwarnings(
-    "ignore::DeprecationWarning"
-)  # ragas 구 import 경로 — ADR-0002 재검토 조건으로 기록됨
 def test_build_metrics_defaults_to_mini_judge(monkeypatch) -> None:
     # §10-11 A/B: mini는 게이트 판정 일치·이탈 보수적·비용 1/6 — 기본값으로 채택
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
@@ -108,13 +105,13 @@ def test_build_metrics_defaults_to_mini_judge(monkeypatch) -> None:
     metrics = _build_metrics()
 
     for name, metric in metrics.items():
-        assert metric.llm.langchain_llm.model_name == "gpt-5.4-mini", name
+        assert metric.llm.model_name == "gpt-5.4-mini", name
+        assert metric.name == name
+        assert metric.rubric
 
 
-@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_build_metrics_supports_base_url_override(monkeypatch) -> None:
     # DeepSeek 같은 OpenAI 호환 백엔드로 judge를 돌리는 경로 (scripts/judge_ab.py A/B용).
-    # 임베딩(answer_relevancy)은 OpenAI 유지 — OPENAI_API_KEY는 여전히 필요하다.
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("RFP_JUDGE_MODEL", "deepseek-v4-flash")
     monkeypatch.setenv("RFP_JUDGE_BASE_URL", "https://api.deepseek.com")
@@ -124,31 +121,17 @@ def test_build_metrics_supports_base_url_override(monkeypatch) -> None:
     metrics = _build_metrics()
 
     for name, metric in metrics.items():
-        llm = metric.llm.langchain_llm
+        llm = metric.llm
         assert llm.model_name == "deepseek-v4-flash", name
         assert llm.openai_api_base == "https://api.deepseek.com", name
         assert llm.openai_api_key.get_secret_value() == "sk-deepseek-test", name
-        # 임베딩은 base_url 오버라이드의 영향을 받지 않는다
-        embeddings = getattr(metric, "embeddings", None)
-        if embeddings is not None:
-            assert embeddings.embeddings.openai_api_base is None, name
 
 
-@pytest.mark.filterwarnings(
-    "ignore::DeprecationWarning"
-)  # ragas 구 import 경로 — ADR-0002 재검토 조건으로 기록됨
-def test_build_metrics_caps_ragas_retries(monkeypatch) -> None:
-    # ragas RunConfig 기본 max_retries=10 — 영구 실패(quota)에서 재시도 폭주의 원인 (REPORT §10-10).
-    # 가짜 키로 인스턴스만 생성 — 네트워크 호출 없음.
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    from rfp_rag.judge import _build_metrics
-
-    metrics = _build_metrics()
-    for name, metric in metrics.items():
-        assert metric.llm.run_config.max_retries <= 2, name
-        embeddings = getattr(metric, "embeddings", None)
-        if embeddings is not None:
-            assert embeddings.run_config.max_retries <= 2, name
+def test_parse_score_accepts_json_and_rejects_out_of_range() -> None:
+    assert _parse_score('{"score": 0.75, "rationale": "ok"}') == 0.75
+    assert _parse_score('prefix {"score": 1, "rationale": "ok"} suffix') == 1.0
+    with pytest.raises(ValueError, match="out_of_range"):
+        _parse_score('{"score": 1.2, "rationale": "bad"}')
 
 
 class _CountingFailMetric:

@@ -14,8 +14,9 @@ summary, deterministic token/cost estimates.
 Current public claim:
 
 - **What is proven:** senior AI Agent Engineer repo/demo review에 제출 가능한
-  local/container evidence bundle. `gate_status`, `portfolio_check`, and
-  credential-free tests agree with the generated artifacts.
+  local/container evidence bundle plus production-facing readiness artifacts.
+  `gate_status`, `portfolio_check`, and credential-free tests agree with the
+  generated artifacts when the dependency security gate is complete.
 - **What is not claimed:** hosted cloud production, auth/session/rate-limit
   운영, live-traffic SLO, public dashboard, provider billing telemetry, or a
   reranker quality win.
@@ -34,14 +35,15 @@ Latest checked evidence:
 | claim | artifact / command | current evidence |
 |---|---|---|
 | Gate freshness | `python3 -m rfp_rag.gate_status` | `overall_ok=true`; offline, real, agent, and visual candidate lanes pass |
-| Portfolio readiness | `artifacts/portfolio_readiness.json` | `portfolio_readiness_check=true`, `local_evidence_bundle_check=true`, `second_stage_readiness.complete=true`, `stage2_contract_schema_enforced=true`, `failed=[]` |
+| Portfolio readiness | `artifacts/portfolio_readiness.json` | `portfolio_readiness_check=true`, `local_evidence_bundle_check=true`, `second_stage_readiness.complete=true`, `stage2_contract_schema_enforced=true`; `interview_readiness_check` also requires top-tier and production-facing gates |
 | Real RAG quality | `artifacts/eval_real/metrics.json`; contract `rfp-rag-real-v6`; parsed-source `artifacts/index_real` | `rag_quality_complete=true`; `recall@5=1.0`, `mrr=0.9922`, `faithfulness=0.9369`, `answer_relevancy=0.8109`, citation presence/validity `1.0` |
 | Stage 2 frozen evidence | `artifacts/eval_stage2_real/metrics.json`; frozen evidence-set contract | `holdout_quality_complete=true`; `recall@5=1.0`, `mrr=0.9923`, `faithfulness=0.9397`, `answer_relevancy=0.8030`, citation presence/validity `1.0`; not claimed as an independent public-traffic holdout |
 | Agent workflow | `artifacts/eval_agent_stress/metrics.json` | constrained LangGraph workflow with deterministic replay evidence; `trajectory_pass_rate=1.0`, checkpoint/HITL/thread isolation/checkpointer close/audit-argument redaction checks pass |
 | Retrieval bakeoff | `artifacts/retrieval_bakeoff/summary.json` | vector, BM25, and hybrid RRF compared on the same frozen set; decision is `keep_vector_until_candidate_wins`; `failed=[]` |
 | Visual/table evidence | `artifacts/visual_quality/summary.json` | `visual_question_count=30`, `visual_evidence_hit_rate=0.92`, unsupported visual claim rate within gate |
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
-| Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | latest local run: `387 passed, 5 deselected` |
+| Production-facing package | `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | hosted-deployment readiness plan, 3-minute reviewer package, and dependency security register pass; `ragas` was removed by ADR-0021 |
+| Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 
 Explicit limitations:
 
@@ -146,10 +148,10 @@ telemetry, or public-dashboard readiness.
 The same report now includes `top_tier_readiness` for the next portfolio level:
 one-command reviewer demo, Stage 3 independent holdout, real observability,
 upgraded agent orchestration, deeper security/reliability evidence, and a senior
-case study. This field is intentionally separate from
-`portfolio_readiness_check` so the senior-ready evidence bundle remains honest:
-local top-tier evidence can pass while hosted production, public dashboard, and
-live-traffic SLO claims stay out of scope.
+case study. The CLI also reports `interview_readiness_check`, which is stricter
+than `portfolio_readiness_check` and requires top-tier plus production-facing
+evidence. Local top-tier evidence can pass while hosted production, public
+dashboard, and live-traffic SLO claims stay out of scope.
 
 Top-tier one-command demo smoke:
 
@@ -159,6 +161,23 @@ uv run python -m rfp_rag.top_tier_demo
 
 This writes `artifacts/top_tier_demo/summary.json` and proves the reviewer can
 exercise the local service/gate surfaces without credentials.
+
+Production-facing interview package:
+
+```bash
+uv run python -m rfp_rag.production_readiness
+```
+
+This writes `docs/portfolio/hosted-deployment-plan.md`,
+`docs/portfolio/demo-storyboard.md`, `docs/evidence/demo-package/*.md`,
+`artifacts/deployment_readiness/summary.json`,
+`artifacts/interview_demo_package/summary.json`, and
+`artifacts/security_alerts/summary.json`.
+
+It is fail-closed while an unpatched dependency alert is unresolved without an
+explicit owner decision. Current status: `ragas` `GHSA-95ww-475f-pr4f` is
+resolved by ADR-0021, which removes `ragas` from the runtime dependency graph
+and uses a repo-local LLM judge.
 
 Top-tier observability and security/reliability artifacts:
 
@@ -899,7 +918,7 @@ python3 -m rfp_rag.agent.run_agent --index artifacts/index --data data/data_list
 ## Observability (optional Langfuse tracing)
 
 `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY`가 환경에 있으면 LangGraph 실행, LLM 생성,
-ragas judge 호출이 Langfuse로 트레이싱됩니다 (`rfp_rag/tracing.py`, 채택 근거는
+repo-local LLM judge 호출이 Langfuse로 트레이싱됩니다 (`rfp_rag/tracing.py`, 채택 근거는
 `docs/adr/0001-llm-observability-tool.md`). **키가 없으면 완전한 no-op** — offline lane의
 credential-free 불변식에 영향이 없습니다. 키 설정은 `.env.example` 참조.
 
