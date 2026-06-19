@@ -1,44 +1,65 @@
-# Source-first RFP RAG Baseline
+# Production-adjacent Agentic RAG for Korean Public RFPs
 
-입찰 RFP 100건의 원본 HWP/PDF를 파싱해 RAG 본문으로 사용하는 AI Agent Engineer 시니어 포트폴리오 프로젝트입니다. CSV는 사업명, 발주기관, 예산, 마감일, 파일명 같은 메타데이터 registry로만 사용하고, index 본문은 `parse_sources`가 만든 parsed source artifacts에서 읽습니다. offline lane은 파일명 정규화, corpus/index 계약, cited QA schema, abstention, report artifacts를 검증합니다.
+AI Agent Engineer 시니어 포트폴리오 검토용 source-first Agentic RAG
+backend입니다. 입찰 RFP 100건의 원본 HWP/PDF를 파싱해 RAG 본문 source of
+truth로 쓰고, CSV는 사업명, 발주기관, 예산, 마감일, 파일명 metadata
+registry로만 사용합니다. 이 레포의 주장은 public hosted service가 아니라
+local/container 환경에서 재현 가능한 운영형 증거입니다: FastAPI/Pydantic
+thin service, constrained LangGraph workflow, checkpoint/HITL, guarded tools,
+citation-grounded generation, evaluation gates, deterministic security smoke, local ops
+summary, deterministic token/cost estimates.
 
-## Gate semantics
+## Portfolio Status
 
-Contract: `rfp-rag-offline-v4`.
+Current public claim:
 
-The offline lane (`--provider offline`) is an offline contract gate and does not claim semantic quality. It verifies deterministic corpus/index/retrieval plumbing, citation schema, and abstention behavior without credentials. The offline lane earns `offline_scaffold_complete` only (`thresholds_applied` stays false); `rag_quality_complete` is reserved for the real provider lane below. `--min-score 0.34` is the calibrated section-aware source-first offline retrieval cutoff. The current score distribution includes synthetic exact-section candidate scores for section lookup queries, so use the abstention/in-domain gap in `artifacts/eval/metrics.json` as a lane-specific calibration signal, not as pure vector-similarity evidence.
+- **What is proven:** senior AI Agent Engineer repo/demo review에 제출 가능한
+  local/container evidence bundle. `gate_status`, `portfolio_check`, and
+  credential-free tests agree with the generated artifacts.
+- **What is not claimed:** hosted cloud production, auth/session/rate-limit
+  운영, live-traffic SLO, public dashboard, provider billing telemetry, or a
+  reranker quality win.
+- **How to verify in 5 minutes:**
 
-## Quality objective and current evidence
+```bash
+python3 -m rfp_rag.gate_status
+python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
+uv run python -m pytest -m "not real" -q
+# Equivalent after putting the repo venv first on PATH:
+# PATH="$PWD/.venv/bin:$PATH" python3 -m pytest -m "not real" -q
+```
 
-The portfolio quality target is gate-based, not a single aggregate benchmark
-score. The intended final outcome is a senior AI Agent Engineer portfolio:
-source-first RAG quality, typed LangGraph orchestration, auditable tool use,
-HITL/checkpoint behavior, service/streaming surface, guardrails,
-observability, CI, and cost/latency evidence must all be inspectable from
-artifacts. The current repository has a production-grade backend shape, but it
-is not a finished public senior-ready product claim. The final semantic quality
-gate is now `rfp-rag-real-v6`, which requires parsed-source real evidence plus
-cross-document hard-slice floors and model/prompt lineage. Existing v5 real
-artifacts are historical evidence only until a new real run passes v6. The
-offline lane remains a credential-free regression/scaffold gate. Stage 2
-independent holdout, security red-team, ops, and cost gates are tracked
-separately until their artifacts exist and pass.
+Latest checked evidence:
 
-| objective | required evidence | current status |
+| claim | artifact / command | current evidence |
 |---|---|---|
-| Deterministic offline regression | `offline_rag.offline_scaffold_complete == true` | pass |
-| Current semantic RAG quality | `rfp-rag-real-v6`: `real_rag.rag_quality_complete == true`, cross-document hard floors, and lineage fields | not yet claimed |
-| Current agent workflow quality | `agent_offline.agent_lane_complete == true`, audit artifact count/schema, and `gate.failed == []` on the offline agent lane | pass after regenerated v2 artifact |
-| Visual/table evidence candidate | `visual_candidate.ok == true` | pass |
-| Guardrail smoke regression | `guardrail_regression_complete == true` with block/allow/category metrics at `1.0`; full red-team is Stage 2 | pass |
-| Local evidence bundle | `local_evidence_bundle_check == true` and `failed == []` | currently blocked by v6 real gate |
-| Senior portfolio readiness | `portfolio_readiness_check == true` and `second_stage_readiness.complete == true` | not yet claimed under v6/Stage 2 |
-| CI/deployment evidence | GitHub Actions `pytest -m "not real"` and `docker build` checks pass | pass |
-| Stage 2 independent holdout/security/ops/cost gates | `second_stage_readiness.complete == true` after all Stage 2 artifacts pass | not yet claimed |
+| Gate freshness | `python3 -m rfp_rag.gate_status` | `overall_ok=true`; offline, real, agent, and visual candidate lanes pass |
+| Portfolio readiness | `artifacts/portfolio_readiness.json` | `portfolio_readiness_check=true`, `local_evidence_bundle_check=true`, `second_stage_readiness.complete=true`, `stage2_contract_schema_enforced=true`, `failed=[]` |
+| Real RAG quality | `artifacts/eval_real/metrics.json`; contract `rfp-rag-real-v6`; parsed-source `artifacts/index_real` | `rag_quality_complete=true`; `recall@5=1.0`, `mrr=0.9922`, `faithfulness=0.9369`, `answer_relevancy=0.8109`, citation presence/validity `1.0` |
+| Stage 2 frozen evidence | `artifacts/eval_stage2_real/metrics.json`; frozen evidence-set contract | `holdout_quality_complete=true`; `recall@5=1.0`, `mrr=0.9923`, `faithfulness=0.9397`, `answer_relevancy=0.8030`, citation presence/validity `1.0`; not claimed as an independent public-traffic holdout |
+| Agent workflow | `artifacts/eval_agent_stress/metrics.json` | constrained LangGraph workflow with deterministic replay evidence; `trajectory_pass_rate=1.0`, checkpoint/HITL/thread isolation/checkpointer close/audit-argument redaction checks pass |
+| Retrieval bakeoff | `artifacts/retrieval_bakeoff/summary.json` | vector, BM25, and hybrid RRF compared on the same frozen set; decision is `keep_vector_until_candidate_wins`; `failed=[]` |
+| Visual/table evidence | `artifacts/visual_quality/summary.json` | `visual_question_count=30`, `visual_evidence_hit_rate=0.92`, unsupported visual claim rate within gate |
+| Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
+| Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | latest local run: `387 passed, 5 deselected` |
 
-Current deferred items are explicit scope decisions, not failed gates:
-`cloud_deployment` requires external credentials/spend approval, and
-`public_dashboard` is a separate product/UI scope.
+Explicit limitations:
+
+- `reranker` is implemented as an interface, but no quality-win claim is made
+  until a same-set paid/API reranker artifact exists. The current ADR-0020
+  decision keeps vector because BM25/hybrid do not beat it without regressions.
+- `cloud_deployment` and `public_dashboard` are deferred product scopes that
+  require separate credentials, spend, and public-disclosure decisions.
+- No live-traffic production SLO is claimed. Current ops evidence is
+  local/container demo evidence plus deterministic artifact gates.
+
+## Gate Semantics
+
+Offline lane (`--provider offline`) is a credential-free regression/scaffold
+gate. Semantic quality is claimed only through parsed-source real artifacts and
+Stage 2 frozen-evidence artifacts. Portfolio readiness is gate-based, not a single
+aggregate score: the repo is ready only when `gate_status`, `portfolio_check`,
+and credential-free tests all agree with the generated evidence.
 
 ## Final portfolio contract
 
@@ -46,11 +67,13 @@ The final portfolio target is recorded in
 `docs/portfolio/2026-rfp-rag-final-goal.md`. The adversarial readiness review is
 recorded in `docs/portfolio/2026-rfp-rag-adversarial-review.md`. The current
 implemented architecture map is recorded in
-`docs/architecture/system-architecture.md`. The project should be framed as a
-production-grade Agentic RAG system for an AI Agent Engineer senior portfolio,
+`docs/architecture/system-architecture.md`. The reviewer demo path is
+`docs/portfolio/demo-runbook.md`, and resume/interview wording is
+`docs/portfolio/resume-interview-bullets.md`. The project should be framed as a
+production-adjacent Agentic RAG backend for an AI Agent Engineer senior portfolio,
 using Korean public RFP intelligence as the hard workload: complex-document
-parsing, retrieval quality evaluation, citation-grounded generation, typed agent
-workflow, service/tool operation, guardrails, observability, and
+parsing, retrieval quality evaluation, citation-grounded generation, typed
+agent workflow, service/tool operation, guardrails, observability, and
 evidence-inspectable RAG/Agent backends, not as a generic RFP chatbot.
 
 The quality contract is source-first:
@@ -59,13 +82,14 @@ The quality contract is source-first:
   truth.
 - CSV is a metadata registry only.
 - Offline artifacts prove deterministic plumbing and regression safety.
-- Current v5 real-lane artifacts are historical parsed-source evidence. They do
-  not satisfy `rfp-rag-real-v6` until a new real run passes cross-document hard
-  floors and records model/prompt lineage.
-- Agent artifacts prove routing, retrieval, rewrite, metadata-tool, abstention,
-  loop termination, and audit coverage. HITL/checkpoint behavior is implemented
-  and covered by unit tests/demos, with Stage 2 stress gates required before it
-  becomes a completed quality claim.
+- Current `rfp-rag-real-v6` artifacts are parsed-source semantic evidence with
+  cross-document hard floors and model/prompt lineage. Older v5 artifacts are
+  historical only and must not be cited as current evidence.
+- Agent artifacts prove constrained routing, retrieval, rewrite, metadata-tool,
+  abstention, loop termination, audit coverage, checkpoint/HITL behavior,
+  checkpointer close, and audit-argument redaction through deterministic
+  replays and tests. Agent-level tool-call budgeting is not claimed; tool-call
+  budget enforcement is covered by the read-only ops tool server.
 - Agent-team operation is bounded by ADR-0013: task를 disjoint write set으로
   분해해 병렬 writer를 허용하고, main integrator가 최종 검증/통합한다.
 
@@ -100,11 +124,10 @@ python3 -m rfp_rag.gate_status
 ```
 
 `gate_status` is stricter than `report_check`: it reads the local gate artifacts
-and fails stale portfolio evidence. After the source-first refresh on 2026-06-17,
-`offline_rag`, `agent_offline`, and `visual_candidate` pass from local artifacts
-after their credential-free lanes are regenerated. `real_rag` must be rerun
-under `rfp-rag-real-v6`; existing `artifacts/eval_real` v5 evidence is expected
-to fail freshness/contract or cross-document hard-slice checks.
+and fails stale portfolio evidence. Current local artifacts pass the offline,
+real, agent, and visual candidate lanes. Rerun it before citing any current
+claim; stale contract, source-lineage, query-count, retrieval/reranker, or
+reaggregation evidence fails closed.
 
 Final evidence bundle check:
 
@@ -113,10 +136,125 @@ python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 ```
 
 This check verifies local gate status, guardrail regression, Docker/CI build
-evidence, architecture evidence, ADR links, and Stage 2 readiness. It currently
-fails closed until `rfp-rag-real-v6` evidence and Stage 2 holdout/security/ops/
-cost artifacts pass. The narrower `local_evidence_bundle_check` field reports
-whether the local non-Stage-2 bundle is complete.
+evidence, architecture evidence, ADR links, and Stage 2 readiness. Current
+local evidence passes the local/container portfolio contract; rerun this
+command before citing the repo because stale artifacts fail closed. A green
+portfolio check does not claim hosted production operation, provider billing
+telemetry, or public-dashboard readiness.
+
+Stage 2 contract scaffold:
+
+```bash
+python3 -m rfp_rag.stage2_scaffold
+```
+
+This writes the expected Stage 2 artifact paths and computes current offline
+eval-set coverage from `artifacts/eval/*.jsonl`. Current local evidence has
+measured-pass artifacts for eval-set coverage, real frozen evidence, agent stress,
+retrieval bakeoff, visual quality, service ops, deterministic security smoke, and cost
+budget.
+
+Stage 2 service ops smoke:
+
+```bash
+uv run python -m rfp_rag.stage2_service_ops
+```
+
+This records endpoint/schema/path-safety/token-cost observability evidence in
+`artifacts/service_ops/summary.json`. The default mode uses lightweight answer
+and gate stubs so the service contract can be checked quickly and
+credential-free; use `--full-answer` or `--full-gates` only when intentionally
+testing the heavier offline RAG answer path or full gate-status path.
+
+Stage 2 deterministic security smoke:
+
+```bash
+uv run python -m rfp_rag.security_redteam
+```
+
+This writes `artifacts/security_redteam/summary.json` plus publishability and
+retention notes. It is a deterministic security smoke/redaction gate: it checks
+prompt-injection/secrets blocking, malicious document/retrieved-evidence/tool
+output fixture cases, tool allowlist and tool-budget enforcement, audit
+redaction, and selected demo-visible artifact leak scans. It is not a full adversarial
+security assessment of a hosted service.
+
+Stage 2 agent stress:
+
+```bash
+uv run python -m rfp_rag.agent_stress
+```
+
+This writes `artifacts/eval_agent_stress/metrics.json` and
+`artifacts/eval_agent_stress/replay.jsonl` from deterministic LangGraph
+replays covering direct RAG, rewrite recovery, abstention, metadata-tool route,
+HITL approve/reject, thread reuse isolation, checkpointer close path,
+audit-argument redaction, and ops-tool budget behavior.
+
+Stage 2 cost budget:
+
+```bash
+uv run python -m rfp_rag.cost_budget
+```
+
+This writes `artifacts/cost_budget/summary.json` from persisted real/open
+prediction artifacts. It records deterministic token and cost estimates for
+budget regression gating, including optional `eval_open_rerank`,
+`eval_real_rerank`, and `eval_stage2_real` prediction artifacts when they
+exist; it does not claim to be provider billing data. If a lane has no persisted
+predictions, its provider billing and per-request token telemetry are not
+claimed.
+
+Paid/API lane dry-run plan:
+
+```bash
+uv run python -m rfp_rag.paid_lane_plan
+```
+
+This writes `artifacts/paid_lane_plan/summary.json` without executing any
+provider calls. It records the exact cost-bearing commands, required environment
+variable names, expected artifact writes, current cost-budget estimate, and the
+post-run verification commands. Use it as the approval checklist before running
+`real_openai`, Stage 2 real frozen-evidence, or same-set LLM reranker lanes.
+
+Stage 2 real frozen-evidence finalize:
+
+```bash
+uv run python -m rfp_rag.stage2_real
+```
+
+This converts the persisted `artifacts/eval_stage2_real/metrics.json` output
+from an approved `real_openai` frozen-evidence run into the Stage 2 portfolio contract.
+It is fail-closed: without real lineage, valid evaluation status, and the
+required Stage 2 quality floors, the artifact remains
+`holdout_quality_complete=false`. It does not call the provider or generate
+answers; it only validates and normalizes the already generated metrics.
+
+Stage 2 retrieval bakeoff:
+
+```bash
+uv run python -m rfp_rag.retrieval_bakeoff
+```
+
+This writes `artifacts/retrieval_bakeoff/summary.json`. Current local vector,
+BM25, and hybrid RRF runs are measured on the 545-query offline set and share
+the same comparison hash. The bakeoff passes with the decision
+`keep_vector_until_candidate_wins`: BM25 and hybrid are implemented and
+measured, but neither beats vector without regressions. Reranker remains an
+optional/deferred paid/API quality claim until a same-set `reranker="llm"`
+artifact exists. The decision record is `docs/adr/0020-retrieval-bakeoff.md`.
+
+Stage 2 visual quality:
+
+```bash
+uv run python -m rfp_rag.visual_quality
+```
+
+This writes `artifacts/visual_quality/summary.json` from current visual/table
+eval metrics, visual candidate eval results, and sidecar regression evidence.
+Current local visual quality is measured-pass: 30 visual/table questions,
+`visual_evidence_hit_rate=0.92`, `unsupported_visual_claim_rate=0.0353`, and
+sidecar citation/abstention no-regression both pass.
 
 ## FastAPI service surface
 
@@ -177,14 +315,21 @@ curl -s 'http://127.0.0.1:8000/v1/ops/summary?eval_dir=artifacts/eval&audit_path
 
 ## MCP-style ops tool server
 
-ADR-0016 records the narrow MCP-style ops tool decision. The server is
-dependency-free and JSONL-based so it can run in CI/local shells without
-background daemon, auth, or storage decisions. It exposes read-only local tools
-with explicit allowlist and max tool-call budget guardrails:
+ADR-0016 records the narrow MCP-style ops tool decision. This is an
+MCP-inspired JSONL shim, not a full MCP server/transport/auth implementation.
+The server is dependency-free and JSONL-based so it can run in CI/local shells
+without background daemon, auth, or storage decisions. It exposes read-only
+local tools with explicit allowlist, path validation, schema validation, and
+max tool-call budget guardrails:
 
 - `gate.status`: read `python3 -m rfp_rag.gate_status` equivalent evidence.
 - `ops.summary`: summarize eval predictions and agent audit logs.
 - `eval.metrics`: read a local `metrics.json` artifact.
+
+Allowed workflows: pre-demo gate checks, ops/audit summaries, and local metrics
+inspection under `artifacts/`. Forbidden workflows: `real_openai` execution,
+artifact mutation, arbitrary file reads, arbitrary SQL, credential access, and
+background daemon operation.
 
 Example:
 
@@ -598,9 +743,9 @@ python3 -m rfp_rag.evaluate --data data/data_list.csv --index artifacts/index_re
   `artifacts/eval_real/metrics.json` (`thresholds`), every per-type hard floor in
   `per_type_thresholds`, model/prompt lineage fields, and `evaluation_valid`
   (error rate <= 10%).
-- Current checked-in v5 evidence does not claim the v6 real gate. The known
-  cross-document hard slice is below the new v6 floor and must be improved or
-  regenerated before `rag_quality_complete=true` can be used again.
+- Current checked evidence passes the v6 real gate. Rerun the command above
+  only when intentionally refreshing paid/API evidence; otherwise use
+  `gate_status` and `portfolio_check` to validate freshness before citing it.
 - After a gate-semantics (contract) change, regenerate evidence without API calls:
   `python3 -m rfp_rag.evaluate --reaggregate --out artifacts/eval_real --provider real_openai`
   recomputes metrics/contract/report from the preserved `predictions.jsonl` and marks

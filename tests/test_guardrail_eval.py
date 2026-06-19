@@ -50,6 +50,10 @@ def test_evaluate_guardrail_cases_scores_block_and_allow_cases() -> None:
         "prompt_injection",
         "secret_exfiltration",
     ]
+    assert "question" not in report["cases"][0]
+    assert report["cases"][0]["question_hash"]
+    assert report["cases"][0]["question_length"] > 0
+    assert report["cases"][0]["question_preview"] == "[REDACTED]"
 
 
 def test_evaluate_guardrail_cases_fails_empty_or_one_sided_fixture() -> None:

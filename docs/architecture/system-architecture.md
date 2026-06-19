@@ -81,7 +81,8 @@ stateDiagram-v2
   retrieve --> grade
   grade --> rewrite: weak retrieval and rewrite_count < 2
   rewrite --> retrieve
-  grade --> generate: good enough or retry exhausted
+  grade --> generate: sufficient evidence
+  grade --> respond: weak retrieval and rewrite_count >= 2
   tool_exec --> generate
   generate --> verify
   verify --> save_report: save requested
@@ -126,7 +127,7 @@ Current local gate files:
 | lane | artifact | status evidence |
 |---|---|---|
 | offline RAG | `artifacts/eval/metrics.json` | `offline_scaffold_complete=true` |
-| real RAG | `artifacts/eval_real/metrics.json` | expected fail under `rfp-rag-real-v6` until contract, lineage, citation hard gates, and cross-document floors pass |
+| real RAG | `artifacts/eval_real/metrics.json` | `rag_quality_complete=true` under `rfp-rag-real-v6` with parsed-source lineage and hard-slice floors |
 | agent offline | `artifacts/eval_agent/metrics.json` | `agent_lane_complete=true` |
 | visual candidate | `artifacts/visual_tesseract_candidate_expanded_gate/summary.json` | `ok=true` |
 | guardrails | `artifacts/guardrails/summary.json` | `guardrail_regression_complete=true` |
@@ -142,7 +143,9 @@ Current local gate files:
 - The MCP-style server is read-only JSONL tooling, not full MCP transport/auth.
 - Service and ops tool paths are limited to approved repository artifact
   locations; arbitrary local path reads are rejected.
-- No public cloud deployment, auth layer, or broad dashboard is claimed yet.
+- No public cloud deployment, auth/session/rate-limit layer, live-traffic SLO,
+  or broad public dashboard is claimed yet. The service evidence is a
+  local/container contract smoke over the RAG and gate surfaces.
 
 ## Verification Commands
 

@@ -135,3 +135,129 @@ def test_tool_registry_enforces_max_tool_call_budget(
         registry.call_tool(
             "eval.metrics", {"eval_dir": str(eval_dir.relative_to(tmp_path))}
         )
+
+
+def test_tool_call_rejects_unknown_arguments() -> None:
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "bad-extra",
+            "method": "tools/call",
+            "params": {
+                "name": "ops.summary",
+                "arguments": {"unexpected": True},
+            },
+        }
+    )
+
+    assert response["error"]["code"] == "invalid_arguments"
+    assert "unexpected" in response["error"]["message"]
+
+
+def test_tool_call_rejects_bad_argument_types() -> None:
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "bad-type",
+            "method": "tools/call",
+            "params": {
+                "name": "ops.summary",
+                "arguments": {"input_cost_per_1k": "not-a-number"},
+            },
+        }
+    )
+
+    assert response["error"]["code"] == "invalid_arguments"
+    assert "input_cost_per_1k" in response["error"]["message"]
+
+
+def test_eval_metrics_reports_missing_metrics_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "artifacts/eval_empty").mkdir(parents=True)
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "missing-metrics",
+            "method": "tools/call",
+            "params": {
+                "name": "eval.metrics",
+                "arguments": {"eval_dir": "artifacts/eval_empty"},
+            },
+        }
+    )
+
+    assert response["error"]["code"] == "metrics_missing"
+
+
+def test_eval_metrics_reports_invalid_metrics_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    eval_dir = tmp_path / "artifacts/eval_bad"
+    eval_dir.mkdir(parents=True)
+    (eval_dir / "metrics.json").write_text("{not json", encoding="utf-8")
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "bad-metrics",
+            "method": "tools/call",
+            "params": {
+                "name": "eval.metrics",
+                "arguments": {"eval_dir": "artifacts/eval_bad"},
+            },
+        }
+    )
+
+    assert response["error"]["code"] == "metrics_invalid_json"
+
+
+def test_ops_summary_reports_missing_eval_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    audit_path = _write_audit_fixture(tmp_path)
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "missing-eval",
+            "method": "tools/call",
+            "params": {
+                "name": "ops.summary",
+                "arguments": {
+                    "eval_dir": "artifacts/does_not_exist",
+                    "audit_path": str(audit_path.relative_to(tmp_path)),
+                },
+            },
+        }
+    )
+
+    assert response["error"]["code"] == "artifact_missing"
+
+
+def test_ops_summary_reports_missing_audit_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    eval_dir = _write_eval_fixture(tmp_path)
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "missing-audit",
+            "method": "tools/call",
+            "params": {
+                "name": "ops.summary",
+                "arguments": {
+                    "eval_dir": str(eval_dir.relative_to(tmp_path)),
+                    "audit_path": "artifacts/eval_agent/agent_artifacts/audit.jsonl",
+                },
+            },
+        }
+    )
+
+    assert response["error"]["code"] == "artifact_missing"
