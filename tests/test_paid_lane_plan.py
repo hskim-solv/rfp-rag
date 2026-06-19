@@ -56,7 +56,8 @@ def test_build_paid_lane_plan_records_required_approval_and_artifacts(
     )
     assert _step(summary, "stage3_real_eval")["cost_bearing"] is True
     assert _step(summary, "stage3_real_eval")["writes"] == [
-        "artifacts/eval_stage3_raw/metrics.json"
+        "artifacts/eval_stage3_raw/metrics.json",
+        "artifacts/eval_stage3_raw/run_error.json",
     ]
     assert (
         "uv run python -m rfp_rag.stage3_eval"

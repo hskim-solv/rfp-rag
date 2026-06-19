@@ -358,19 +358,32 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
-    metrics = evaluate_stage3_cases(
-        root=args.root,
-        cases_path=args.cases,
-        index_dir=args.index,
-        out_dir=args.out,
-        provider=args.provider,
-        top_k=args.top_k,
-        min_score=args.min_score,
-        retrieval_mode=args.retrieval_mode,
-        reranker=args.reranker,
-        rerank_candidate_k=args.rerank_candidate_k,
-        visual_records_path=args.visual_records,
-    )
+    try:
+        metrics = evaluate_stage3_cases(
+            root=args.root,
+            cases_path=args.cases,
+            index_dir=args.index,
+            out_dir=args.out,
+            provider=args.provider,
+            top_k=args.top_k,
+            min_score=args.min_score,
+            retrieval_mode=args.retrieval_mode,
+            reranker=args.reranker,
+            rerank_candidate_k=args.rerank_candidate_k,
+            visual_records_path=args.visual_records,
+        )
+    except Exception as exc:  # noqa: BLE001 - CLI must leave diagnosable evidence
+        run_error = {
+            "stage3_eval_complete": False,
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+            "provider": args.provider,
+            "cases_path": str(args.cases),
+            "index_dir": str(args.index),
+        }
+        _write_json(args.out / "run_error.json", run_error)
+        print(json.dumps(run_error, ensure_ascii=False, indent=2, sort_keys=True))
+        return 1
     print(json.dumps(metrics, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if metrics["evaluation_valid"] else 1
 

@@ -66,6 +66,9 @@ uv run python -m rfp_rag.stage3_eval \
   --min-score 0.47
 ```
 
+If the provider setup fails before metrics are written, the runner records the
+diagnostic in `artifacts/eval_stage3_raw/run_error.json`.
+
 Without `cases.jsonl` and a real metrics artifact, it writes a fail-closed
 `artifacts/eval_stage3_holdout/metrics.json`. That is intentional: a missing or
 unmeasured independent holdout must not look complete.
