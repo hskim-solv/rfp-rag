@@ -2,6 +2,7 @@
   "cases_path": "eval_sets/stage3_holdout/cases.jsonl",
   "contract_version": "rfp-rag-stage3-holdout-v1",
   "doc_ids": [
+    "doc:079",
     "doc:080",
     "doc:081",
     "doc:082",
@@ -10,7 +11,6 @@
     "doc:085",
     "doc:086",
     "doc:087",
-    "doc:088",
     "doc:089",
     "doc:090",
     "doc:091",

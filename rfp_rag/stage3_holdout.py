@@ -206,6 +206,8 @@ def finalize_stage3_holdout(
     failed = list(audit["failed"])
     if not raw:
         failed.append("stage3_real_metrics_missing")
+    elif raw.get("eval_set_hash") != audit["eval_set_hash"]:
+        failed.append("eval_set_hash_mismatch")
     for key, threshold in THRESHOLDS.items():
         value = metrics[key]
         if key == "unsupported_visual_claim_rate":

@@ -46,9 +46,9 @@ The project uses layered evidence rather than one vanity score:
 - Stage 2 frozen evidence: query coverage, real metrics, agent stress,
   retrieval bakeoff, visual quality, service ops, deterministic security smoke,
   and cost budget;
-- top-tier roadmap: one-command reviewer demo is implemented; Stage 3
-  independent holdout, real observability, upgraded orchestration,
-  security/reliability deepening, and this case study are tracked separately.
+- top-tier evidence: one-command reviewer demo, Stage 3 independent holdout,
+  real observability, upgraded orchestration, security/reliability deepening,
+  and this case study are checked separately from hosted-production claims.
 
 Representative current checks:
 
@@ -80,6 +80,10 @@ redaction scans, and explicit non-claims.
 What is proven:
 
 - local/container reviewer demo path;
+- independent Stage 3 holdout quality: `document_count=20`, `query_count=100`,
+  `recall@5=1.0`, `mrr=1.0`, `citation_validity=1.0`,
+  `faithfulness=0.9887`, `answer_relevancy=0.8797`,
+  `unsupported_visual_claim_rate=0.0`, `abstention_precision=1.0`;
 - typed API and SSE service surface;
 - LangGraph replay evidence for routing, rewriting, abstention, HITL, checkpoint
   closure, and audit redaction;
@@ -93,7 +97,6 @@ What is not claimed yet:
 - public multi-tenant dashboard;
 - live-traffic SLOs;
 - provider billing telemetry;
-- independent Stage 3 holdout quality;
 - reranker quality win.
 
 ## Interview defense
@@ -121,6 +124,6 @@ remaining top-tier gates.
 
 **What would you build next?**
 
-Stage 3 independent holdout is next: 20-30 new RFP documents, 100-150 blind
-queries, split/rubric/hash evidence, paid real-lane evaluation after approval,
-and fail-closed portfolio gates.
+Hosted deployment is next: auth, rate limits, public dashboard or trace export,
+provider billing telemetry, and live-traffic SLOs. The repo already keeps those
+separate from the local top-tier portfolio evidence.

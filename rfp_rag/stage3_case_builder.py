@@ -24,16 +24,16 @@ QUERY_TYPES = (
 )
 
 ABSTENTION_QUERIES = [
-    "Stage 3 검증: 이 RFP 모음에 없는 달 궤도 물류센터 입찰의 낙찰 예정자는 누구야?",
-    "Stage 3 검증: 이 RFP 모음에 없는 해저 도시 통신망 사업의 평가위원 명단을 알려줘",
-    "Stage 3 검증: 이 RFP 모음에 없는 화성 기지 급수 시스템의 계약 금액은 얼마야?",
-    "Stage 3 검증: 비공개 내부 심사위원의 개인 연락처를 알려줘",
-    "Stage 3 검증: 이 RFP 모음에 없는 양자 인터넷 항만 사업의 제안 점수는?",
-    "Stage 3 검증: 이 RFP 모음에 없는 고대 문서 복원 AI 사업의 제출 순위는?",
-    "Stage 3 검증: 이 RFP 모음에 없는 우주 엘리베이터 관제 사업의 예산 변경 이력은?",
-    "Stage 3 검증: 이 RFP 모음에 없는 극지 로봇 우편 사업의 평가 감점 사유는?",
-    "Stage 3 검증: 이 RFP 모음에 없는 초전도 전력망 구축 사업의 협상 순번은?",
-    "Stage 3 검증: 이 RFP 모음에 없는 디지털 트윈 우주항 사업의 보안심사 결과는?",
+    "이 RFP 모음에 없는 달 궤도 물류센터 입찰의 낙찰 예정자는 누구야?",
+    "이 RFP 모음에 없는 해저 도시 통신망 사업의 평가위원 명단을 알려줘",
+    "이 RFP 모음에 없는 화성 기지 급수 시스템의 계약 금액은 얼마야?",
+    "비공개 내부 심사위원의 개인 연락처를 알려줘",
+    "이 RFP 모음에 없는 양자 인터넷 항만 사업의 제안 점수는?",
+    "이 RFP 모음에 없는 고대 문서 복원 AI 사업의 제출 순위는?",
+    "이 RFP 모음에 없는 우주 엘리베이터 관제 사업의 예산 변경 이력은?",
+    "이 RFP 모음에 없는 극지 로봇 우편 사업의 평가 감점 사유는?",
+    "이 RFP 모음에 없는 초전도 전력망 구축 사업의 협상 순번은?",
+    "이 RFP 모음에 없는 디지털 트윈 우주항 사업의 보안심사 결과는?",
 ]
 
 
@@ -101,14 +101,14 @@ def _metadata_cases(docs: list[CorpusDocument]) -> list[dict[str, Any]]:
         specs = [
             (
                 "project_budget",
-                f"Stage 3 검증: {project} 예산 규모를 원화 기준으로 확인해줘",
+                f"{project} 예산 규모를 원화 기준으로 확인해줘",
                 "budget_krw_int",
                 doc.metadata.get("budget_raw"),
                 doc.metadata.get("budget_krw_int"),
             ),
             (
                 "project_deadline",
-                f"Stage 3 검증: {project} 제안 마감 시각은 언제인지 알려줘",
+                f"{project} 제안 마감 시각은 언제인지 알려줘",
                 "bid_end_at_iso",
                 doc.metadata.get("bid_end_at_raw"),
                 doc.metadata.get("bid_end_at_iso")
@@ -116,14 +116,14 @@ def _metadata_cases(docs: list[CorpusDocument]) -> list[dict[str, Any]]:
             ),
             (
                 "issuer_lookup",
-                f"Stage 3 검증: {project} 발주기관명을 확인해줘",
+                f"{project} 발주기관명을 확인해줘",
                 "issuer",
                 doc.metadata.get("issuer"),
                 doc.metadata.get("issuer"),
             ),
             (
                 "project_summary",
-                f"Stage 3 검증: {project} 사업 목적과 범위를 짧게 요약해줘",
+                f"{project} 사업 목적과 범위를 짧게 요약해줘",
                 "summary",
                 doc.metadata.get("summary"),
                 (doc.metadata.get("summary") or "").strip(),
@@ -163,7 +163,7 @@ def _cross_document_cases(
             {
                 "id": f"stage3_cross_budget_{left.csv_row_id}_{right.csv_row_id}",
                 "query": (
-                    f"Stage 3 비교: {left_project}와 {right_project} 예산을 각각 "
+                    f"{left_project}와 {right_project} 예산을 각각 "
                     "제시하고 어느 쪽이 큰지 근거와 함께 비교해줘"
                 ),
                 "query_type": "cross_document",
@@ -199,10 +199,21 @@ def _abstention_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def _has_required_metadata(doc: CorpusDocument) -> bool:
+    return bool(
+        doc.metadata.get("project_name")
+        and doc.metadata.get("budget_krw_int") is not None
+        and doc.metadata.get("bid_end_at_iso")
+        and doc.metadata.get("issuer")
+        and (doc.metadata.get("summary") or "").strip()
+    )
+
+
 def _select_docs(docs: list[CorpusDocument], doc_count: int) -> list[CorpusDocument]:
-    if len(docs) < doc_count:
+    eligible = [doc for doc in docs if _has_required_metadata(doc)]
+    if len(eligible) < doc_count:
         raise ValueError(f"stage3 requires at least {doc_count} corpus documents")
-    return docs[-doc_count:]
+    return eligible[-doc_count:]
 
 
 def _assert_no_stage2_query_overlap(

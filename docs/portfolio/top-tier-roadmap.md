@@ -66,8 +66,9 @@ URLs require explicit user approval before execution.
 
 ## Phase 2: Stage 3 independent holdout
 
-Goal: move beyond the current frozen Stage 2 evidence-set claim. Stage 3 must
-use a separately documented corpus/query split that was not used for tuning.
+Goal: move beyond the frozen Stage 2 evidence-set claim. Stage 3 uses a
+separately documented corpus/query split with hash/rubric evidence and a real
+provider run.
 
 Required evidence:
 
@@ -90,6 +91,23 @@ Gate metrics:
 | `answer_relevancy` | `>= 0.78` |
 | `unsupported_visual_claim_rate` | `<= 0.05` |
 | `abstention_precision` | `>= 0.90` |
+
+Current measured result:
+
+| metric | result |
+|---|---:|
+| `document_count` | `20` |
+| `query_count` | `100` |
+| `recall@5` | `1.0` |
+| `mrr` | `1.0` |
+| `citation_validity` | `1.0` |
+| `faithfulness` | `0.9887` |
+| `answer_relevancy` | `0.8797` |
+| `unsupported_visual_claim_rate` | `0.0` |
+| `abstention_precision` | `1.0` |
+
+Status: `stage3_holdout_quality_complete=true`,
+`eval_set_hash=ae37981b905142a5a71f4d455015ee565d705b41f21580d33eacac95ccfe7a4f`.
 
 Stop condition: paid real-provider evaluation requires explicit approval and a
 cost estimate before execution.
@@ -206,9 +224,9 @@ The final top-tier claim is false if any of these are true:
 ## Readiness contract
 
 `rfp_rag.portfolio_check` reports this under `top_tier_readiness`. It is
-intentionally separate from the current `portfolio_readiness_check`: the current
-repo can remain a completed production-adjacent evidence bundle while
-`top_tier_readiness.complete=false` tracks the next level.
+intentionally separate from `portfolio_readiness_check`: the repo can prove the
+local top-tier portfolio evidence while still avoiding hosted-production,
+public-dashboard, provider-billing, and live-traffic SLO claims.
 
 Completion requires:
 
