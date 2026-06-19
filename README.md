@@ -185,6 +185,9 @@ uv run python -m rfp_rag.paid_lane_plan
 The plan does not execute paid/API work. It records the Stage 3 case-freeze,
 fixed-case real evaluation runner, and finalization steps so the remaining
 top-tier gate cannot be hidden behind an ambiguous TODO.
+The case-freeze step uses `uv run python -m rfp_rag.stage3_case_builder` to
+write a deterministic 100-query Stage 3 split and contamination notes before
+the real-provider run.
 
 Stage 2 contract scaffold:
 

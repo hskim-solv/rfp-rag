@@ -106,10 +106,17 @@ def _planned_steps() -> list[dict[str, Any]]:
         ),
         _step(
             "stage3_holdout_case_freeze",
+            "uv run python -m rfp_rag.stage3_case_builder && "
             "uv run python -m rfp_rag.stage3_holdout "
             "--cases eval_sets/stage3_holdout/cases.jsonl",
-            reads=["eval_sets/stage3_holdout/cases.jsonl"],
+            reads=[
+                "data/data_list.csv",
+                "artifacts/eval_stage2_real",
+            ],
             writes=[
+                "eval_sets/stage3_holdout/cases.jsonl",
+                "eval_sets/stage3_holdout/split_manifest.json",
+                "eval_sets/stage3_holdout/contamination_notes.md",
                 "artifacts/eval_stage3_holdout/split_manifest.json",
                 "artifacts/eval_stage3_holdout/label_rubric.md",
                 "artifacts/eval_stage3_holdout/metrics.json",

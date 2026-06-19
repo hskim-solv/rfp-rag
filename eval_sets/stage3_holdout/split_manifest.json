@@ -1,0 +1,32 @@
+{
+  "cases_path": "eval_sets/stage3_holdout/cases.jsonl",
+  "contract_version": "rfp-rag-stage3-holdout-v1",
+  "doc_ids": [
+    "doc:080",
+    "doc:081",
+    "doc:082",
+    "doc:083",
+    "doc:084",
+    "doc:085",
+    "doc:086",
+    "doc:087",
+    "doc:088",
+    "doc:089",
+    "doc:090",
+    "doc:091",
+    "doc:092",
+    "doc:093",
+    "doc:094",
+    "doc:095",
+    "doc:096",
+    "doc:097",
+    "doc:098",
+    "doc:099"
+  ],
+  "document_count": 20,
+  "known_corpus_overlap_with_stage2_metadata": true,
+  "policy": "stage3_independent_query_holdout_on_fixed_corpus",
+  "query_count": 100,
+  "stage2_exact_query_overlap_count": 0,
+  "tuning_after_freeze_allowed": false
+}
