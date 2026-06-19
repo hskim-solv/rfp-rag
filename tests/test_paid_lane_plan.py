@@ -47,8 +47,12 @@ def test_build_paid_lane_plan_records_required_approval_and_artifacts(
         "uv run python -m rfp_rag.stage2_real"
     )
     assert (
+        "uv run python -m rfp_rag.stage3_case_builder"
+        in _step(summary, "stage3_holdout_case_freeze")["command"]
+    )
+    assert (
         "eval_sets/stage3_holdout/cases.jsonl"
-        in _step(summary, "stage3_holdout_case_freeze")["reads"]
+        in _step(summary, "stage3_holdout_case_freeze")["writes"]
     )
     assert _step(summary, "stage3_real_eval")["cost_bearing"] is True
     assert _step(summary, "stage3_real_eval")["writes"] == [

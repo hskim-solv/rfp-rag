@@ -19,13 +19,25 @@ The expected cases file is:
 eval_sets/stage3_holdout/cases.jsonl
 ```
 
+Generate the frozen case file and local split metadata with:
+
+```bash
+uv run python -m rfp_rag.stage3_case_builder
+```
+
+Current limitation: this is a post-freeze query holdout on the fixed
+100-document corpus. Stage 2 metadata evaluation already touched all 100
+documents, so `contamination_notes.md` records that document-level overlap
+explicitly. The builder still rejects exact Stage 2 query overlap and freezes
+the generated queries before real-provider evaluation.
+
 Schema:
 
 ```json
 {
   "id": "stage3-000",
   "query": "reviewer-facing blind query",
-  "query_type": "text | cross_document | visual_table | abstention",
+  "query_type": "project_budget | project_deadline | issuer_lookup | project_summary | cross_document | abstention",
   "expected_doc_ids": ["stage3-doc-001"],
   "label_source": "manual_blind_label",
   "provenance": {
