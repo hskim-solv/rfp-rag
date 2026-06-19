@@ -141,3 +141,23 @@ part of the 3-5 minute live track.
 - What exactly does the LangGraph agent prove beyond plain RAG?
 - Which parts are production-like evidence, and which parts are deferred
   product scope?
+
+## Top-tier Next Demo Target
+
+The next portfolio level is tracked in `docs/portfolio/top-tier-roadmap.md` and
+`artifacts/portfolio_readiness.json` under `top_tier_readiness`. The current
+runbook is sufficient for repo/demo review; the top-tier demo must additionally
+provide either an approved hosted reviewer URL or a one-command local reviewer
+mode, independent Stage 3 holdout evidence, real observability exports, upgraded
+agent orchestration evidence, deeper security/reliability reports, and the
+senior case study.
+
+Current one-command local smoke:
+
+```bash
+uv run python -m rfp_rag.top_tier_demo
+```
+
+Expected current state: `artifacts/top_tier_demo/summary.json` has
+`top_tier_demo_complete=true`, while `top_tier_readiness.complete` remains false
+until the remaining top-tier gates are implemented.
