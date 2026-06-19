@@ -81,6 +81,13 @@ def test_build_stage3_cases_writes_fixed_holdout_candidate(tmp_path: Path) -> No
     assert audit["counts_by_slice"]["abstention"] == 10
     assert all(row["provenance"]["stage2_overlap"] is False for row in rows)
     assert all(row["label_source"] == "manual_blind_label" for row in rows)
+    assert all(not row["query"].startswith("Stage 3 ") for row in rows)
+    assert all(
+        row["query_type"] == "abstention"
+        or row.get("expected_value_normalized")
+        or row.get("expected_values_normalized")
+        for row in rows
+    )
     assert manifest_path.is_file()
     assert "known limitation" in contamination_path.read_text(encoding="utf-8")
 
@@ -94,12 +101,7 @@ def test_build_stage3_cases_rejects_exact_stage2_query_overlap(
     _write_csv(data_path)
     (stage2_dir / "golden_metadata.jsonl").write_text(
         json.dumps(
-            {
-                "query": (
-                    "Stage 3 검증: Stage3 테스트 사업 000 예산 규모를 "
-                    "원화 기준으로 확인해줘"
-                )
-            },
+            {"query": "Stage3 테스트 사업 000 예산 규모를 원화 기준으로 확인해줘"},
             ensure_ascii=False,
         )
         + "\n",

@@ -144,11 +144,12 @@ portfolio check does not claim hosted production operation, provider billing
 telemetry, or public-dashboard readiness.
 
 The same report now includes `top_tier_readiness` for the next portfolio level:
-hosted or one-command reviewer demo, Stage 3 independent holdout, real
-observability, upgraded agent orchestration, deeper security/reliability
-evidence, and a senior case study. This field is intentionally separate from
-`portfolio_readiness_check` so the current senior-ready evidence bundle remains
-honest while the top-tier gaps stay machine-visible.
+one-command reviewer demo, Stage 3 independent holdout, real observability,
+upgraded agent orchestration, deeper security/reliability evidence, and a senior
+case study. This field is intentionally separate from
+`portfolio_readiness_check` so the senior-ready evidence bundle remains honest:
+local top-tier evidence can pass while hosted production, public dashboard, and
+live-traffic SLO claims stay out of scope.
 
 Top-tier one-command demo smoke:
 
@@ -157,9 +158,7 @@ uv run python -m rfp_rag.top_tier_demo
 ```
 
 This writes `artifacts/top_tier_demo/summary.json` and proves the reviewer can
-exercise the local service/gate surfaces without credentials. It does not make
-the full `top_tier_readiness` claim until the Stage 3, observability,
-orchestration, security/reliability, and case-study gates are also present.
+exercise the local service/gate surfaces without credentials.
 
 Top-tier observability and security/reliability artifacts:
 
@@ -173,8 +172,17 @@ uv run python -m rfp_rag.stage3_holdout
 These write redacted trace/failure-analysis artifacts, planner-executor
 orchestration evidence, and a 20-case security/reliability deepening suite.
 They reuse local evidence and do not call external telemetry or model providers.
-`stage3_holdout` is deliberately fail-closed until an independent cases file and
-real metrics artifact exist.
+`stage3_holdout` is fail-closed unless an independent cases file, matching
+`eval_set_hash`, and real metrics artifact exist.
+
+Current Stage 3 real holdout evidence:
+
+- `stage3_holdout_quality_complete=true`;
+- `eval_set_hash=ae37981b905142a5a71f4d455015ee565d705b41f21580d33eacac95ccfe7a4f`;
+- `document_count=20`, `query_count=100`;
+- `recall@5=1.0`, `mrr=1.0`, `citation_validity=1.0`;
+- `faithfulness=0.9887`, `answer_relevancy=0.8797`;
+- `unsupported_visual_claim_rate=0.0`, `abstention_precision=1.0`.
 
 Stage 3 cost-bearing execution is listed in the paid/API plan:
 

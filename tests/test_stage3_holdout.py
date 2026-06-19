@@ -39,8 +39,8 @@ def _cases(doc_count: int = 20, query_count: int = 100) -> list[dict]:
     return rows
 
 
-def _raw_metrics() -> dict:
-    return {
+def _raw_metrics(eval_set_hash: str = "") -> dict:
+    payload = {
         "metrics": {
             "recall@5": 0.90,
             "mrr": 0.80,
@@ -51,6 +51,9 @@ def _raw_metrics() -> dict:
             "abstention_precision": 0.90,
         }
     }
+    if eval_set_hash:
+        payload["eval_set_hash"] = eval_set_hash
+    return payload
 
 
 def test_audit_stage3_cases_accepts_independent_fixed_set(tmp_path: Path) -> None:
@@ -85,7 +88,11 @@ def test_audit_stage3_cases_allows_abstention_without_expected_docs(
 
 def test_finalize_stage3_holdout_accepts_complete_raw_metrics(tmp_path: Path) -> None:
     _write_jsonl(tmp_path / "eval_sets/stage3_holdout/cases.jsonl", _cases())
-    _write_json(tmp_path / "artifacts/eval_stage3_raw/metrics.json", _raw_metrics())
+    audit = audit_stage3_cases(root=tmp_path)
+    _write_json(
+        tmp_path / "artifacts/eval_stage3_raw/metrics.json",
+        _raw_metrics(audit["eval_set_hash"]),
+    )
 
     summary = finalize_stage3_holdout(root=tmp_path)
 
@@ -108,6 +115,19 @@ def test_finalize_stage3_holdout_fails_closed_without_raw_metrics(
     assert summary["stage3_holdout_quality_complete"] is False
     assert "stage3_real_metrics_missing" in summary["failed"]
     assert "recall@5" in summary["failed"]
+
+
+def test_finalize_stage3_holdout_fails_closed_on_eval_set_hash_mismatch(
+    tmp_path: Path,
+) -> None:
+    _write_jsonl(tmp_path / "eval_sets/stage3_holdout/cases.jsonl", _cases())
+    raw = _raw_metrics() | {"eval_set_hash": "different"}
+    _write_json(tmp_path / "artifacts/eval_stage3_raw/metrics.json", raw)
+
+    summary = finalize_stage3_holdout(root=tmp_path)
+
+    assert summary["stage3_holdout_quality_complete"] is False
+    assert "eval_set_hash_mismatch" in summary["failed"]
 
 
 def test_stage3_holdout_cli_returns_nonzero_when_cases_are_missing(

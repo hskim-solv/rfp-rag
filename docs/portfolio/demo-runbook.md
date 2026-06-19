@@ -166,4 +166,5 @@ Expected current state: `artifacts/top_tier_demo/summary.json` has
 `top_tier_demo_complete=true`; observability and security/reliability artifacts
 are redacted local evidence; orchestration evidence records a planner-executor
 scenario matrix over the typed LangGraph workflow. `top_tier_readiness.complete`
-remains false until Stage 3 independent cases and real metrics are present.
+is true when the local evidence bundle includes the Stage 3 real holdout metrics
+with matching `eval_set_hash`; hosted production remains a separate non-claim.
