@@ -167,11 +167,24 @@ Top-tier observability and security/reliability artifacts:
 uv run python -m rfp_rag.observability_report
 uv run python -m rfp_rag.agent_orchestration
 uv run python -m rfp_rag.security_reliability
+uv run python -m rfp_rag.stage3_holdout
 ```
 
 These write redacted trace/failure-analysis artifacts, planner-executor
 orchestration evidence, and a 20-case security/reliability deepening suite.
 They reuse local evidence and do not call external telemetry or model providers.
+`stage3_holdout` is deliberately fail-closed until an independent cases file and
+real metrics artifact exist.
+
+Stage 3 cost-bearing execution is listed in the paid/API plan:
+
+```bash
+uv run python -m rfp_rag.paid_lane_plan
+```
+
+The plan does not execute paid/API work. It records the Stage 3 case-freeze,
+manual fixed-case real evaluation, and finalization steps so the remaining
+top-tier gate cannot be hidden behind an ambiguous TODO.
 
 Stage 2 contract scaffold:
 

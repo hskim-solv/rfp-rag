@@ -24,6 +24,9 @@ def test_build_paid_lane_plan_records_required_approval_and_artifacts(
         "real_eval_v6",
         "stage2_real_eval",
         "stage2_real_finalize",
+        "stage3_holdout_case_freeze",
+        "stage3_real_eval",
+        "stage3_holdout_finalize",
         "same_set_open_reranker_eval",
         "retrieval_bakeoff",
         "cost_budget",
@@ -42,6 +45,18 @@ def test_build_paid_lane_plan_records_required_approval_and_artifacts(
     )
     assert _step(summary, "stage2_real_finalize")["command"] == (
         "uv run python -m rfp_rag.stage2_real"
+    )
+    assert (
+        "eval_sets/stage3_holdout/cases.jsonl"
+        in _step(summary, "stage3_holdout_case_freeze")["reads"]
+    )
+    assert _step(summary, "stage3_real_eval")["cost_bearing"] is True
+    assert _step(summary, "stage3_real_eval")["writes"] == [
+        "artifacts/eval_stage3_raw/metrics.json"
+    ]
+    assert (
+        "--raw-metrics artifacts/eval_stage3_raw/metrics.json"
+        in _step(summary, "stage3_holdout_finalize")["command"]
     )
     assert _step(summary, "same_set_open_reranker_eval")["writes"] == [
         "artifacts/eval_open_rerank"
