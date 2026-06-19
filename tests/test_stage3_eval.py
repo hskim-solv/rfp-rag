@@ -32,7 +32,7 @@ def _cases(doc_count: int = 20, query_count: int = 100) -> list[dict[str, Any]]:
                 "id": f"stage3-{idx:03d}",
                 "query": f"독립 평가 질문 {idx}",
                 "query_type": query_type,
-                "expected_doc_ids": [doc_id],
+                "expected_doc_ids": [] if query_type == "abstention" else [doc_id],
                 "required_phrase": "없는 정보",
                 "required_warning": "insufficient_context",
                 "label_source": "manual_blind_label",
@@ -56,7 +56,7 @@ def test_load_fixed_stage3_cases_preserves_required_fields(tmp_path: Path) -> No
             "id": "stage3-000",
             "query": "독립 평가 질문 0",
             "query_type": "abstention",
-            "expected_doc_ids": ["stage3-doc-000"],
+            "expected_doc_ids": [],
             "label_source": "manual_blind_label",
             "required_phrase": "없는 정보",
             "required_warning": "insufficient_context",
@@ -96,15 +96,13 @@ def test_evaluate_stage3_cases_runs_fixed_set_with_injected_components(
         question = args[2] if len(args) > 2 else kwargs["query"]
         idx = int(str(question).split()[-1])
         if idx == 0:
-            doc_id = "stage3-doc-000"
-            chunk_id = f"{doc_id}:chunk-0"
             return {
                 "answer": "없는 정보입니다.",
                 "confidence": "low",
                 "warnings": ["insufficient_context"],
                 "sources": [],
-                "retrieved_doc_ids": [doc_id],
-                "retrieved_chunk_ids": [chunk_id],
+                "retrieved_doc_ids": [],
+                "retrieved_chunk_ids": [],
                 "scores": [],
                 "reranker": "none",
             }

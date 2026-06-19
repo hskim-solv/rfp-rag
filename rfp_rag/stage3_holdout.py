@@ -77,9 +77,10 @@ def _display_path(path: Path, root: Path) -> str:
 
 def _case_schema_issues(row: dict[str, Any]) -> list[str]:
     issues = [field for field in CASE_REQUIRED_FIELDS if field not in row]
-    if not isinstance(row.get("expected_doc_ids"), list) or not row.get(
-        "expected_doc_ids"
-    ):
+    expected_doc_ids = row.get("expected_doc_ids")
+    if not isinstance(expected_doc_ids, list):
+        issues.append("expected_doc_ids")
+    elif row.get("query_type") != "abstention" and not expected_doc_ids:
         issues.append("expected_doc_ids")
     provenance = row.get("provenance")
     if not isinstance(provenance, dict):

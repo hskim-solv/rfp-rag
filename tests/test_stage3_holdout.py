@@ -66,6 +66,23 @@ def test_audit_stage3_cases_accepts_independent_fixed_set(tmp_path: Path) -> Non
     assert len(audit["eval_set_hash"]) == 64
 
 
+def test_audit_stage3_cases_allows_abstention_without_expected_docs(
+    tmp_path: Path,
+) -> None:
+    rows = _cases()
+    rows[0]["query_type"] = "abstention"
+    rows[0]["expected_doc_ids"] = []
+    rows[0]["required_phrase"] = "없는 정보"
+    rows[0]["required_warning"] = "insufficient_context"
+    cases_path = tmp_path / "eval_sets/stage3_holdout/cases.jsonl"
+    _write_jsonl(cases_path, rows)
+
+    audit = audit_stage3_cases(root=tmp_path)
+
+    assert audit["stage3_case_audit_complete"] is True
+    assert audit["failed"] == []
+
+
 def test_finalize_stage3_holdout_accepts_complete_raw_metrics(tmp_path: Path) -> None:
     _write_jsonl(tmp_path / "eval_sets/stage3_holdout/cases.jsonl", _cases())
     _write_json(tmp_path / "artifacts/eval_stage3_raw/metrics.json", _raw_metrics())
