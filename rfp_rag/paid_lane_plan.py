@@ -134,7 +134,10 @@ def _planned_steps() -> list[dict[str, Any]]:
                 "artifacts/index_real",
                 "artifacts/visual_structure_reviewed/records.jsonl",
             ],
-            writes=["artifacts/eval_stage3_raw/metrics.json"],
+            writes=[
+                "artifacts/eval_stage3_raw/metrics.json",
+                "artifacts/eval_stage3_raw/run_error.json",
+            ],
             cost_bearing=True,
         ),
         _step(

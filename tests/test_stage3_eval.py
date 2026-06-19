@@ -152,3 +152,23 @@ def test_evaluate_stage3_cases_rejects_unfrozen_cases(tmp_path: Path) -> None:
             out_dir=tmp_path / "artifacts/eval_stage3_raw",
             provider="offline",
         )
+
+
+def test_stage3_eval_cli_writes_run_error_on_setup_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_dir = tmp_path / "artifacts/eval_stage3_raw"
+
+    def fail_setup(**_kwargs: Any) -> dict[str, Any]:
+        raise RuntimeError("insufficient_quota: quota preflight failed")
+
+    monkeypatch.setattr(stage3_eval, "evaluate_stage3_cases", fail_setup)
+
+    rc = stage3_eval.main(["--out", str(out_dir)])
+
+    assert rc == 1
+    run_error = json.loads((out_dir / "run_error.json").read_text(encoding="utf-8"))
+    assert run_error["stage3_eval_complete"] is False
+    assert run_error["error_type"] == "RuntimeError"
+    assert "insufficient_quota" in run_error["message"]
