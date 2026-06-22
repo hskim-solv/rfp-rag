@@ -32,7 +32,15 @@ def test_hosted_demo_smoke_verifies_public_safe_reviewer_contract(
                 200, {"ok": True, "service": "rfp-rag", "git_sha": "abc1234"}, ""
             )
         if url.endswith("/v1/gates"):
-            return HttpResult(200, {"overall_ok": True, "lanes": {}}, "")
+            return HttpResult(
+                200,
+                {
+                    "overall_ok": True,
+                    "public_demo_gate": True,
+                    "lanes": {"hosted_reviewer_demo": {"ok": True}},
+                },
+                "",
+            )
         if url.endswith("/v1/answer/stream"):
             body = (
                 'event: status\ndata: {"status":"started"}\n\n'
@@ -102,7 +110,7 @@ def test_hosted_demo_smoke_fails_closed_on_revision_mismatch(
                 200, {"ok": True, "service": "rfp-rag", "git_sha": "old1234"}, ""
             )
         if url.endswith("/v1/gates"):
-            return HttpResult(200, {"overall_ok": True, "lanes": {}}, "")
+            return HttpResult(200, {"overall_ok": True, "public_demo_gate": True}, "")
         if url.endswith("/v1/answer/stream"):
             return HttpResult(200, None, "event: final\ndata: {}\n\n")
         if url.endswith("/v1/answer") and not headers:
@@ -131,6 +139,48 @@ def test_hosted_demo_smoke_fails_closed_on_revision_mismatch(
     assert "revision_match_pass" in summary["failed"]
 
 
+def test_hosted_demo_smoke_requires_public_demo_gate(tmp_path: Path) -> None:
+    def fake_transport(
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        json_payload: dict[str, Any] | None = None,
+    ) -> HttpResult:
+        if url.endswith("/healthz"):
+            return HttpResult(
+                200, {"ok": True, "service": "rfp-rag", "git_sha": "abc1234"}, ""
+            )
+        if url.endswith("/v1/gates"):
+            return HttpResult(200, {"overall_ok": True, "lanes": {}}, "")
+        if url.endswith("/v1/answer/stream"):
+            return HttpResult(200, None, "event: final\ndata: {}\n\n")
+        if url.endswith("/v1/answer") and not headers:
+            return HttpResult(401, {"detail": {"code": "reviewer_token_required"}}, "")
+        if url.endswith("/v1/answer"):
+            return HttpResult(
+                200,
+                {
+                    "answer": "public-safe",
+                    "metadata": {"provider": "public_demo"},
+                    "sources": [{"filename": "public-safe-demo.md"}],
+                },
+                "",
+            )
+        raise AssertionError(url)
+
+    summary = run_hosted_demo_smoke(
+        base_url="https://example.invalid",
+        reviewer_token="review-token",
+        expected_git_sha="abc1234",
+        out=tmp_path / "summary.json",
+        transport=fake_transport,
+    )
+
+    assert summary["hosted_demo_smoke_complete"] is False
+    assert "gates_pass" in summary["failed"]
+
+
 def test_hosted_demo_smoke_fails_closed_on_non_demo_answer(tmp_path: Path) -> None:
     def fake_transport(
         method: str,
@@ -142,7 +192,7 @@ def test_hosted_demo_smoke_fails_closed_on_non_demo_answer(tmp_path: Path) -> No
         if url.endswith("/healthz"):
             return HttpResult(200, {"ok": True}, "")
         if url.endswith("/v1/gates"):
-            return HttpResult(200, {}, "")
+            return HttpResult(200, {"overall_ok": True, "public_demo_gate": True}, "")
         if url.endswith("/v1/answer/stream"):
             return HttpResult(200, None, "event: final\ndata: {}\n\n")
         if url.endswith("/v1/answer") and not headers:

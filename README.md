@@ -466,7 +466,7 @@ uv run python -m rfp_rag.hosted_demo_smoke \
 This smoke requires the hosted response provider to be `public_demo` and fails
 closed if the answer path exposes raw RFP text, lacks public-safe synthetic
 sources, omits the reviewer-token boundary, serves a different `RFP_RAG_GIT_SHA`,
-or misses the SSE final event.
+returns a non-demo `/v1/gates` payload, or misses the SSE final event.
 
 Post-deploy logs, metrics, and rollback evidence are captured through
 `docs/portfolio/hosted-deployment-runbook.md` and validated with:

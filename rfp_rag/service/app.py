@@ -225,6 +225,24 @@ def _public_demo_answer(request: AnswerRequest, latency_ms: float) -> AnswerResp
     )
 
 
+def _public_demo_gate_status() -> dict[str, Any]:
+    return {
+        "overall_ok": True,
+        "public_demo_gate": True,
+        "mode": "public_safe_hosted_reviewer_demo",
+        "git_sha": _git_sha(),
+        "lanes": {
+            "hosted_reviewer_demo": {
+                "ok": True,
+                "provider": "public_demo",
+                "credential_free": True,
+                "public_safe_sources": True,
+                "raw_rfp_text_exposed": False,
+            }
+        },
+    }
+
+
 def _to_answer_response(
     request: AnswerRequest, raw: dict[str, Any], latency_ms: float
 ) -> AnswerResponse:
@@ -343,6 +361,8 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/gates", dependencies=[Depends(_hosted_profile_guard)])
     async def gates(root: Path = Query(default=Path("."))) -> dict[str, Any]:
+        if _env_enabled("RFP_RAG_PUBLIC_DEMO_MODE"):
+            return _public_demo_gate_status()
         try:
             safe_root = safe_artifact_path(
                 root,

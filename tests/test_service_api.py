@@ -337,6 +337,30 @@ def test_gates_endpoint_returns_gate_status(monkeypatch) -> None:
     assert response.json()["root"] == str(Path(".").resolve())
 
 
+def test_public_demo_gates_returns_publishable_gate_without_artifacts(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("RFP_RAG_PUBLIC_DEMO_MODE", "1")
+    monkeypatch.setenv("RFP_RAG_GIT_SHA", "abc1234")
+    client = TestClient(service_app.create_app())
+
+    response = client.get("/v1/gates")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["overall_ok"] is True
+    assert body["public_demo_gate"] is True
+    assert body["mode"] == "public_safe_hosted_reviewer_demo"
+    assert body["git_sha"] == "abc1234"
+    assert body["lanes"]["hosted_reviewer_demo"] == {
+        "ok": True,
+        "provider": "public_demo",
+        "credential_free": True,
+        "public_safe_sources": True,
+        "raw_rfp_text_exposed": False,
+    }
+
+
 def test_ops_summary_endpoint_reports_artifact_observability(
     tmp_path: Path, monkeypatch
 ) -> None:

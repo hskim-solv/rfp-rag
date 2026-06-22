@@ -153,7 +153,12 @@ def run_hosted_demo_smoke(
             and ((unauth_answer.json_body or {}).get("detail") or {}).get("code")
             == "reviewer_token_required"
         ),
-        "gates_pass": _metric(gates.status_code == 200 and gates.json_body is not None),
+        "gates_pass": _metric(
+            gates.status_code == 200
+            and gates.json_body is not None
+            and gates.json_body.get("public_demo_gate") is True
+            and gates.json_body.get("overall_ok") is True
+        ),
         "answer_pass": _metric(
             answer.status_code == 200
             and (answer_body.get("metadata") or {}).get("provider") == "public_demo"
