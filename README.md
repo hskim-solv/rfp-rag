@@ -479,6 +479,12 @@ green only when `artifacts/hosted_ops/summary.json` records redacted hosted
 logs, visible service metrics, a successful deploy smoke, and rollback evidence
 for the deployed git SHA.
 
+The same post-deploy check can be run in GitHub Actions via
+`.github/workflows/hosted-demo-smoke.yml` after adding repository secret
+`RFP_RAG_REVIEWER_TOKEN`. Run the workflow manually with the approved hosted
+`service_url`; it uploads hosted smoke, hosted ops, hosted deployment evidence,
+final scorecard, and portfolio readiness artifacts.
+
 ## MCP-style ops tool server
 
 ADR-0016 records the narrow MCP-style ops tool decision. This is an

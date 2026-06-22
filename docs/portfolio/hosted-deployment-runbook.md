@@ -82,6 +82,19 @@ uv run python -m rfp_rag.hosted_deployment_evidence \
   --out artifacts/hosted_deployment_evidence/summary.json
 ```
 
+## GitHub Actions Evidence
+
+After adding repository secret `RFP_RAG_REVIEWER_TOKEN`, run
+`.github/workflows/hosted-demo-smoke.yml` manually with the approved HTTPS
+`service_url`. The workflow does not accept the reviewer token as an input; it
+uses the repository secret and uploads:
+
+- `artifacts/hosted_demo_smoke/summary.json`;
+- `artifacts/hosted_ops/summary.json`;
+- `artifacts/hosted_deployment_evidence/summary.json`;
+- `artifacts/final_portfolio_scorecard/summary.json`;
+- `artifacts/portfolio_readiness.json`.
+
 ## Rollback
 
 1. Disable auto-deploy if the deployed revision is bad.
