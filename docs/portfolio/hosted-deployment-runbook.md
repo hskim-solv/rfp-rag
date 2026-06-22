@@ -34,6 +34,15 @@ Create `artifacts/hosted_ops/summary.json` from Render dashboard or Render CLI
 observations. Do not paste raw request payloads, raw prompts, secrets, full raw
 RFP text, or private user data.
 
+Use the helper after confirming the required observations in Render:
+
+```bash
+uv run python -m rfp_rag.hosted_ops_summary \
+  --service-url https://<render-service-url> \
+  --deployed-git-sha "$(git rev-parse --short HEAD)" \
+  --out artifacts/hosted_ops/summary.json
+```
+
 Required fields:
 
 ```json

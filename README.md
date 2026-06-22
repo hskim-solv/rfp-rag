@@ -466,6 +466,10 @@ Post-deploy logs, metrics, and rollback evidence are captured through
 `docs/portfolio/hosted-deployment-runbook.md` and validated with:
 
 ```bash
+uv run python -m rfp_rag.hosted_ops_summary \
+  --service-url https://<render-service-url> \
+  --deployed-git-sha "$(git rev-parse --short HEAD)" \
+  --out artifacts/hosted_ops/summary.json
 uv run python -m rfp_rag.hosted_deployment_evidence \
   --out artifacts/hosted_deployment_evidence/summary.json
 ```
