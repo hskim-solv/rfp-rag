@@ -21,7 +21,7 @@ DIMENSION_WEIGHTS = {
     "hiring_presentation": 10,
 }
 
-CLAIM_BOUNDARY = "production_adjacent_local_container_evidence"
+CLAIM_BOUNDARY = "public_safe_hosted_reviewer_demo"
 
 PUBLIC_DOCS = [
     "README.md",
@@ -76,9 +76,12 @@ SAFE_NON_CLAIM_QUALIFIERS = (
     "avoid until evidence exists",
     "non-claim",
     "별도 승인",
+    "별도 승인/증거",
     "승인 후",
     "별도 phase",
     "아직",
+    "claim이 아닙니다",
+    "주장이 아닙니다",
 )
 
 
@@ -239,6 +242,7 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
         "stage3_agent": root / "artifacts/stage3_agent_scorecard/summary.json",
         "stage4_ops_risk": root / "artifacts/stage4_ops_risk_scorecard/summary.json",
         "production_readiness": root / "artifacts/production_readiness/summary.json",
+        "hosted_demo_smoke": root / "artifacts/hosted_demo_smoke/summary.json",
         "fresh_clone_smoke": root / "artifacts/fresh_clone_smoke/summary.json",
     }
     docs = PUBLIC_DOCS
@@ -254,6 +258,7 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
     stage3 = _read_json(paths["stage3_agent"])
     stage4 = _read_json(paths["stage4_ops_risk"])
     production = _read_json(paths["production_readiness"])
+    hosted_smoke = _read_json(paths["hosted_demo_smoke"])
     fresh_clone = _read_json(paths["fresh_clone_smoke"])
     doc_text = _doc_bundle_text(root, docs)
 
@@ -293,6 +298,15 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
         "production_readiness_pass": (
             1.0
             if _complete(production, "production_facing_readiness_complete")
+            else 0.0
+        ),
+        "hosted_demo_smoke_pass": (
+            1.0
+            if _complete(hosted_smoke, "hosted_demo_smoke_complete")
+            and (hosted_smoke.get("metrics") or {}).get("reviewer_token_boundary_pass")
+            == 1.0
+            and (hosted_smoke.get("metrics") or {}).get("public_safe_sources_pass")
+            == 1.0
             else 0.0
         ),
         "source_first_quality_floor": min(
@@ -349,11 +363,13 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
         ),
         "production_operations": _dimension(
             metrics["production_readiness_pass"] == 1.0
+            and metrics["hosted_demo_smoke_pass"] == 1.0
             and metrics["stage4_ops_risk_scorecard_pass"] == 1.0
             and metrics["ci_docker_runtime_smoke_present"] == 1.0,
             DIMENSION_WEIGHTS["production_operations"],
             [
                 "artifacts/production_readiness/summary.json",
+                "artifacts/hosted_demo_smoke/summary.json",
                 "artifacts/stage4_ops_risk_scorecard/summary.json",
                 ".github/workflows/ci.yml",
             ],

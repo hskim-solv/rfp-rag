@@ -20,9 +20,10 @@ def _write_json(path: Path, payload: dict) -> None:
 
 def _complete_root(root: Path) -> None:
     shared_story = (
-        "production-adjacent Agentic RAG backend with source-first Korean public "
-        "RFP evidence. It does not claim hosted cloud production, live-traffic "
-        "SLO, provider billing telemetry, or reranker quality win."
+        "public-safe hosted reviewer demo for a production-adjacent Agentic RAG "
+        "backend with source-first Korean public RFP evidence. It does not claim "
+        "hosted cloud production, live-traffic SLO, provider billing telemetry, "
+        "or reranker quality win."
     )
     for rel in (
         "README.md",
@@ -41,8 +42,8 @@ def _complete_root(root: Path) -> None:
         root / "docs/portfolio/claim-manifest.json",
         {
             "schema_version": "senior-portfolio-claim-v1",
-            "claim_level": "production_adjacent_local_container_evidence",
-            "headline": "production-adjacent Agentic RAG backend",
+            "claim_level": "public_safe_hosted_reviewer_demo",
+            "headline": "public-safe hosted reviewer demo for an Agentic RAG backend",
             "non_claims": {
                 "hosted_cloud_production": False,
                 "live_traffic_slo": False,
@@ -129,7 +130,29 @@ def _complete_root(root: Path) -> None:
         {
             "production_facing_readiness_complete": True,
             "failed": [],
-            "components": [],
+            "components": {
+                "hosted_demo_smoke": {
+                    "hosted_demo_smoke_complete": True,
+                    "failed": [],
+                }
+            },
+        },
+    )
+    _write_json(
+        root / "artifacts/hosted_demo_smoke/summary.json",
+        {
+            "hosted_demo_smoke_complete": True,
+            "base_url": "https://reviewer.example",
+            "reviewer_token_boundary": "required",
+            "metrics": {
+                "healthz_pass": 1.0,
+                "reviewer_token_boundary_pass": 1.0,
+                "gates_pass": 1.0,
+                "answer_pass": 1.0,
+                "stream_pass": 1.0,
+                "public_safe_sources_pass": 1.0,
+            },
+            "failed": [],
         },
     )
     _write_json(
@@ -162,9 +185,10 @@ def test_build_final_portfolio_scorecard_accepts_complete_stage5_evidence(
     assert summary["final_portfolio_scorecard_complete"] is True
     assert summary["score_total"] == 100
     assert summary["score_threshold"] == 90
-    assert summary["claim_boundary"] == "production_adjacent_local_container_evidence"
+    assert summary["claim_boundary"] == "public_safe_hosted_reviewer_demo"
     assert summary["failed"] == []
     assert summary["metrics"]["fresh_clone_offline_smoke_pass"] == 1.0
+    assert summary["metrics"]["hosted_demo_smoke_pass"] == 1.0
     assert summary["metrics"]["docs_claim_consistency_pass"] == 1.0
     assert summary["metrics"]["public_package_redaction_pass"] == 1.0
     assert summary["dimensions"]["source_first_rag_quality"]["score"] == 20

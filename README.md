@@ -3,23 +3,25 @@
 Tier A AI Agent/RAG 역할에 제출하기 위한 source-first Agentic RAG backend입니다.
 입찰 RFP 100건의 원본 HWP/PDF를 파싱해 RAG 본문 source of truth로 쓰고,
 CSV는 사업명, 발주기관, 예산, 마감일, 파일명 metadata registry로만
-사용합니다. 이 레포의 주장은 public hosted service가 아니라
-local/container 환경에서 재현 가능한 운영형 증거입니다: FastAPI/Pydantic
-thin service, constrained LangGraph workflow, checkpoint/HITL, guarded tools,
-citation-grounded generation, evaluation gates, deterministic security smoke,
-local ops summary, deterministic token/cost estimates.
+사용합니다. 이 레포의 현재 주장은 public-safe hosted reviewer demo를 포함한
+production-adjacent engineering evidence입니다: FastAPI/Pydantic thin service,
+reviewer-token protected public demo mode, constrained LangGraph workflow,
+checkpoint/HITL, guarded tools, citation-grounded generation, evaluation gates,
+deterministic security smoke, local ops summary, deterministic token/cost
+estimates. 이것은 hosted production SaaS나 live-traffic SLO claim이 아닙니다.
 
 ## Portfolio Status
 
 Current public claim:
 
 - **What is proven:** senior AI Agent Engineer repo/demo review에 제출 가능한
-  local/container evidence bundle plus production-facing readiness artifacts.
+  public-safe hosted reviewer demo contract plus local/container evidence
+  bundle and production-facing readiness artifacts.
   `gate_status`, `portfolio_check`, and credential-free tests agree with the
   generated artifacts when the dependency security gate is complete.
-- **What is not claimed:** hosted cloud production, auth/session/rate-limit
-  운영, live-traffic SLO, public dashboard, provider billing telemetry, or a
-  reranker quality win.
+- **What is not claimed:** hosted cloud production SaaS, multi-tenant
+  auth/session 운영, live-traffic SLO, public dashboard, provider billing
+  telemetry, or a reranker quality win.
 - **10-minute reviewer path:** start with
   `docs/portfolio/senior-reviewer-pack.md`, then open
   `docs/portfolio/reviewer-evidence-map.md`,
@@ -31,9 +33,9 @@ Current public claim:
   quality, LangGraph orchestration, FastAPI/SSE service evidence, observability,
   security, dependency hygiene, role fit, and explicit non-claims.
 - **Claim manifest:** the public claim is locked in
-  `docs/portfolio/claim-manifest.json`: production-adjacent local/container
-  evidence for Korean public RFPs, not hosted production, live-traffic SLOs, or
-  provider billing telemetry.
+  `docs/portfolio/claim-manifest.json`: public-safe hosted reviewer demo plus
+  production-adjacent local/container evidence for Korean public RFPs, not
+  hosted production SaaS, live-traffic SLOs, or provider billing telemetry.
 - **How to verify final local evidence:**
 
 ```bash
@@ -42,6 +44,7 @@ python3 -m rfp_rag.stage2_quality_scorecard --out artifacts/stage2_quality_score
 python3 -m rfp_rag.agent_orchestration
 python3 -m rfp_rag.stage3_agent_scorecard --out artifacts/stage3_agent_scorecard/summary.json
 python3 -m rfp_rag.production_readiness
+python3 -m rfp_rag.hosted_demo_smoke --base-url <hosted-or-local-url> --reviewer-token "$RFP_RAG_REVIEWER_TOKEN"
 python3 -m rfp_rag.stage4_ops_risk_scorecard --out artifacts/stage4_ops_risk_scorecard/summary.json
 python3 -m rfp_rag.fresh_clone_smoke --out artifacts/fresh_clone_smoke/summary.json
 python3 -m rfp_rag.final_portfolio_scorecard --out artifacts/final_portfolio_scorecard/summary.json
@@ -67,6 +70,7 @@ Latest checked evidence:
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
 | Stage 4 ops/risk scorecard | `artifacts/stage4_ops_risk_scorecard/summary.json`; `docs/portfolio/stage4-ops-risk-scorecard.md` | deterministic scorecard for traces, failed-run analysis, latency/token/cost evidence, service smoke, red-team checks, cost budget, dependency security, and deployment boundaries |
 | Stage 5 final scorecard | `artifacts/fresh_clone_smoke/summary.json`, `artifacts/final_portfolio_scorecard/summary.json`; `docs/portfolio/final-portfolio-scorecard.md` | committed HEAD fresh-clone offline smoke plus weighted senior portfolio scorecard; target `score_total >= 90`, final claim requires `failed=[]` |
+| Public-safe hosted reviewer demo | `artifacts/hosted_demo_smoke/summary.json`; `rfp_rag.hosted_demo_smoke`; ADR-0022 | verifies `/healthz`, reviewer-token boundary, `/v1/gates`, `/v1/answer`, SSE final event, and public-safe synthetic source boundary against a local or approved HTTPS hosted URL |
 | Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 
@@ -75,8 +79,9 @@ Explicit limitations:
 - `reranker` is implemented as an interface, but no quality-win claim is made
   until a same-set paid/API reranker artifact exists. The current ADR-0020
   decision keeps vector because BM25/hybrid do not beat it without regressions.
-- `cloud_deployment` and `public_dashboard` are deferred product scopes that
-  require separate credentials, spend, and public-disclosure decisions.
+- Always-on production SaaS, multi-tenant account/session operations,
+  production monitoring, DNS, and public dashboard are deferred product scopes
+  that require separate credentials, spend, and public-disclosure decisions.
 - No live-traffic production SLO is claimed. Current ops evidence is
   local/container demo evidence plus deterministic artifact gates.
 

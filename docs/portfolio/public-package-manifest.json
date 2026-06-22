@@ -9,7 +9,9 @@
     "docs/portfolio/korean-one-page-case-study.md",
     "docs/portfolio/demo-runbook.md",
     "docs/portfolio/resume-interview-bullets.md",
-    "docs/portfolio/final-portfolio-scorecard.md"
+    "docs/portfolio/final-portfolio-scorecard.md",
+    "docs/adr/0022-public-safe-hosted-reviewer-demo-platform.md",
+    "artifacts/hosted_demo_smoke/summary.json"
   ],
   "excluded_from_public_package": [
     ".env",

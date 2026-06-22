@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import AsyncIterable
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -114,6 +115,110 @@ def _error_envelope(
     return ErrorEnvelope(code=code, message=message, retryable=retryable).model_dump()
 
 
+def _env_enabled(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _rate_limit_per_minute() -> int | None:
+    raw = os.getenv("RFP_RAG_RATE_LIMIT_PER_MINUTE", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+def _extract_bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    prefix = "bearer "
+    if not authorization.lower().startswith(prefix):
+        return None
+    return authorization[len(prefix) :].strip() or None
+
+
+async def _hosted_profile_guard(
+    request: Request,
+    x_reviewer_token: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
+) -> None:
+    expected_token = os.getenv("RFP_RAG_REVIEWER_TOKEN", "").strip()
+    supplied_token = x_reviewer_token or _extract_bearer_token(authorization)
+    if expected_token and supplied_token != expected_token:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "reviewer_token_required",
+                "message": "valid reviewer token required",
+            },
+        )
+
+    limit = _rate_limit_per_minute()
+    if limit is None:
+        return
+    now = time.time()
+    window_start = now - 60
+    key = supplied_token or (request.client.host if request.client else "anonymous")
+    buckets: dict[str, list[float]] = request.app.state.rate_limit_buckets
+    bucket = [
+        timestamp for timestamp in buckets.get(key, []) if timestamp > window_start
+    ]
+    if len(bucket) >= limit:
+        buckets[key] = bucket
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "rate_limited",
+                "message": "reviewer request rate limit exceeded",
+            },
+        )
+    bucket.append(now)
+    buckets[key] = bucket
+
+
+def _public_demo_answer(request: AnswerRequest, latency_ms: float) -> AnswerResponse:
+    return AnswerResponse(
+        answer=(
+            "Public-safe demo mode is active. This response proves the FastAPI "
+            "contract, typed response, citation shape, guardrail path, and SSE "
+            "streaming without loading private RFP source text or provider credentials."
+        ),
+        confidence="medium",
+        warnings=[
+            "public_demo_mode: deterministic answer from publishable synthetic evidence",
+            "non_claim: hosted demo does not prove live-traffic SLO or real-provider quality",
+        ],
+        sources=[
+            Source(
+                doc_id="public-demo:system-overview",
+                chunk_id="public-demo:system-overview:chunk:0",
+                score=1.0,
+                project_name="RFP Agentic RAG public-safe reviewer demo",
+                issuer="local deterministic demo profile",
+                filename="public-safe-demo.md",
+                section_title="Hosted reviewer contract",
+                section_type="demo_evidence",
+                section_path=["portfolio", "hosted_reviewer_demo"],
+            )
+        ],
+        retrieved_doc_ids=["public-demo:system-overview"],
+        retrieved_chunk_ids=["public-demo:system-overview:chunk:0"],
+        scores=[1.0],
+        metadata=AnswerMetadata(
+            provider="public_demo",
+            index_dir="public_safe_demo",
+            latency_ms=latency_ms,
+            top_k=request.top_k,
+            min_score=request.min_score,
+            retrieval_mode=request.retrieval_mode,
+            reranker=request.reranker,
+            rerank_candidate_k=request.rerank_candidate_k,
+        ),
+    )
+
+
 def _to_answer_response(
     request: AnswerRequest, raw: dict[str, Any], latency_ms: float
 ) -> AnswerResponse:
@@ -150,6 +255,9 @@ async def _answer(request: AnswerRequest) -> AnswerResponse:
             },
         )
     started = time.perf_counter()
+    if _env_enabled("RFP_RAG_PUBLIC_DEMO_MODE"):
+        latency_ms = (time.perf_counter() - started) * 1000
+        return _public_demo_answer(request, latency_ms)
     raw = await run_in_threadpool(
         answer_query,
         request.index_dir,
@@ -201,25 +309,33 @@ def create_app() -> FastAPI:
         version="0.1.0",
         description=(
             "Typed local-reviewer API surface for source-first Korean public RFP RAG. "
-            "Hosted auth/rate-limit profiles are intentionally separate."
+            "Optional hosted reviewer profile is enabled only by explicit env vars."
         ),
     )
+    app.state.rate_limit_buckets = {}
 
     @app.get("/healthz", response_model=HealthResponse)
     async def healthz() -> HealthResponse:
         return HealthResponse(ok=True, service="rfp-rag")
 
-    @app.post("/v1/answer", response_model=AnswerResponse)
+    @app.post(
+        "/v1/answer",
+        response_model=AnswerResponse,
+        dependencies=[Depends(_hosted_profile_guard)],
+    )
     async def answer(request: AnswerRequest) -> AnswerResponse:
         return await _answer(request)
 
-    @app.post("/v1/answer/stream")
+    @app.post(
+        "/v1/answer/stream",
+        dependencies=[Depends(_hosted_profile_guard)],
+    )
     async def answer_stream(request: AnswerRequest) -> StreamingResponse:
         return StreamingResponse(
             _answer_events(request), media_type="text/event-stream"
         )
 
-    @app.get("/v1/gates")
+    @app.get("/v1/gates", dependencies=[Depends(_hosted_profile_guard)])
     async def gates(root: Path = Query(default=Path("."))) -> dict[str, Any]:
         try:
             safe_root = safe_artifact_path(
@@ -233,7 +349,11 @@ def create_app() -> FastAPI:
             ) from exc
         return collect_gate_status(safe_root)
 
-    @app.get("/v1/ops/summary", response_model=OpsSummaryResponse)
+    @app.get(
+        "/v1/ops/summary",
+        response_model=OpsSummaryResponse,
+        dependencies=[Depends(_hosted_profile_guard)],
+    )
     async def ops_summary(
         eval_dir: Path = Query(default=Path("artifacts/eval")),
         audit_path: Path = Query(

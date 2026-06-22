@@ -27,7 +27,36 @@ def _write_deployment_contract_files(root: Path) -> None:
     )
     _write(
         root / "rfp_rag/service/app.py",
-        'description="local-reviewer"\n_sse_event("error", {"code": "x"})\n',
+        (
+            'description="local-reviewer hosted reviewer profile"\n'
+            'os.getenv("RFP_RAG_PUBLIC_DEMO_MODE")\n'
+            'os.getenv("RFP_RAG_REVIEWER_TOKEN")\n'
+            'os.getenv("RFP_RAG_RATE_LIMIT_PER_MINUTE")\n'
+            '_sse_event("error", {"code": "x"})\n'
+        ),
+    )
+    _write(
+        root / "rfp_rag/hosted_demo_smoke.py",
+        "def run_hosted_demo_smoke(): pass\n",
+    )
+    _write(
+        root / "artifacts/hosted_demo_smoke/summary.json",
+        json.dumps(
+            {
+                "hosted_demo_smoke_complete": True,
+                "base_url": "https://reviewer.example",
+                "reviewer_token_boundary": "required",
+                "metrics": {
+                    "healthz_pass": 1.0,
+                    "reviewer_token_boundary_pass": 1.0,
+                    "gates_pass": 1.0,
+                    "answer_pass": 1.0,
+                    "stream_pass": 1.0,
+                    "public_safe_sources_pass": 1.0,
+                },
+                "failed": [],
+            }
+        ),
     )
 
 
@@ -44,6 +73,8 @@ def test_evaluate_deployment_readiness_writes_hosted_plan(tmp_path: Path) -> Non
     assert summary["metrics"]["docker_healthcheck"] == 1.0
     assert summary["metrics"]["ci_answer_contract_smoke"] == 1.0
     assert summary["metrics"]["sse_error_event_contract"] == 1.0
+    assert summary["metrics"]["hosted_profile_env_contract"] == 1.0
+    assert summary["metrics"]["hosted_demo_smoke_pass"] == 1.0
     assert (tmp_path / "docs/portfolio/hosted-deployment-plan.md").is_file()
 
 

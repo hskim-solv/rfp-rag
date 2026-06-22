@@ -1,13 +1,14 @@
 {
   "schema_version": "senior-portfolio-claim-v1",
-  "claim_level": "production_adjacent_local_container_evidence",
-  "headline": "source-first production-adjacent Agentic RAG backend for Korean public RFPs",
+  "claim_level": "public_safe_hosted_reviewer_demo",
+  "headline": "public-safe hosted reviewer demo for a source-first Agentic RAG backend for Korean public RFPs",
   "proven_claims": [
     "source_first_rag_over_parsed_hwp_pdf_artifacts",
     "deterministic_stage2_rag_quality_scorecard",
     "deterministic_stage3_agent_workflow_scorecard",
     "deterministic_stage4_ops_risk_scorecard",
     "fastapi_docker_ci_local_runtime_smoke",
+    "public_safe_hosted_reviewer_demo_smoke",
     "credential_free_fresh_clone_offline_smoke",
     "public_safe_reviewer_package"
   ],
@@ -30,6 +31,7 @@
     "artifacts/stage2_quality_scorecard/summary.json",
     "artifacts/stage3_agent_scorecard/summary.json",
     "artifacts/stage4_ops_risk_scorecard/summary.json",
+    "artifacts/hosted_demo_smoke/summary.json",
     "artifacts/fresh_clone_smoke/summary.json",
     "artifacts/final_portfolio_scorecard/summary.json"
   ]

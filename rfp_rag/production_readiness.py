@@ -30,6 +30,12 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def _metric(ok: bool) -> float:
     return 1.0 if ok else 0.0
 
@@ -62,6 +68,7 @@ def evaluate_deployment_readiness(
     dockerfile_text = _read_text(root / "Dockerfile")
     ci_text = _read_text(root / ".github/workflows/ci.yml")
     service_text = _read_text(root / "rfp_rag/service/app.py")
+    hosted_smoke = _read_json(root / "artifacts/hosted_demo_smoke/summary.json")
     plan_text = """# Hosted Deployment Readiness Plan
 
 This is production-facing readiness evidence, not a public deployment claim.
@@ -71,13 +78,13 @@ URLs require explicit owner approval before execution.
 ## Target Shape
 
 - Runtime: containerized FastAPI service behind a managed HTTPS ingress.
-- Local reviewer profile: the checked-in service exposes a local/container
-  reviewer API surface only. Public hosted auth is not claimed by default.
-- Auth boundary: reviewer demo uses local mode; hosted mode requires a signed
-  reviewer token or identity-provider session before query, trace, or artifact
-  access.
-- Rate limit boundary: per-token request rate, per-minute streaming budget, and
-  per-run max tool-call budget must fail closed before provider calls.
+- Public-safe reviewer profile: the checked-in service can run with
+  `RFP_RAG_PUBLIC_DEMO_MODE=1` to serve deterministic publishable evidence
+  without provider credentials or raw RFP source text.
+- Auth boundary: hosted reviewer mode requires `RFP_RAG_REVIEWER_TOKEN` before
+  query, trace, or artifact access. `/healthz` remains public.
+- Rate limit boundary: `RFP_RAG_RATE_LIMIT_PER_MINUTE` enforces a small
+  per-token or per-client request budget before provider calls.
 - Secret handling: `OPENAI_API_KEY`, tracing keys, and deployment secrets stay in
   environment or secret manager only; no persisted trace or screenshot may store
   raw secrets, raw prompts, raw tool inputs, or full RFP source text.
@@ -89,6 +96,9 @@ URLs require explicit owner approval before execution.
   `HEALTHCHECK` for `/healthz`.
 - Service failure contract: synchronous endpoints use structured HTTP errors;
   SSE emits `event: error` and terminates on guardrail/runtime failure.
+- Hosted smoke: `python -m rfp_rag.hosted_demo_smoke` verifies `/healthz`,
+  reviewer-token boundary, `/v1/gates`, `/v1/answer`, and SSE final event
+  against a local or HTTPS hosted URL.
 
 ## Non-Claims
 
@@ -117,6 +127,20 @@ URLs require explicit owner approval before execution.
             or '_sse_event("error"' in service_text
         ),
         "local_reviewer_profile_documented": _metric("local-reviewer" in service_text),
+        "hosted_profile_env_contract": _metric(
+            "RFP_RAG_PUBLIC_DEMO_MODE" in service_text
+            and "RFP_RAG_REVIEWER_TOKEN" in service_text
+            and "RFP_RAG_RATE_LIMIT_PER_MINUTE" in service_text
+            and (root / "rfp_rag/hosted_demo_smoke.py").is_file()
+        ),
+        "hosted_demo_smoke_pass": _metric(
+            hosted_smoke.get("hosted_demo_smoke_complete") is True
+            and not hosted_smoke.get("failed")
+            and (hosted_smoke.get("metrics") or {}).get("reviewer_token_boundary_pass")
+            == 1.0
+            and (hosted_smoke.get("metrics") or {}).get("public_safe_sources_pass")
+            == 1.0
+        ),
     }
     thresholds = {
         "auth_boundary_documented": 1.0,
@@ -130,12 +154,15 @@ URLs require explicit owner approval before execution.
         "ci_answer_contract_smoke": 1.0,
         "sse_error_event_contract": 1.0,
         "local_reviewer_profile_documented": 1.0,
+        "hosted_profile_env_contract": 1.0,
+        "hosted_demo_smoke_pass": 1.0,
     }
     failed = [key for key, threshold in thresholds.items() if metrics[key] != threshold]
     summary = {
         "deployment_readiness_complete": not failed,
         "deployment_mode": "readiness_plan_no_public_exposure",
         "hosted_deployment_plan_path": "docs/portfolio/hosted-deployment-plan.md",
+        "hosted_demo_smoke_path": "artifacts/hosted_demo_smoke/summary.json",
         "public_deployment_decision": "requires_explicit_owner_approval",
         "auth_boundary": "signed reviewer token or identity-provider session for hosted mode",
         "rate_limit_boundary": "per-token request rate plus max tool-call budget before provider calls",
