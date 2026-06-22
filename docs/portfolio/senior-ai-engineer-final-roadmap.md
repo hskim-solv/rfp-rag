@@ -20,6 +20,23 @@ Agent/RAG roles repeatedly ask for LangChain/LangGraph, RAG, tool calling,
 multi-agent or agentic workflow, LLM-as-a-judge evaluation, tracing/debugging,
 MLOps/LLMOps or AgentOps, Docker/CI/CD, and business-process automation.
 
+## Market Evidence
+
+The local report is the primary targeting input, but the final roadmap also
+tracks public Korean-market job signals checked on 2026-06-22:
+
+| Source | Repeated signal | Portfolio implication |
+| --- | --- | --- |
+| Kakao Healthcare AI Agent Engineer on Wanted | LLM API, prompt engineering, RAG, tool calling, LangChain/LangGraph/ADK, AI coding tools | Keep `rfp-rag` framed as an AI agent application, not only retrieval. Show tool calling, graph control flow, and API service work. |
+| Hits AI Agent Engineer | LangChain/LangGraph/LlamaIndex, RAG, MCP, agent application design/build/deploy, domain data adaptation | Preserve MCP/tool-server lane and emphasize domain-heavy public RFP workload. |
+| Livedata AI Backend Engineer on Wanted | RAG, Agentic AI Workflow, MCP/A2A API, LangChain/LangGraph reasoning graph, LLM-as-a-judge | Add agent workflow evaluation and API contract proof, not only offline metrics. |
+| Agilesoda AI Agent Engineer on Wanted | Advanced RAG, hybrid search, multi-agent collaboration, function calling, AgentOps/LLMOps | Prioritize reranking/hybrid retrieval, guardrails, and observability. |
+| Adriel AI Agent Engineer on Wanted | LangChain/LangGraph, Knowledge Base, Vector/Graph RAG, LangSmith tracing/evaluation/debugging | Add company-fit variant for commercial SaaS AgentOps and tracing. |
+| Upstage careers | Agents & Workflows, LLM Eval, LLM Serving Platform | Keep the project evaluation-heavy and service-runtime credible. |
+
+Conclusion: the roadmap should optimize for "agentic RAG system that is
+measured, operated, and safe" rather than "many AI features."
+
 ## Final Portfolio Claim
 
 Target claim:
@@ -52,6 +69,30 @@ The portfolio is complete only when a reviewer can answer all of these within
 - How does the agent recover or ask for human approval?
 - Can the service run in a container and be tested in CI?
 - What evidence proves the author can operate and debug it?
+
+## Senior Portfolio Scorecard
+
+Use this as the acceptance rubric before treating the project as interview-ready
+for Tier A roles.
+
+| Dimension | Weight | Target evidence | Current status |
+| --- | ---: | --- | --- |
+| Business problem sharpness | 10 | Korean public RFP workload, concrete user, before/after workflow, demo script | Strong baseline; needs final reviewer narrative polish. |
+| Source-first RAG quality | 20 | Parser quality report, citation audit, holdout metrics, retrieval ablation | Good baseline; biggest remaining differentiator. |
+| Agentic engineering depth | 20 | LangGraph state, conditional routing, retry/reflection, tools, HITL, checkpoint replay | Strong baseline; needs multi-step task demo and recovery metrics. |
+| Evaluation rigor | 15 | Golden set, real judge lane, regression gates, failure taxonomy, metric thresholds | Strong baseline; expand holdout and adversarial sets. |
+| Production operations | 15 | Docker, CI smoke, tracing, latency/cost/token report, runbook, release artifact | Production-complete baseline achieved; improve dashboard/demo visibility. |
+| Guardrails/security | 10 | prompt injection tests, tool allowlist, budget limits, PII/secrets leakage checks | Baseline present; needs red-team pack and score report. |
+| Hiring presentation | 10 | README case study, 10-minute reviewer script, diagrams, company-fit variants, video | Needs final packaging. |
+
+Target score before applying: >= 90/100.
+
+Failure threshold:
+
+- < 80: strong project, but not yet top-tier senior portfolio.
+- 80-89: credible senior portfolio, but interviewer may still see it as
+  production-adjacent rather than production-grade.
+- >= 90: strong enough to lead with in senior AI Agent/RAG interviews.
 
 ## Current Production-Complete Baseline
 
@@ -255,15 +296,95 @@ Failure condition:
 
 ## Execution Order
 
-1. R1: reviewer narrative and architecture diagram.
-2. R6: company-fit matrix, because it sharpens what to emphasize.
-3. R2: retrieval/parser quality, because this is the most important technical
-   differentiator for document-heavy Korean RAG roles.
-4. R3: agentic workflow depth, because it separates agent engineer from RAG
-   integrator.
-5. R4: production operations, because Tier A roles expect operating maturity.
-6. R5: security/red-team, because it makes the project feel enterprise-ready.
-7. R7: public presentation, after the technical claims are true.
+### Stage 0. Freeze The Current Baseline
+
+Purpose: preserve the production-complete proof already achieved.
+
+Exit criteria:
+
+- PR contains the current production-readiness proof.
+- `portfolio_check` and `production_readiness` are green.
+- README and reviewer docs do not overclaim public/cloud deployment.
+
+### Stage 1. Make The Reviewer Story Unmissable
+
+Purpose: convert the repo from "technically rich" to "obviously senior."
+
+Implement:
+
+- R1 reviewer narrative and architecture diagram.
+- R6 company-fit matrix.
+- README top rewrite as a case study.
+
+Exit criteria:
+
+- A reviewer can understand problem, architecture, quality, operations, and
+  risks in under 10 minutes.
+- Every major claim links to an artifact or command.
+
+### Stage 2. Make RAG Quality Hard To Dismiss
+
+Purpose: win document-heavy RAG interviews.
+
+Implement:
+
+- R2 parser/render bakeoff.
+- Retrieval ablation.
+- Citation audit.
+- Expanded golden/holdout/adversarial eval sets.
+
+Exit criteria:
+
+- Metrics meet R2 thresholds.
+- The failure report shows known weaknesses and concrete mitigations.
+
+### Stage 3. Make The Agent Layer Nontrivial
+
+Purpose: win AI Agent Engineer interviews.
+
+Implement:
+
+- R3 multi-step planner-executor or supervisor-worker scenario.
+- Tool contracts and checkpoint replay demo.
+- Recovery and HITL approval metrics.
+
+Exit criteria:
+
+- Reviewer can see why graph state, retries, checkpoints, and HITL are necessary.
+- Agent task metrics meet R3 thresholds.
+
+### Stage 4. Make Operations And Risk Management Visible
+
+Purpose: win senior/platform-oriented interviews.
+
+Implement:
+
+- R4 observability dashboard/report.
+- R5 red-team and guardrail scorecard.
+- Release runbook and operational failure playbook.
+
+Exit criteria:
+
+- A bad answer can be traced from API request to retrieval, tool calls, judge
+  result, and final error/fallback behavior.
+- Guardrail metrics meet R5 thresholds.
+
+### Stage 5. Publish The Hiring Surface
+
+Purpose: make the portfolio externally consumable.
+
+Implement:
+
+- R7 final README, public-safe artifacts, screenshots/video.
+- Optional hosted fake-provider demo only if explicitly approved.
+- Final GitHub release tag.
+
+Exit criteria:
+
+- Fresh clone works without credentials.
+- Public-facing materials do not expose raw RFP text, secrets, or paid-call
+  paths.
+- Company-fit variants are ready for resume/interview use.
 
 ## Definition Of Done
 
