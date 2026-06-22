@@ -12,8 +12,9 @@ it turns hard HWP/PDF procurement files into citation-grounded answers through
 measured parsing, retrieval, LangGraph orchestration, guarded tools, service
 contracts, local observability, and fail-closed portfolio gates.
 
-Boundary: this is local/container production evidence for a senior portfolio.
-It does not claim public hosted production, live-traffic SLOs, or unmanaged
+Boundary: the Stage 5 claim manifest defines this as production-adjacent
+local/container evidence for a senior portfolio. It does not claim public
+hosted production, live-traffic SLOs, provider billing telemetry, or unmanaged
 paid-provider execution.
 
 ## Why This Is Not A Toy RAG Demo
@@ -39,7 +40,9 @@ paid-provider execution.
    `artifacts/production_readiness/summary.json`.
 6. Open `docs/portfolio/korean-one-page-case-study.md` for the Korean interview
    summary.
-7. Use `docs/portfolio/resume-interview-bullets.md` for resume and interview
+7. Inspect `artifacts/final_portfolio_scorecard/summary.json` and
+   `docs/portfolio/final-portfolio-scorecard.md` for the weighted final score.
+8. Use `docs/portfolio/resume-interview-bullets.md` for resume and interview
    wording.
 
 ## Architecture Snapshot
@@ -70,8 +73,8 @@ flowchart LR
 ## Scorecard Target
 
 This repository should be treated as Tier A interview-ready only when the
-portfolio scorecard in `docs/portfolio/senior-ai-engineer-final-roadmap.md`
-is at least 90/100.
+machine scorecard in `artifacts/final_portfolio_scorecard/summary.json`
+reports `score_total >= 90` and `failed=[]`.
 
 | dimension | weight | proof path |
 | --- | ---: | --- |
@@ -113,6 +116,10 @@ is at least 90/100.
 - `artifacts/stage4_ops_risk_scorecard/summary.json`: trace, failed-run,
   latency/token/cost, service, red-team, dependency, and deployment-boundary
   scorecard.
+- `artifacts/fresh_clone_smoke/summary.json`: committed HEAD fresh clone,
+  credential-free synthetic corpus, `ruff`, and `pytest -m "not real"` smoke.
+- `artifacts/final_portfolio_scorecard/summary.json`: weighted senior
+  portfolio score and claim-boundary checks.
 - `docs/portfolio/tool-contract-matrix.md`: tool boundary and error contract.
 - `docs/portfolio/company-fit-matrix.md`: role-specific pitch.
 
@@ -123,7 +130,7 @@ Do not present the portfolio as final if any of these are true:
 - `portfolio_check` or `production_readiness` reports a non-empty `failed` list.
 - `./scripts/reviewer-10m.sh` fails.
 - README, reviewer pack, company-fit matrix, or resume bullets disagree on the
-  main claim.
+  main claim in `docs/portfolio/claim-manifest.json`.
 - Public hosted production, live traffic, or provider billing telemetry is
   implied without approved evidence.
 - Paid/API or cloud work is required but has not been explicitly approved.

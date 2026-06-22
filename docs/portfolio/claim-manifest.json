@@ -1,0 +1,36 @@
+{
+  "schema_version": "senior-portfolio-claim-v1",
+  "claim_level": "production_adjacent_local_container_evidence",
+  "headline": "source-first production-adjacent Agentic RAG backend for Korean public RFPs",
+  "proven_claims": [
+    "source_first_rag_over_parsed_hwp_pdf_artifacts",
+    "deterministic_stage2_rag_quality_scorecard",
+    "deterministic_stage3_agent_workflow_scorecard",
+    "deterministic_stage4_ops_risk_scorecard",
+    "fastapi_docker_ci_local_runtime_smoke",
+    "credential_free_fresh_clone_offline_smoke",
+    "public_safe_reviewer_package"
+  ],
+  "non_claims": {
+    "hosted_cloud_production": false,
+    "live_traffic_slo": false,
+    "provider_billing_telemetry": false,
+    "reranker_quality_win": false,
+    "full_auth_rate_limit_session_operations": false
+  },
+  "required_public_docs": [
+    "README.md",
+    "docs/portfolio/senior-reviewer-pack.md",
+    "docs/portfolio/company-fit-matrix.md",
+    "docs/portfolio/korean-one-page-case-study.md",
+    "docs/portfolio/demo-runbook.md",
+    "docs/portfolio/resume-interview-bullets.md"
+  ],
+  "required_machine_artifacts": [
+    "artifacts/stage2_quality_scorecard/summary.json",
+    "artifacts/stage3_agent_scorecard/summary.json",
+    "artifacts/stage4_ops_risk_scorecard/summary.json",
+    "artifacts/fresh_clone_smoke/summary.json",
+    "artifacts/final_portfolio_scorecard/summary.json"
+  ]
+}

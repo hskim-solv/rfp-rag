@@ -1,8 +1,10 @@
 # Senior AI Agent Engineer Portfolio Demo Runbook
 
 This runbook is the reviewer-facing demo path for the RFP Agentic RAG system.
-It shows production engineering evidence without exposing raw RFP text, secrets,
-or provider credentials.
+It shows production-adjacent local/container engineering evidence without
+exposing raw RFP text, secrets, or provider credentials. It does not claim
+hosted production, live-traffic SLO, provider billing telemetry, or a reranker
+quality win.
 
 ## Demo Goal
 
@@ -43,6 +45,7 @@ Run these immediately before recording or presenting:
 ```bash
 ./scripts/reviewer-10m.sh
 uv run python -m rfp_rag.gate_status
+uv run python -m rfp_rag.final_portfolio_scorecard --out artifacts/final_portfolio_scorecard/summary.json
 uv run python -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m pytest -m "not real" -q
 ```

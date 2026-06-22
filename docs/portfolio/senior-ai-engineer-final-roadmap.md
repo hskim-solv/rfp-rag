@@ -41,11 +41,12 @@ measured, operated, and safe" rather than "many AI features."
 
 Target claim:
 
-> Built a source-first production-grade Agentic RAG system for Korean public RFP
-> documents, with parsing quality control, retrieval evaluation, LangGraph agent
-> orchestration, tool budget and guardrails, traceable operations, Dockerized API
-> service, CI gates, and reviewer-ready evidence that turns unstructured public
-> procurement documents into auditable answers with citations.
+> Built a source-first production-adjacent Agentic RAG system for Korean public
+> RFP documents, with parsing quality control, retrieval evaluation, LangGraph
+> agent orchestration, tool budget and guardrails, traceable local/container
+> operations, Dockerized API service, CI gates, and reviewer-ready evidence that
+> turns unstructured public procurement documents into auditable answers with
+> citations.
 
 This should position the project for three role clusters:
 
@@ -389,6 +390,11 @@ Implement:
 
 - R7 final README, public-safe artifacts, screenshots/video.
 - Optional hosted fake-provider demo only if explicitly approved.
+- Fresh clone offline smoke:
+  `rfp_rag.fresh_clone_smoke` -> `artifacts/fresh_clone_smoke/summary.json`.
+- Weighted final portfolio scorecard:
+  `rfp_rag.final_portfolio_scorecard` ->
+  `artifacts/final_portfolio_scorecard/summary.json`.
 - Final GitHub release tag.
 
 Exit criteria:
@@ -396,6 +402,8 @@ Exit criteria:
 - Fresh clone works without credentials.
 - Public-facing materials do not expose raw RFP text, secrets, or paid-call
   paths.
+- `final_portfolio_scorecard_complete=true`, `score_total >= 90`, and
+  `failed=[]`.
 - Company-fit variants are ready for resume/interview use.
 
 ## Definition Of Done

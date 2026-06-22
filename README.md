@@ -30,7 +30,11 @@ Current public claim:
   designed for Korean senior AI Agent Engineer review: architecture, RAG
   quality, LangGraph orchestration, FastAPI/SSE service evidence, observability,
   security, dependency hygiene, role fit, and explicit non-claims.
-- **How to verify in 5 minutes:**
+- **Claim manifest:** the public claim is locked in
+  `docs/portfolio/claim-manifest.json`: production-adjacent local/container
+  evidence for Korean public RFPs, not hosted production, live-traffic SLOs, or
+  provider billing telemetry.
+- **How to verify final local evidence:**
 
 ```bash
 python3 -m rfp_rag.gate_status
@@ -39,6 +43,8 @@ python3 -m rfp_rag.agent_orchestration
 python3 -m rfp_rag.stage3_agent_scorecard --out artifacts/stage3_agent_scorecard/summary.json
 python3 -m rfp_rag.production_readiness
 python3 -m rfp_rag.stage4_ops_risk_scorecard --out artifacts/stage4_ops_risk_scorecard/summary.json
+python3 -m rfp_rag.fresh_clone_smoke --out artifacts/fresh_clone_smoke/summary.json
+python3 -m rfp_rag.final_portfolio_scorecard --out artifacts/final_portfolio_scorecard/summary.json
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m pytest -m "not real" -q
 # Equivalent after putting the repo venv first on PATH:
@@ -60,6 +66,7 @@ Latest checked evidence:
 | Visual/table evidence | `artifacts/visual_quality/summary.json` | `visual_question_count=30`, `visual_evidence_hit_rate=0.92`, unsupported visual claim rate within gate |
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
 | Stage 4 ops/risk scorecard | `artifacts/stage4_ops_risk_scorecard/summary.json`; `docs/portfolio/stage4-ops-risk-scorecard.md` | deterministic scorecard for traces, failed-run analysis, latency/token/cost evidence, service smoke, red-team checks, cost budget, dependency security, and deployment boundaries |
+| Stage 5 final scorecard | `artifacts/fresh_clone_smoke/summary.json`, `artifacts/final_portfolio_scorecard/summary.json`; `docs/portfolio/final-portfolio-scorecard.md` | committed HEAD fresh-clone offline smoke plus weighted senior portfolio scorecard; target `score_total >= 90`, final claim requires `failed=[]` |
 | Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 
@@ -92,7 +99,8 @@ implemented architecture map is recorded in
 `docs/portfolio/senior-reviewer-pack.md`, the role-fit matrix is
 `docs/portfolio/company-fit-matrix.md`, the reviewer demo path is
 `docs/portfolio/demo-runbook.md`, the next top-tier roadmap is
-`docs/portfolio/top-tier-roadmap.md`, and resume/interview wording is
+`docs/portfolio/top-tier-roadmap.md`, final scorecard wording is
+`docs/portfolio/final-portfolio-scorecard.md`, and resume/interview wording is
 `docs/portfolio/resume-interview-bullets.md`. The project should be framed as a
 production-adjacent Agentic RAG backend for an AI Agent Engineer senior portfolio,
 using Korean public RFP intelligence as the hard workload: complex-document

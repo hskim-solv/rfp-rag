@@ -1,0 +1,29 @@
+{
+  "schema_version": "public-package-v1",
+  "public_safe": true,
+  "package_boundary": "curated documentation and redacted machine summaries only",
+  "publishable_artifacts": [
+    "README.md",
+    "docs/portfolio/senior-reviewer-pack.md",
+    "docs/portfolio/company-fit-matrix.md",
+    "docs/portfolio/korean-one-page-case-study.md",
+    "docs/portfolio/demo-runbook.md",
+    "docs/portfolio/resume-interview-bullets.md",
+    "docs/portfolio/final-portfolio-scorecard.md"
+  ],
+  "excluded_from_public_package": [
+    ".env",
+    "data/files",
+    "artifacts/parsed_docs",
+    "artifacts/eval_stage2_real/predictions.jsonl",
+    "artifacts/eval_stage3_raw/predictions.jsonl",
+    "artifacts/**/checkpoints.sqlite"
+  ],
+  "redaction_policy": [
+    "no API keys or provider credentials",
+    "no raw provider payloads",
+    "no full raw RFP dumps",
+    "no checkpoint databases",
+    "use document IDs, metric summaries, and redacted snippets"
+  ]
+}
