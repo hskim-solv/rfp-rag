@@ -80,6 +80,26 @@ def _write_deployment_contract_files(root: Path) -> None:
             }
         ),
     )
+    _write(
+        root / "artifacts/hosted_deployment_evidence/summary.json",
+        json.dumps(
+            {
+                "hosted_deployment_evidence_complete": True,
+                "service_url": "https://reviewer.example",
+                "metrics": {
+                    "https_url_present": 1.0,
+                    "hosted_smoke_pass": 1.0,
+                    "deploy_smoke_success": 1.0,
+                    "logs_redacted_pass": 1.0,
+                    "metrics_visible_pass": 1.0,
+                    "rollback_runbook_pass": 1.0,
+                    "secret_leak_count": 0.0,
+                    "raw_rfp_text_seen": 0.0,
+                },
+                "failed": [],
+            }
+        ),
+    )
 
 
 def test_evaluate_deployment_readiness_writes_hosted_plan(tmp_path: Path) -> None:
@@ -98,9 +118,22 @@ def test_evaluate_deployment_readiness_writes_hosted_plan(tmp_path: Path) -> Non
     assert summary["metrics"]["hosted_profile_env_contract"] == 1.0
     assert summary["metrics"]["hosted_demo_smoke_pass"] == 1.0
     assert summary["metrics"]["render_blueprint_contract"] == 1.0
-    assert summary["metrics"]["hosted_deployment_evidence_pass"] == 0.0
-    assert summary["thresholds"]["hosted_deployment_evidence_pass"] == 0.0
+    assert summary["metrics"]["hosted_deployment_evidence_pass"] == 1.0
+    assert summary["thresholds"]["hosted_deployment_evidence_pass"] == 1.0
     assert (tmp_path / "docs/portfolio/hosted-deployment-plan.md").is_file()
+
+
+def test_deployment_readiness_requires_hosted_deployment_evidence(
+    tmp_path: Path,
+) -> None:
+    _write_deployment_contract_files(tmp_path)
+    (tmp_path / "artifacts/hosted_deployment_evidence/summary.json").unlink()
+
+    summary = evaluate_deployment_readiness(root=tmp_path)
+
+    assert summary["deployment_readiness_complete"] is False
+    assert summary["metrics"]["hosted_deployment_evidence_pass"] == 0.0
+    assert "hosted_deployment_evidence_pass" in summary["failed"]
 
 
 def test_deployment_readiness_fails_closed_without_runtime_contracts(

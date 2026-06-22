@@ -533,6 +533,7 @@ TOP_TIER_GATES = [
             ("secret_handling_documented", "==", 1.0),
             ("public_exposure_requires_approval", "==", 1.0),
             ("one_command_fallback_documented", "==", 1.0),
+            ("hosted_deployment_evidence_pass", "==", 1.0),
         ),
     },
     {

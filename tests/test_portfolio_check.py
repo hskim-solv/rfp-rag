@@ -762,7 +762,7 @@ def _write_complete_top_tier(root: Path) -> None:
         },
         "artifacts/deployment_readiness/summary.json": {
             "deployment_readiness_complete": True,
-            "deployment_mode": "readiness_plan_no_public_exposure",
+            "deployment_mode": "public_safe_hosted_reviewer_demo",
             "hosted_deployment_plan_path": "docs/portfolio/hosted-deployment-plan.md",
             "public_deployment_decision": "requires_explicit_owner_approval",
             "auth_boundary": "signed reviewer token",
@@ -774,6 +774,7 @@ def _write_complete_top_tier(root: Path) -> None:
                 "secret_handling_documented": 1.0,
                 "public_exposure_requires_approval": 1.0,
                 "one_command_fallback_documented": 1.0,
+                "hosted_deployment_evidence_pass": 1.0,
             },
             "thresholds": {
                 "auth_boundary_documented": 1.0,
@@ -781,6 +782,7 @@ def _write_complete_top_tier(root: Path) -> None:
                 "secret_handling_documented": 1.0,
                 "public_exposure_requires_approval": 1.0,
                 "one_command_fallback_documented": 1.0,
+                "hosted_deployment_evidence_pass": 1.0,
             },
             "failed": [],
         },

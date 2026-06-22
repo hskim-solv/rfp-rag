@@ -1,8 +1,8 @@
 # Hosted Deployment Readiness Plan
 
-This is production-facing readiness evidence, not a public deployment claim.
-Public exposure, cloud credentials, paid services, DNS, and externally reachable
-URLs require explicit owner approval before execution.
+This is production-facing readiness evidence for the public-safe hosted reviewer
+demo claim. Public exposure, cloud credentials, paid services, DNS, and
+externally reachable URLs require explicit owner approval before execution.
 
 ## Target Shape
 
@@ -30,8 +30,8 @@ URLs require explicit owner approval before execution.
 - Hosted smoke: `python -m rfp_rag.hosted_demo_smoke` verifies `/healthz`,
   reviewer-token boundary, `/v1/gates`, `/v1/answer`, and SSE final event
   against a local or HTTPS hosted URL.
-- Hosted evidence: `python -m rfp_rag.hosted_deployment_evidence` validates the
-  post-deploy HTTPS URL, redacted hosted logs, service metrics, and rollback
+- Hosted evidence: `python -m rfp_rag.hosted_deployment_evidence` must validate
+  the post-deploy HTTPS URL, redacted hosted logs, service metrics, and rollback
   runbook after the owner approves external deployment.
 
 ## Non-Claims

@@ -75,9 +75,9 @@ def evaluate_deployment_readiness(
     )
     plan_text = """# Hosted Deployment Readiness Plan
 
-This is production-facing readiness evidence, not a public deployment claim.
-Public exposure, cloud credentials, paid services, DNS, and externally reachable
-URLs require explicit owner approval before execution.
+This is production-facing readiness evidence for the public-safe hosted reviewer
+demo claim. Public exposure, cloud credentials, paid services, DNS, and
+externally reachable URLs require explicit owner approval before execution.
 
 ## Target Shape
 
@@ -105,8 +105,8 @@ URLs require explicit owner approval before execution.
 - Hosted smoke: `python -m rfp_rag.hosted_demo_smoke` verifies `/healthz`,
   reviewer-token boundary, `/v1/gates`, `/v1/answer`, and SSE final event
   against a local or HTTPS hosted URL.
-- Hosted evidence: `python -m rfp_rag.hosted_deployment_evidence` validates the
-  post-deploy HTTPS URL, redacted hosted logs, service metrics, and rollback
+- Hosted evidence: `python -m rfp_rag.hosted_deployment_evidence` must validate
+  the post-deploy HTTPS URL, redacted hosted logs, service metrics, and rollback
   runbook after the owner approves external deployment.
 
 ## Non-Claims
@@ -182,12 +182,12 @@ URLs require explicit owner approval before execution.
         "hosted_profile_env_contract": 1.0,
         "hosted_demo_smoke_pass": 1.0,
         "render_blueprint_contract": 1.0,
-        "hosted_deployment_evidence_pass": 0.0,
+        "hosted_deployment_evidence_pass": 1.0,
     }
     failed = [key for key, threshold in thresholds.items() if metrics[key] != threshold]
     summary = {
         "deployment_readiness_complete": not failed,
-        "deployment_mode": "readiness_plan_no_public_exposure",
+        "deployment_mode": "public_safe_hosted_reviewer_demo",
         "hosted_deployment_plan_path": "docs/portfolio/hosted-deployment-plan.md",
         "hosted_demo_smoke_path": "artifacts/hosted_demo_smoke/summary.json",
         "hosted_deployment_evidence_path": "artifacts/hosted_deployment_evidence/summary.json",
