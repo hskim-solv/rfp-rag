@@ -16,10 +16,11 @@ Output:
 
 ## Claim Boundary
 
-The final claim is production-adjacent local/container evidence for a Korean
-public RFP Agentic RAG backend. It does not claim hosted cloud production,
-live-traffic SLO, provider billing telemetry, full auth/session/rate-limit
-operations, or a reranker quality win.
+The final claim is a public-safe hosted reviewer demo for a Korean public RFP
+Agentic RAG backend, backed by local/container reproducibility evidence. It
+requires HTTPS hosted smoke and hosted deployment evidence, but it does not
+claim general hosted cloud production, live-traffic SLO, provider billing
+telemetry, full SaaS auth/session operations, or a reranker quality win.
 
 The source of truth for this wording is:
 
@@ -34,7 +35,7 @@ The source of truth for this wording is:
 | source-first RAG quality | 20 | `stage2_quality_scorecard_complete=true`, quality floor `>= 0.90` |
 | agentic engineering depth | 20 | `stage3_agent_scorecard_complete=true`, replay/HITL/trajectory floor `1.0` |
 | evaluation rigor | 15 | Stage 2, Stage 3, and fresh-clone offline smoke pass |
-| production operations | 15 | `production_readiness`, Stage 4 scorecard, and CI Docker smoke are present |
+| production operations | 15 | `production_readiness`, hosted demo smoke, hosted deployment evidence, Stage 4 scorecard, and CI Docker smoke pass |
 | guardrails/security | 10 | Stage 4 security floor and public package redaction pass |
 | hiring presentation | 10 | README, reviewer pack, company-fit matrix, Korean case study, demo runbook, and resume bullets align |
 
@@ -56,7 +57,8 @@ variables, creates the synthetic CI corpus, and runs `uv sync`, `ruff`, and
 
 ## Non-Claims
 
-The scorecard fails closed if public-facing docs assert hosted production,
-live-traffic SLOs, provider billing telemetry, reranker quality wins, or
-unqualified production-grade claims without the separate evidence and approval
-required for those claims.
+The scorecard fails closed if public-facing docs assert broader hosted
+production, live-traffic SLOs, provider billing telemetry, reranker quality
+wins, or unqualified production-grade claims without the separate evidence and
+approval required for those claims. It also fails closed when the public-safe
+hosted reviewer demo lacks HTTPS hosted deployment evidence.

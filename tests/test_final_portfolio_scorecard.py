@@ -156,6 +156,25 @@ def _complete_root(root: Path) -> None:
         },
     )
     _write_json(
+        root / "artifacts/hosted_deployment_evidence/summary.json",
+        {
+            "hosted_deployment_evidence_complete": True,
+            "service_url": "https://reviewer.example",
+            "metrics": {
+                "https_url_present": 1.0,
+                "hosted_smoke_pass": 1.0,
+                "deploy_smoke_success": 1.0,
+                "logs_redacted_pass": 1.0,
+                "metrics_visible_pass": 1.0,
+                "rollback_runbook_pass": 1.0,
+                "secret_leak_count": 0.0,
+                "raw_rfp_text_seen": 0.0,
+            },
+            "thresholds": {},
+            "failed": [],
+        },
+    )
+    _write_json(
         root / "artifacts/fresh_clone_smoke/summary.json",
         {
             "fresh_clone_offline_smoke_complete": True,
@@ -189,6 +208,7 @@ def test_build_final_portfolio_scorecard_accepts_complete_stage5_evidence(
     assert summary["failed"] == []
     assert summary["metrics"]["fresh_clone_offline_smoke_pass"] == 1.0
     assert summary["metrics"]["hosted_demo_smoke_pass"] == 1.0
+    assert summary["metrics"]["hosted_deployment_evidence_pass"] == 1.0
     assert summary["metrics"]["docs_claim_consistency_pass"] == 1.0
     assert summary["metrics"]["public_package_redaction_pass"] == 1.0
     assert summary["dimensions"]["source_first_rag_quality"]["score"] == 20
@@ -210,6 +230,19 @@ def test_build_final_portfolio_scorecard_rejects_unbounded_hosted_claim(
     assert "claim_boundary_pass" in summary["failed"]
     assert summary["metrics"]["hosted_cloud_claim"] == 1.0
     assert summary["metrics"]["live_traffic_slo_claim"] == 1.0
+
+
+def test_build_final_portfolio_scorecard_rejects_missing_hosted_deployment_evidence(
+    tmp_path: Path,
+) -> None:
+    _complete_root(tmp_path)
+    (tmp_path / "artifacts/hosted_deployment_evidence/summary.json").unlink()
+
+    summary = build_final_portfolio_scorecard(root=tmp_path)
+
+    assert summary["final_portfolio_scorecard_complete"] is False
+    assert "hosted_deployment_evidence_pass" in summary["failed"]
+    assert "dimension:production_operations" in summary["failed"]
 
 
 def test_final_portfolio_scorecard_cli_writes_summary(tmp_path: Path) -> None:

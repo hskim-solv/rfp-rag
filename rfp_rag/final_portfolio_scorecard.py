@@ -243,6 +243,8 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
         "stage4_ops_risk": root / "artifacts/stage4_ops_risk_scorecard/summary.json",
         "production_readiness": root / "artifacts/production_readiness/summary.json",
         "hosted_demo_smoke": root / "artifacts/hosted_demo_smoke/summary.json",
+        "hosted_deployment_evidence": root
+        / "artifacts/hosted_deployment_evidence/summary.json",
         "fresh_clone_smoke": root / "artifacts/fresh_clone_smoke/summary.json",
     }
     docs = PUBLIC_DOCS
@@ -259,6 +261,7 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
     stage4 = _read_json(paths["stage4_ops_risk"])
     production = _read_json(paths["production_readiness"])
     hosted_smoke = _read_json(paths["hosted_demo_smoke"])
+    hosted_deployment = _read_json(paths["hosted_deployment_evidence"])
     fresh_clone = _read_json(paths["fresh_clone_smoke"])
     doc_text = _doc_bundle_text(root, docs)
 
@@ -307,6 +310,18 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
             == 1.0
             and (hosted_smoke.get("metrics") or {}).get("public_safe_sources_pass")
             == 1.0
+            else 0.0
+        ),
+        "hosted_deployment_evidence_pass": (
+            1.0
+            if _complete(hosted_deployment, "hosted_deployment_evidence_complete")
+            and _metric(hosted_deployment, "https_url_present") == 1.0
+            and _metric(hosted_deployment, "deploy_smoke_success") == 1.0
+            and _metric(hosted_deployment, "logs_redacted_pass") == 1.0
+            and _metric(hosted_deployment, "metrics_visible_pass") == 1.0
+            and _metric(hosted_deployment, "rollback_runbook_pass") == 1.0
+            and _metric(hosted_deployment, "secret_leak_count") == 0.0
+            and _metric(hosted_deployment, "raw_rfp_text_seen") == 0.0
             else 0.0
         ),
         "source_first_quality_floor": min(
@@ -364,12 +379,14 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
         "production_operations": _dimension(
             metrics["production_readiness_pass"] == 1.0
             and metrics["hosted_demo_smoke_pass"] == 1.0
+            and metrics["hosted_deployment_evidence_pass"] == 1.0
             and metrics["stage4_ops_risk_scorecard_pass"] == 1.0
             and metrics["ci_docker_runtime_smoke_present"] == 1.0,
             DIMENSION_WEIGHTS["production_operations"],
             [
                 "artifacts/production_readiness/summary.json",
                 "artifacts/hosted_demo_smoke/summary.json",
+                "artifacts/hosted_deployment_evidence/summary.json",
                 "artifacts/stage4_ops_risk_scorecard/summary.json",
                 ".github/workflows/ci.yml",
             ],
@@ -446,7 +463,7 @@ def build_final_portfolio_scorecard(*, root: Path = Path(".")) -> dict[str, Any]
         },
         "notes": [
             "This scorecard is deterministic and credential-free.",
-            "It intentionally scores production-adjacent local/container evidence, not hosted production.",
+            "It requires public-safe hosted reviewer evidence while avoiding full production/SLO claims.",
             "It avoids depending on portfolio_check output to prevent circular readiness claims.",
         ],
     }
