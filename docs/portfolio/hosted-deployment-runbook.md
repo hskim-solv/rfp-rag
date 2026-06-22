@@ -40,8 +40,22 @@ Use the helper after confirming the required observations in Render:
 uv run python -m rfp_rag.hosted_ops_summary \
   --service-url https://<render-service-url> \
   --deployed-git-sha "$(git rev-parse --short HEAD)" \
-  --out artifacts/hosted_ops/summary.json
+  --out artifacts/hosted_ops/summary.json \
+  --confirm-logs-redacted \
+  --confirm-metrics-visible \
+  --confirm-rollback-runbook
 ```
+
+The confirmation flags mean the operator has checked the hosted provider
+surface, not merely run the local helper:
+
+- `--confirm-logs-redacted`: hosted logs or provider log view show health,
+  authenticated answer, and unauthenticated `401` activity without secrets, raw
+  prompts, raw RFP text, or private payloads;
+- `--confirm-metrics-visible`: hosted service metrics expose request/error and
+  latency visibility sufficient for reviewer evidence;
+- `--confirm-rollback-runbook`: rollback evidence points to this runbook and the
+  deployed git SHA.
 
 Required fields:
 
@@ -86,12 +100,14 @@ uv run python -m rfp_rag.hosted_deployment_evidence \
 
 After adding repository secret `RFP_RAG_REVIEWER_TOKEN`, run
 `.github/workflows/hosted-demo-smoke.yml` manually with the approved HTTPS
-`service_url`. The workflow does not accept the reviewer token as an input; it
-uses the repository secret and uploads:
+`service_url` and set all three confirmation inputs to true only after checking
+the hosted logs, metrics, and rollback evidence. The workflow does not accept
+the reviewer token as an input; it uses the repository secret and uploads:
 
 - `artifacts/hosted_demo_smoke/summary.json`;
 - `artifacts/hosted_ops/summary.json`;
 - `artifacts/hosted_deployment_evidence/summary.json`;
+- `artifacts/production_readiness/summary.json`;
 - `artifacts/final_portfolio_scorecard/summary.json`;
 - `artifacts/portfolio_readiness.json`.
 

@@ -7,6 +7,18 @@ on:
         description: "HTTPS URL of the approved hosted reviewer demo"
         required: true
         type: string
+      confirm_logs_redacted:
+        description: "I confirmed hosted logs are redacted and show health/answer/unauth evidence"
+        required: true
+        type: boolean
+      confirm_metrics_visible:
+        description: "I confirmed hosted service metrics are visible"
+        required: true
+        type: boolean
+      confirm_rollback_runbook:
+        description: "I confirmed rollback evidence points to the documented runbook"
+        required: true
+        type: boolean
 
 jobs:
   hosted-demo-smoke:
@@ -40,9 +52,14 @@ jobs:
           uv run python -m rfp_rag.hosted_ops_summary \
             --service-url "$SERVICE_URL" \
             --deployed-git-sha "$(git rev-parse --short HEAD)" \
-            --out artifacts/hosted_ops/summary.json
+            --out artifacts/hosted_ops/summary.json \
+            ${{ inputs.confirm_logs_redacted && '--confirm-logs-redacted' || '' }} \
+            ${{ inputs.confirm_metrics_visible && '--confirm-metrics-visible' || '' }} \
+            ${{ inputs.confirm_rollback_runbook && '--confirm-rollback-runbook' || '' }}
           uv run python -m rfp_rag.hosted_deployment_evidence \
             --out artifacts/hosted_deployment_evidence/summary.json
+          uv run python -m rfp_rag.production_readiness \
+            --out artifacts/production_readiness/summary.json
           uv run python -m rfp_rag.final_portfolio_scorecard \
             --out artifacts/final_portfolio_scorecard/summary.json
           uv run python -m rfp_rag.portfolio_check \
@@ -56,5 +73,6 @@ jobs:
             artifacts/hosted_demo_smoke/summary.json
             artifacts/hosted_ops/summary.json
             artifacts/hosted_deployment_evidence/summary.json
+            artifacts/production_readiness/summary.json
             artifacts/final_portfolio_scorecard/summary.json
             artifacts/portfolio_readiness.json

@@ -15,6 +15,9 @@ def test_build_hosted_ops_summary_writes_redacted_render_evidence(
         service_url="https://rfp-rag-reviewer-demo.onrender.com",
         deployed_git_sha="250b9f9",
         out=out,
+        confirm_logs_redacted=True,
+        confirm_metrics_visible=True,
+        confirm_rollback_runbook=True,
     )
 
     assert summary == {
@@ -54,6 +57,26 @@ def test_hosted_ops_summary_cli_rejects_non_https_url(tmp_path: Path) -> None:
         [
             "--service-url",
             "http://127.0.0.1:8017",
+            "--deployed-git-sha",
+            "250b9f9",
+            "--out",
+            str(out),
+        ]
+    )
+
+    assert rc == 2
+    assert not out.exists()
+
+
+def test_hosted_ops_summary_cli_requires_manual_evidence_confirmations(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "summary.json"
+
+    rc = main(
+        [
+            "--service-url",
+            "https://rfp-rag-reviewer-demo.onrender.com",
             "--deployed-git-sha",
             "250b9f9",
             "--out",

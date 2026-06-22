@@ -27,11 +27,20 @@ def build_hosted_ops_summary(
     deployed_git_sha: str,
     out: Path = DEFAULT_OUT,
     provider: str = "render",
+    confirm_logs_redacted: bool = False,
+    confirm_metrics_visible: bool = False,
+    confirm_rollback_runbook: bool = False,
 ) -> dict[str, Any]:
     if not _is_https_url(service_url):
         raise ValueError("service_url must be an HTTPS hosted URL")
     if not deployed_git_sha.strip():
         raise ValueError("deployed_git_sha is required")
+    if not confirm_logs_redacted:
+        raise ValueError("confirm_logs_redacted is required")
+    if not confirm_metrics_visible:
+        raise ValueError("confirm_metrics_visible is required")
+    if not confirm_rollback_runbook:
+        raise ValueError("confirm_rollback_runbook is required")
     summary = {
         "provider": provider,
         "service_url": service_url.rstrip("/"),
@@ -70,6 +79,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--service-url", required=True)
     parser.add_argument("--deployed-git-sha", required=True)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--confirm-logs-redacted", action="store_true")
+    parser.add_argument("--confirm-metrics-visible", action="store_true")
+    parser.add_argument("--confirm-rollback-runbook", action="store_true")
     return parser
 
 
@@ -80,6 +92,9 @@ def main(argv: list[str] | None = None) -> int:
             service_url=args.service_url,
             deployed_git_sha=args.deployed_git_sha,
             out=args.out,
+            confirm_logs_redacted=args.confirm_logs_redacted,
+            confirm_metrics_visible=args.confirm_metrics_visible,
+            confirm_rollback_runbook=args.confirm_rollback_runbook,
         )
     except ValueError as exc:
         print(str(exc))
