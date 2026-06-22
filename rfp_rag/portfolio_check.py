@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from rfp_rag.gate_status import collect_gate_status
+from rfp_rag.stage2_real import prediction_judge_coverage_summary
 
 
 DEFERRED_GAPS = [
@@ -141,7 +142,14 @@ SECOND_STAGE_GATES = [
         "id": "service_ops",
         "path": "artifacts/service_ops/summary.json",
         "complete_field": "service_ops_complete",
-        "required_fields": ("docker_demo_command", "metrics", "thresholds", "failed"),
+        "required_fields": (
+            "docker_demo_command",
+            "full_answer_smoke",
+            "full_gates_smoke",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
         "metric_checks": (
             ("healthz_pass", "==", 1.0),
             ("answer_pass", "==", 1.0),
@@ -503,6 +511,25 @@ def _second_stage_gate_issues(
             issues.append("per_slice_failed")
         if coverage_hash and summary.get("eval_set_hash") != coverage_hash:
             issues.append("eval_set_hash_mismatch")
+        prediction_coverage = prediction_judge_coverage_summary(
+            root / "artifacts/eval_stage2_real/predictions.jsonl",
+            _read_json(root / "artifacts/eval_stage2/coverage.json"),
+        )
+        if prediction_coverage.get("ok") is not True:
+            issues.extend(prediction_coverage.get("issues") or [])
+        summary_prediction_coverage = summary.get("prediction_judge_coverage")
+        if not isinstance(summary_prediction_coverage, dict):
+            issues.append("prediction_judge_coverage")
+        else:
+            for field in (
+                "counts_by_slice",
+                "faithfulness_min_by_answerable_slice",
+                "answer_relevancy_min_by_answerable_slice",
+            ):
+                if summary_prediction_coverage.get(field) != prediction_coverage.get(
+                    field
+                ):
+                    issues.append(f"prediction_judge_coverage.{field}")
         coverage_counts = _read_json(root / "artifacts/eval_stage2/coverage.json").get(
             "counts_by_slice", {}
         )
@@ -539,6 +566,11 @@ def _second_stage_gate_issues(
             issues.append("prompt_template_hash")
     if gate["id"] == "eval_stage2_coverage":
         issues.extend(_stage2_support_issues(root, summary, coverage_hash))
+    if gate["id"] == "service_ops":
+        if summary.get("full_answer_smoke") is not True:
+            issues.append("full_answer_smoke")
+        if summary.get("full_gates_smoke") is not True:
+            issues.append("full_gates_smoke")
     return sorted(set(issues))
 
 

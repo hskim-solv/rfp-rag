@@ -70,6 +70,16 @@ def _minimal_ready_root(root: Path) -> None:
 
 def _write_complete_second_stage(root: Path) -> None:
     eval_set_hash = "stage2-eval-set-v1"
+    prediction_judge_coverage = {
+        "ok": True,
+        "path": str(root / "artifacts/eval_stage2_real/predictions.jsonl"),
+        "issues": [],
+        "counts_by_slice": {"metadata": 1},
+        "faithfulness_by_slice": {"metadata": 1.0},
+        "answer_relevancy_by_slice": {"metadata": 1.0},
+        "faithfulness_min_by_answerable_slice": 1.0,
+        "answer_relevancy_min_by_answerable_slice": 1.0,
+    }
     complete_payloads = {
         "artifacts/eval_stage2/coverage.json": {
             "eval_set_audit_complete": True,
@@ -116,6 +126,7 @@ def _write_complete_second_stage(root: Path) -> None:
                 "cross_document": 20,
                 "visual_table": 30,
             },
+            "prediction_judge_coverage": prediction_judge_coverage,
             "metrics": {
                 "recall@5": 0.95,
                 "recall@3": 0.90,
@@ -215,6 +226,8 @@ def _write_complete_second_stage(root: Path) -> None:
         "artifacts/service_ops/summary.json": {
             "service_ops_complete": True,
             "docker_demo_command": "docker run --rm rfp-rag-service:ci",
+            "full_answer_smoke": True,
+            "full_gates_smoke": True,
             "metrics": {
                 "healthz_pass": 1.0,
                 "answer_pass": 1.0,
@@ -288,6 +301,16 @@ def _write_complete_second_stage(root: Path) -> None:
     }
     for rel, payload in complete_payloads.items():
         _write(root / rel, json.dumps(payload))
+    _write(
+        root / "artifacts/eval_stage2_real/predictions.jsonl",
+        json.dumps(
+            {
+                "query_id": "metadata_budget_000",
+                "judge": {"faithfulness": 1.0, "answer_relevancy": 1.0},
+            }
+        )
+        + "\n",
+    )
     _write(
         root / "artifacts/eval_stage2/split_manifest.json",
         json.dumps(
@@ -821,6 +844,8 @@ def test_second_stage_readiness_rejects_shallow_contract_payloads(
         },
         "artifacts/service_ops/summary.json": {
             "service_ops_complete": True,
+            "full_answer_smoke": True,
+            "full_gates_smoke": True,
             "metrics": {},
             "thresholds": {},
             "failed": [],

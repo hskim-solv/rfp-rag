@@ -102,6 +102,18 @@ class OpsSummaryResponse(BaseModel):
     tools: dict[str, Any]
 
 
+class ErrorEnvelope(BaseModel):
+    code: str
+    message: str
+    retryable: bool = False
+
+
+def _error_envelope(
+    code: str, message: str, *, retryable: bool = False
+) -> dict[str, Any]:
+    return ErrorEnvelope(code=code, message=message, retryable=retryable).model_dump()
+
+
 def _to_answer_response(
     request: AnswerRequest, raw: dict[str, Any], latency_ms: float
 ) -> AnswerResponse:
@@ -161,7 +173,25 @@ def _sse_event(event: str, data: dict[str, Any]) -> str:
 
 async def _answer_events(request: AnswerRequest) -> AsyncIterable[str]:
     yield _sse_event("status", {"status": "started"})
-    response = await _answer(request)
+    try:
+        response = await _answer(request)
+    except HTTPException as exc:
+        detail = exc.detail if isinstance(exc.detail, dict) else {}
+        yield _sse_event(
+            "error",
+            _error_envelope(
+                str(detail.get("code") or "http_error"),
+                str(detail.get("message") or detail.get("reasons") or exc.detail),
+            )
+            | {"status_code": exc.status_code},
+        )
+        return
+    except Exception as exc:  # noqa: BLE001 - SSE must fail closed with a typed event
+        yield _sse_event(
+            "error",
+            _error_envelope("internal_error", type(exc).__name__, retryable=True),
+        )
+        return
     yield _sse_event("final", response.model_dump(mode="json"))
 
 
@@ -169,7 +199,10 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="RFP RAG Service",
         version="0.1.0",
-        description="Typed API surface for source-first Korean public RFP RAG.",
+        description=(
+            "Typed local-reviewer API surface for source-first Korean public RFP RAG. "
+            "Hosted auth/rate-limit profiles are intentionally separate."
+        ),
     )
 
     @app.get("/healthz", response_model=HealthResponse)

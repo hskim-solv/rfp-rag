@@ -118,6 +118,7 @@ def _write_eval_dir(tmp_path: Path, predictions: list[dict]) -> Path:
         json.dumps(
             {
                 "provider_lane": "real_openai",
+                "eval_set_hash": "eval-set-hash",
                 "top_k": 5,
                 "min_score": 0.47,
                 "query_set_counts": {
@@ -161,6 +162,7 @@ def test_reaggregate_recomputes_coverage_and_gates_without_api_calls(
     assert metrics["aggregate"]["judge_coverage_answer_relevancy"] == 1.0
     assert metrics["rag_quality_complete"] is True
     assert metrics["reaggregated_from_predictions"] is True
+    assert metrics["eval_set_hash"] == "eval-set-hash"
     # 실행 파라미터는 이전 metrics에서 보존
     assert metrics["top_k"] == 5
     assert metrics["min_score"] == 0.47

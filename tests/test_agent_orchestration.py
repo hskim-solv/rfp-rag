@@ -31,7 +31,14 @@ def test_evaluate_agent_orchestration_writes_planner_executor_evidence(
     summary = evaluate_agent_orchestration(root=tmp_path)
 
     assert summary["agent_orchestration_upgrade_complete"] is True
-    assert summary["architecture_pattern"].startswith("planner-executor")
+    assert (
+        summary["architecture_pattern"]
+        == "typed LangGraph workflow with planner-executor scenario replay evidence"
+    )
+    assert (
+        summary["runtime_non_claim"]
+        == "does_not_claim_dynamic_planner_node_or_supervisor_worker_runtime"
+    )
     assert summary["metrics"]["planner_executor_or_supervisor_worker_pass"] == 1.0
     assert summary["metrics"]["multi_tool_plan_pass"] == 1.0
     assert summary["metrics"]["human_approval_node_pass"] == 1.0

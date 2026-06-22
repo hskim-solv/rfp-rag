@@ -59,6 +59,9 @@ def evaluate_deployment_readiness(
     root = root.resolve()
     out = out or root / "artifacts/deployment_readiness/summary.json"
     plan_path = root / "docs/portfolio/hosted-deployment-plan.md"
+    dockerfile_text = _read_text(root / "Dockerfile")
+    ci_text = _read_text(root / ".github/workflows/ci.yml")
+    service_text = _read_text(root / "rfp_rag/service/app.py")
     plan_text = """# Hosted Deployment Readiness Plan
 
 This is production-facing readiness evidence, not a public deployment claim.
@@ -68,6 +71,8 @@ URLs require explicit owner approval before execution.
 ## Target Shape
 
 - Runtime: containerized FastAPI service behind a managed HTTPS ingress.
+- Local reviewer profile: the checked-in service exposes a local/container
+  reviewer API surface only. Public hosted auth is not claimed by default.
 - Auth boundary: reviewer demo uses local mode; hosted mode requires a signed
   reviewer token or identity-provider session before query, trace, or artifact
   access.
@@ -80,6 +85,10 @@ URLs require explicit owner approval before execution.
   token/cost summaries, tool-call success/failure, and failed-run analysis.
 - Rollback: deployment health check, credential-free regression, and local
   portfolio check must pass before traffic is enabled.
+- Container hardening: runtime image uses a non-root user and Docker
+  `HEALTHCHECK` for `/healthz`.
+- Service failure contract: synchronous endpoints use structured HTTP errors;
+  SSE emits `event: error` and terminates on guardrail/runtime failure.
 
 ## Non-Claims
 
@@ -96,6 +105,18 @@ URLs require explicit owner approval before execution.
         "secret_handling_documented": 1.0,
         "public_exposure_requires_approval": 1.0,
         "one_command_fallback_documented": 1.0,
+        "docker_non_root_user": _metric("USER appuser" in dockerfile_text),
+        "docker_healthcheck": _metric("HEALTHCHECK" in dockerfile_text),
+        "ci_docker_runtime_smoke": _metric(
+            "Run service health" in ci_text and "/healthz" in ci_text
+        ),
+        "ci_answer_contract_smoke": _metric("/v1/answer" in ci_text),
+        "sse_error_event_contract": _metric(
+            'event: "error"' in service_text
+            or '_sse_event(\n            "error"' in service_text
+            or '_sse_event("error"' in service_text
+        ),
+        "local_reviewer_profile_documented": _metric("local-reviewer" in service_text),
     }
     thresholds = {
         "auth_boundary_documented": 1.0,
@@ -103,6 +124,12 @@ URLs require explicit owner approval before execution.
         "secret_handling_documented": 1.0,
         "public_exposure_requires_approval": 1.0,
         "one_command_fallback_documented": 1.0,
+        "docker_non_root_user": 1.0,
+        "docker_healthcheck": 1.0,
+        "ci_docker_runtime_smoke": 1.0,
+        "ci_answer_contract_smoke": 1.0,
+        "sse_error_event_contract": 1.0,
+        "local_reviewer_profile_documented": 1.0,
     }
     failed = [key for key, threshold in thresholds.items() if metrics[key] != threshold]
     summary = {
@@ -113,6 +140,8 @@ URLs require explicit owner approval before execution.
         "auth_boundary": "signed reviewer token or identity-provider session for hosted mode",
         "rate_limit_boundary": "per-token request rate plus max tool-call budget before provider calls",
         "secret_handling_boundary": "environment or secret manager only; redacted traces and artifacts",
+        "container_runtime_contract": "non-root Docker image with /healthz HEALTHCHECK",
+        "service_failure_contract": "HTTP structured errors and SSE error events",
         "metrics": metrics,
         "thresholds": thresholds,
         "failed": failed,
@@ -333,7 +362,11 @@ accepted_scope: no_unresolved_dependency_alert
     return summary
 
 
-def evaluate_production_readiness(*, root: Path = Path(".")) -> dict[str, Any]:
+def evaluate_production_readiness(
+    *, root: Path = Path("."), out: Path | None = None
+) -> dict[str, Any]:
+    root = root.resolve()
+    out = out or root / "artifacts/production_readiness/summary.json"
     deployment = evaluate_deployment_readiness(root=root)
     demo = evaluate_interview_demo_package(root=root)
     dependency = evaluate_dependency_security(root=root)
@@ -345,7 +378,7 @@ def evaluate_production_readiness(*, root: Path = Path(".")) -> dict[str, Any]:
     }.items():
         if summary.get("failed"):
             failed.append(key)
-    return {
+    summary = {
         "production_facing_readiness_complete": not failed,
         "components": {
             "deployment_readiness": deployment,
@@ -354,6 +387,8 @@ def evaluate_production_readiness(*, root: Path = Path(".")) -> dict[str, Any]:
         },
         "failed": failed,
     }
+    _write_json(out, summary)
+    return summary
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -361,12 +396,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         description="Build production-facing portfolio readiness artifacts."
     )
     parser.add_argument("--root", type=Path, default=Path("."))
+    parser.add_argument("--out", type=Path, default=None)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
-    summary = evaluate_production_readiness(root=args.root)
+    summary = evaluate_production_readiness(root=args.root, out=args.out)
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if summary["production_facing_readiness_complete"] else 1
 

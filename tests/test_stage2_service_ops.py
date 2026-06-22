@@ -66,6 +66,8 @@ def test_evaluate_service_ops_writes_measured_summary(
     summary = evaluate_service_ops(root=tmp_path, full_answer=True)
 
     assert summary["service_ops_complete"] is True
+    assert summary["full_answer_smoke"] is True
+    assert summary["full_gates_smoke"] is False
     assert summary["metrics"]["healthz_pass"] == 1.0
     assert summary["metrics"]["answer_pass"] == 1.0
     assert summary["metrics"]["stream_pass"] == 1.0
@@ -100,3 +102,19 @@ def test_stage2_service_ops_cli_returns_nonzero_on_failed_smoke(
     )
     assert summary["service_ops_complete"] is False
     assert "answer_pass" in summary["failed"]
+
+
+def test_full_gates_smoke_requires_overall_ok_true(tmp_path: Path, monkeypatch) -> None:
+    _write_ops_inputs(tmp_path)
+    monkeypatch.setattr(
+        stage2_service_ops.service_app,
+        "collect_gate_status",
+        lambda root: {"overall_ok": False, "root": str(root)},
+    )
+
+    summary = evaluate_service_ops(root=tmp_path, full_answer=True, full_gates=True)
+
+    assert summary["service_ops_complete"] is False
+    assert summary["full_gates_smoke"] is True
+    assert summary["metrics"]["gates_pass"] == 0.0
+    assert "gates_pass" in summary["failed"]

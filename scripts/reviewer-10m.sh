@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+echo "== RFP Senior AI Agent Engineer reviewer pack =="
+echo "root=$ROOT"
+
+echo
+echo "== gate_status =="
+uv run python -m rfp_rag.gate_status
+
+echo
+echo "== portfolio_check =="
+uv run python -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
+
+echo
+echo "== credential-free tests =="
+uv run python -m pytest -m "not real" -q
+
+echo
+echo "== key artifacts =="
+for path in \
+  artifacts/portfolio_readiness.json \
+  artifacts/eval_real/metrics.json \
+  artifacts/eval_stage2_real/metrics.json \
+  artifacts/eval_stage3_holdout/metrics.json \
+  artifacts/eval_agent_stress/metrics.json \
+  artifacts/service_ops/summary.json \
+  artifacts/security_redteam/summary.json \
+  artifacts/observability/summary.json
+do
+  if [[ -f "$path" ]]; then
+    echo "present $path"
+  else
+    echo "missing $path"
+    exit 1
+  fi
+done
+
+echo
+echo "reviewer_pack_ok=true"

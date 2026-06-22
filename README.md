@@ -20,6 +20,14 @@ Current public claim:
 - **What is not claimed:** hosted cloud production, auth/session/rate-limit
   운영, live-traffic SLO, public dashboard, provider billing telemetry, or a
   reranker quality win.
+- **10-minute reviewer path:** start with
+  `docs/portfolio/reviewer-evidence-map.md`, then open
+  `docs/portfolio/korean-one-page-case-study.md` for the Korean interview
+  summary, `docs/portfolio/demo-runbook.md` for the screen-share flow, and
+  `docs/portfolio/case-study.md` for deeper interview defense. This path is
+  designed for Korean senior AI Agent Engineer review: architecture, RAG
+  quality, LangGraph orchestration, FastAPI/SSE service evidence, observability,
+  security, dependency hygiene, and explicit non-claims.
 - **How to verify in 5 minutes:**
 
 ```bash
@@ -42,7 +50,7 @@ Latest checked evidence:
 | Retrieval bakeoff | `artifacts/retrieval_bakeoff/summary.json` | vector, BM25, and hybrid RRF compared on the same frozen set; decision is `keep_vector_until_candidate_wins`; `failed=[]` |
 | Visual/table evidence | `artifacts/visual_quality/summary.json` | `visual_question_count=30`, `visual_evidence_hit_rate=0.92`, unsupported visual claim rate within gate |
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
-| Production-facing package | `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | hosted-deployment readiness plan, 3-minute reviewer package, and dependency security register pass; `ragas` was removed by ADR-0021 |
+| Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 
 Explicit limitations:
@@ -69,7 +77,8 @@ The final portfolio target is recorded in
 `docs/portfolio/2026-rfp-rag-final-goal.md`. The adversarial readiness review is
 recorded in `docs/portfolio/2026-rfp-rag-adversarial-review.md`. The current
 implemented architecture map is recorded in
-`docs/architecture/system-architecture.md`. The reviewer demo path is
+`docs/architecture/system-architecture.md`. The Korean 1-page reviewer summary is
+`docs/portfolio/korean-one-page-case-study.md`. The reviewer demo path is
 `docs/portfolio/demo-runbook.md`, the next top-tier roadmap is
 `docs/portfolio/top-tier-roadmap.md`, and resume/interview wording is
 `docs/portfolio/resume-interview-bullets.md`. The project should be framed as a
@@ -235,10 +244,16 @@ uv run python -m rfp_rag.stage2_service_ops
 ```
 
 This records endpoint/schema/path-safety/token-cost observability evidence in
-`artifacts/service_ops/summary.json`. The default mode uses lightweight answer
-and gate stubs so the service contract can be checked quickly and
-credential-free; use `--full-answer` or `--full-gates` only when intentionally
-testing the heavier offline RAG answer path or full gate-status path.
+`artifacts/service_ops/summary.json`. Portfolio readiness now requires the full
+offline answer path and full gate-status path:
+
+```bash
+uv run python -m rfp_rag.stage2_service_ops --full-answer --full-gates
+```
+
+The lightweight default remains useful for quick local endpoint debugging, but
+it is API-shape evidence only and should not be cited as the current service
+ops portfolio artifact.
 
 Stage 2 deterministic security smoke:
 

@@ -7,6 +7,8 @@ URLs require explicit owner approval before execution.
 ## Target Shape
 
 - Runtime: containerized FastAPI service behind a managed HTTPS ingress.
+- Local reviewer profile: the checked-in service exposes a local/container
+  reviewer API surface only. Public hosted auth is not claimed by default.
 - Auth boundary: reviewer demo uses local mode; hosted mode requires a signed
   reviewer token or identity-provider session before query, trace, or artifact
   access.
@@ -19,6 +21,10 @@ URLs require explicit owner approval before execution.
   token/cost summaries, tool-call success/failure, and failed-run analysis.
 - Rollback: deployment health check, credential-free regression, and local
   portfolio check must pass before traffic is enabled.
+- Container hardening: runtime image uses a non-root user and Docker
+  `HEALTHCHECK` for `/healthz`.
+- Service failure contract: synchronous endpoints use structured HTTP errors;
+  SSE emits `event: error` and terminates on guardrail/runtime failure.
 
 ## Non-Claims
 

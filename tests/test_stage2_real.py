@@ -33,6 +33,56 @@ def _write_coverage(root: Path, eval_set_hash: str = "stage2-hash") -> None:
     )
 
 
+def _write_small_coverage(root: Path, eval_set_hash: str = "stage2-hash") -> None:
+    _write_json(
+        root / "artifacts/eval_stage2/coverage.json",
+        {
+            "eval_set_hash": eval_set_hash,
+            "eval_set_audit_complete": True,
+            "counts_by_slice": {
+                "metadata": 1,
+                "curated_text": 1,
+                "section_lookup": 1,
+                "cross_document": 1,
+                "visual_table": 1,
+                "paraphrase": 1,
+                "abstention": 1,
+            },
+            "metrics": {},
+            "thresholds": {},
+            "failed": [],
+        },
+    )
+
+
+def _write_complete_predictions(root: Path) -> None:
+    rows = [
+        ("metadata_budget_000", "project_budget"),
+        ("curated_000", "curated_text"),
+        ("section_000", "section_lookup"),
+        ("cross_000", "cross_document"),
+        ("visual_000", "visual_table"),
+        ("paraphrase_000", "paraphrase"),
+        ("abstention_000", "abstention"),
+    ]
+    path = root / "artifacts/eval_stage2_real/predictions.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payloads = []
+    for query_id, query_type in rows:
+        judge = (
+            {"warnings": ["judge_skipped_abstention"]}
+            if query_type == "abstention"
+            else {"faithfulness": 1.0, "answer_relevancy": 1.0, "warnings": []}
+        )
+        payloads.append(
+            json.dumps(
+                {"query_id": query_id, "query_type": query_type, "judge": judge},
+                ensure_ascii=False,
+            )
+        )
+    path.write_text("\n".join(payloads) + "\n", encoding="utf-8")
+
+
 def _raw_metrics(**overrides: object) -> dict:
     aggregate = {
         "recall@5": 0.97,
@@ -73,8 +123,23 @@ def _raw_metrics(**overrides: object) -> dict:
 
 
 def test_finalize_stage2_real_writes_passing_contract_artifact(tmp_path: Path) -> None:
-    _write_coverage(tmp_path)
-    _write_json(tmp_path / "artifacts/eval_stage2_real/metrics.json", _raw_metrics())
+    _write_small_coverage(tmp_path)
+    _write_complete_predictions(tmp_path)
+    _write_json(
+        tmp_path / "artifacts/eval_stage2_real/metrics.json",
+        _raw_metrics(
+            query_set_counts={
+                "total": 7,
+                "golden_metadata": 1,
+                "curated_text": 1,
+                "section_lookup": 1,
+                "cross_document": 1,
+                "visual_table": 1,
+                "paraphrase": 1,
+                "abstention": 1,
+            }
+        ),
+    )
 
     summary = finalize_stage2_real(root=tmp_path)
 
@@ -98,8 +163,23 @@ def test_finalize_stage2_real_writes_passing_contract_artifact(tmp_path: Path) -
 def test_finalize_stage2_real_is_idempotent_after_contract_write(
     tmp_path: Path,
 ) -> None:
-    _write_coverage(tmp_path)
-    _write_json(tmp_path / "artifacts/eval_stage2_real/metrics.json", _raw_metrics())
+    _write_small_coverage(tmp_path)
+    _write_complete_predictions(tmp_path)
+    _write_json(
+        tmp_path / "artifacts/eval_stage2_real/metrics.json",
+        _raw_metrics(
+            query_set_counts={
+                "total": 7,
+                "golden_metadata": 1,
+                "curated_text": 1,
+                "section_lookup": 1,
+                "cross_document": 1,
+                "visual_table": 1,
+                "paraphrase": 1,
+                "abstention": 1,
+            }
+        ),
+    )
 
     first = finalize_stage2_real(root=tmp_path)
     second = finalize_stage2_real(root=tmp_path)

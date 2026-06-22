@@ -13,6 +13,15 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY rfp_rag ./rfp_rag
 
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+    && mkdir -p /app/artifacts \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD uv run --no-sync python -c "import json, urllib.request; payload=json.load(urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)); raise SystemExit(0 if payload.get('ok') is True and payload.get('service') == 'rfp-rag' else 1)"
 
 CMD ["uv", "run", "--no-sync", "uvicorn", "rfp_rag.service.app:app", "--host", "0.0.0.0", "--port", "8000"]

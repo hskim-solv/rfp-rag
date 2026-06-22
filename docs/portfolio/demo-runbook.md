@@ -17,6 +17,12 @@ separate track.
 - artifact-backed evaluation, deterministic security smoke, ops, and
   token/cost-estimate gates.
 
+For a 10-minute interview review, start with
+`docs/portfolio/reviewer-evidence-map.md` and
+`docs/portfolio/korean-one-page-case-study.md`. This runbook is the screen-share
+script; the evidence map and Korean case study are the compact reviewer
+checklist.
+
 ## Safety Rules
 
 - Do not show `.env`, API keys, raw prompts, raw provider responses, checkpoint
@@ -35,8 +41,9 @@ separate track.
 Run these immediately before recording or presenting:
 
 ```bash
-python3 -m rfp_rag.gate_status
-python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
+./scripts/reviewer-10m.sh
+uv run python -m rfp_rag.gate_status
+uv run python -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m pytest -m "not real" -q
 ```
 
@@ -59,37 +66,68 @@ If any of these fail, stop the portfolio-readiness claim and say which artifact
 is stale or incomplete. Do not use older v5/v6 transition notes as current
 evidence.
 
+If Stage 2 fails only because `prediction_judge_coverage_*` is below threshold,
+the lowest-cost repair path is judge-only recovery, not a full regeneration:
+
+```bash
+uv run python -m rfp_rag.stage2_rejudge_missing
+```
+
+This command still uses the configured judge provider and therefore requires
+paid/API approval before running.
+
 ## 3-5 Minute Live Track
 
-1. Open `README.md` and state the one-line project:
+1. Open `docs/portfolio/reviewer-evidence-map.md` and state the one-line
+   project:
    production-adjacent Agentic RAG backend for 100 Korean public RFP HWP/PDF
    documents, verified through local/container evidence.
-2. Open `docs/architecture/system-architecture.md` and show the flow:
+2. Open `docs/portfolio/korean-one-page-case-study.md` and use it as the Korean
+   interview summary: why this is agent/backend engineering evidence, not a
+   generic chatbot.
+3. Open `README.md` Portfolio Status and point to the explicit non-claims:
+   no hosted cloud production, public dashboard, live traffic SLO, provider
+   billing telemetry, or reranker quality win.
+4. Open `docs/architecture/system-architecture.md` and show the flow:
    source parsing -> chunk/index -> retrieval -> LangGraph agent/service ->
    evaluation/guardrail/ops artifacts.
-3. Run or show `python3 -m rfp_rag.gate_status`.
+5. Run or show `uv run python -m rfp_rag.gate_status`.
    Emphasize stale contract/source-lineage artifacts fail closed.
-4. Show `artifacts/portfolio_readiness.json`.
+6. Show `artifacts/portfolio_readiness.json`.
    Point to the final readiness booleans and Stage 2 contract enforcement.
-5. Show the real and Stage 2 quality metrics:
+7. Show the real, Stage 2, and Stage 3 quality metrics:
    `artifacts/eval_real/metrics.json` and
-   `artifacts/eval_stage2_real/metrics.json`.
+   `artifacts/eval_stage2_real/metrics.json`,
+   `artifacts/eval_stage3_holdout/metrics.json`.
    Cite `recall@5=1.0`, citation presence/validity `1.0`, and real
-   faithfulness/answer relevancy above the documented thresholds. State that
-   Stage 2 answer relevancy is a close-margin pass, not a broad quality victory.
-6. Show LangGraph/agent evidence:
-   `artifacts/eval_agent_stress/metrics.json`.
+   faithfulness/answer relevancy above the documented thresholds. State that the
+   Stage 3 result is a fixed-corpus query holdout, not an unseen-document or
+   public-traffic benchmark. `citation_validity` is citation/chunk mapping
+   validity; claim-level grounding is separately judged by the LLM judge.
+8. Show LangGraph/agent evidence:
+   `artifacts/eval_agent_stress/metrics.json` and
+   `artifacts/agent_orchestration/summary.json`.
    Mention deterministic replays for direct RAG, rewrite recovery, abstention,
    metadata-tool route, HITL approve/reject, checkpointer close path,
-   audit-argument redaction, and ops-tool budget behavior.
-7. Show service/security/cost evidence:
+   audit-argument redaction, ops-tool budget behavior, and planner-executor
+   scenario evidence. Do not call it a dynamic planner-executor runtime unless a
+   replay artifact proves actual plan-node and execute-step-node transitions.
+9. Show service/security/cost/observability evidence:
    `artifacts/service_ops/summary.json`,
    `artifacts/security_redteam/summary.json`,
-   `artifacts/cost_budget/summary.json`.
-8. Close with the limitation statement:
-   local/container demo evidence is complete; cloud deployment, public
-   dashboard, live traffic SLOs, and reranker quality-win evidence are deferred
-   scopes, not hidden claims.
+   `artifacts/cost_budget/summary.json`,
+   `artifacts/observability/summary.json`.
+10. Close with the limitation statement:
+    local/container demo evidence is complete; cloud deployment, public
+    dashboard, live traffic SLOs, and reranker quality-win evidence are deferred
+    scopes, not hidden claims.
+
+## Tool Contract Matrix
+
+Use `docs/portfolio/tool-contract-matrix.md` when the reviewer asks how tools are
+bounded. It records schemas, side-effect class, auth/rate-limit boundary,
+timeout/output-cap policy, redaction, audit fields, and error codes for the
+FastAPI service and MCP-style ops tools.
 
 ## Citation Trace Example
 

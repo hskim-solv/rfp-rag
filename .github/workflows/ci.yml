@@ -93,8 +93,17 @@ jobs:
       - name: Offline tests
         run: uv run pytest -m "not real"
 
+      - name: Local artifact freshness check when evidence artifacts are present
+        run: |
+          if [ -d artifacts ]; then
+            uv run python -m rfp_rag.gate_status
+            uv run python -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
+          else
+            echo "artifacts/ is absent in credential-free CI; local portfolio freshness is verified before release."
+          fi
+
   docker-build:
-    name: docker build
+    name: docker build and runtime smoke
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -102,3 +111,49 @@ jobs:
 
       - name: Build service image
         run: docker build -t rfp-rag-service:ci .
+
+      - name: Run service health and answer contract smoke
+        run: |
+          docker run --rm -d --name rfp-rag-service-ci -p 8000:8000 rfp-rag-service:ci
+          trap 'docker rm -f rfp-rag-service-ci >/dev/null 2>&1 || true' EXIT
+          python - <<'PY'
+          import json
+          import time
+          import urllib.error
+          import urllib.request
+
+          last_error = None
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=2) as response:
+                      payload = json.loads(response.read().decode("utf-8"))
+                  if payload.get("ok") is True and payload.get("service") == "rfp-rag":
+                      print("docker_runtime_smoke_ok=true")
+                      break
+                  last_error = f"unexpected payload: {payload}"
+              except Exception as exc:
+                  last_error = str(exc)
+              time.sleep(1)
+          else:
+              raise SystemExit(f"health smoke failed: {last_error}")
+
+          payload = json.dumps(
+              {"question": "CI contract smoke", "index_dir": "../outside-index"}
+          ).encode("utf-8")
+          request = urllib.request.Request(
+              "http://127.0.0.1:8000/v1/answer",
+              data=payload,
+              headers={"content-type": "application/json"},
+              method="POST",
+          )
+          try:
+              urllib.request.urlopen(request, timeout=5)
+          except urllib.error.HTTPError as exc:
+              body = json.loads(exc.read().decode("utf-8"))
+              if exc.code == 422 and "detail" in body:
+                  print("docker_answer_contract_smoke_ok=true")
+              else:
+                  raise SystemExit(f"unexpected answer contract response: {exc.code} {body}")
+          else:
+              raise SystemExit("/v1/answer contract smoke unexpectedly succeeded")
+          PY
