@@ -37,6 +37,8 @@ python3 -m rfp_rag.gate_status
 python3 -m rfp_rag.stage2_quality_scorecard --out artifacts/stage2_quality_scorecard/summary.json
 python3 -m rfp_rag.agent_orchestration
 python3 -m rfp_rag.stage3_agent_scorecard --out artifacts/stage3_agent_scorecard/summary.json
+python3 -m rfp_rag.production_readiness
+python3 -m rfp_rag.stage4_ops_risk_scorecard --out artifacts/stage4_ops_risk_scorecard/summary.json
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m pytest -m "not real" -q
 # Equivalent after putting the repo venv first on PATH:
@@ -57,6 +59,7 @@ Latest checked evidence:
 | Retrieval bakeoff | `artifacts/retrieval_bakeoff/summary.json` | vector, BM25, and hybrid RRF compared on the same frozen set; decision is `keep_vector_until_candidate_wins`; `failed=[]` |
 | Visual/table evidence | `artifacts/visual_quality/summary.json` | `visual_question_count=30`, `visual_evidence_hit_rate=0.92`, unsupported visual claim rate within gate |
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
+| Stage 4 ops/risk scorecard | `artifacts/stage4_ops_risk_scorecard/summary.json`; `docs/portfolio/stage4-ops-risk-scorecard.md` | deterministic scorecard for traces, failed-run analysis, latency/token/cost evidence, service smoke, red-team checks, cost budget, dependency security, and deployment boundaries |
 | Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 

@@ -35,6 +35,7 @@ role-specific framings, no new unsupported claims.
 | Agent Workflow Engineer | Stage 3 agent scorecard, replay coverage, HITL approve/reject, checkpoint/thread isolation | "The agent claim is backed by deterministic trajectory evidence, not just a graph diagram." |
 | LLM Eval | real/stage2/stage3 metrics, judge coverage, thresholds, failed-run analysis | "The project treats evaluation as product infrastructure, not an afterthought." |
 | MLOps / LLMOps / AgentOps | observability report, cost budget, service ops, security smoke, CI gates | "Bad answers and failed runs can be traced through request, retrieval, tool, judge, and artifact layers." |
+| AI Risk / AgentOps Engineer | Stage 4 ops/risk scorecard, red-team gates, dependency security, deployment boundary | "The operating claim is bounded by measured evidence and explicit non-claims for public hosting and live SLOs." |
 | Search Ranking / Recommendation Search | recall/MRR, vector/BM25/hybrid comparison, reranker deferral | "Retrieval choices are benchmarked and only promoted when they win on the same set." |
 | FDE / AX Engineer | demo runbook, company-fit matrix, Korean case study, approval and deployment boundaries | "I can turn a messy business document workflow into a measurable AI system and explain trade-offs to stakeholders." |
 
@@ -87,6 +88,7 @@ role-specific framings, no new unsupported claims.
 | tool contracts | `docs/portfolio/tool-contract-matrix.md`, `rfp_rag/ops_tool_server.py` |
 | readiness gates | `rfp_rag/portfolio_check.py`, `rfp_rag/production_readiness.py` |
 | RAG quality scorecard | `rfp_rag/stage2_quality_scorecard.py`, `artifacts/stage2_quality_scorecard/summary.json` |
+| ops/risk scorecard | `rfp_rag/stage4_ops_risk_scorecard.py`, `artifacts/stage4_ops_risk_scorecard/summary.json` |
 | reviewer path | `docs/portfolio/senior-reviewer-pack.md`, `scripts/reviewer-10m.sh` |
 | Korean interview story | `docs/portfolio/korean-one-page-case-study.md` |
 

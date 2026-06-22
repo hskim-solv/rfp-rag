@@ -110,6 +110,9 @@ is at least 90/100.
 - `artifacts/stage3_agent_scorecard/summary.json`: routing/tool accuracy,
   recovery, HITL, checkpoint/thread isolation, planner-executor scenario
   evidence, and audit scorecard.
+- `artifacts/stage4_ops_risk_scorecard/summary.json`: trace, failed-run,
+  latency/token/cost, service, red-team, dependency, and deployment-boundary
+  scorecard.
 - `docs/portfolio/tool-contract-matrix.md`: tool boundary and error contract.
 - `docs/portfolio/company-fit-matrix.md`: role-specific pitch.
 

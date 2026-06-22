@@ -24,6 +24,14 @@ echo "== stage3_agent_scorecard =="
 uv run python -m rfp_rag.stage3_agent_scorecard --out artifacts/stage3_agent_scorecard/summary.json
 
 echo
+echo "== production_readiness =="
+uv run python -m rfp_rag.production_readiness --out artifacts/production_readiness/summary.json
+
+echo
+echo "== stage4_ops_risk_scorecard =="
+uv run python -m rfp_rag.stage4_ops_risk_scorecard --out artifacts/stage4_ops_risk_scorecard/summary.json
+
+echo
 echo "== portfolio_check =="
 uv run python -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 
@@ -41,6 +49,7 @@ for path in \
   artifacts/portfolio_readiness.json \
   artifacts/stage2_quality_scorecard/summary.json \
   artifacts/stage3_agent_scorecard/summary.json \
+  artifacts/stage4_ops_risk_scorecard/summary.json \
   artifacts/eval_real/metrics.json \
   artifacts/eval_stage2_real/metrics.json \
   artifacts/eval_stage3_holdout/metrics.json \

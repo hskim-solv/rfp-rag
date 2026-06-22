@@ -370,12 +370,16 @@ Implement:
 - R4 observability dashboard/report.
 - R5 red-team and guardrail scorecard.
 - Release runbook and operational failure playbook.
+- Deterministic Stage 4 ops/risk scorecard:
+  `rfp_rag.stage4_ops_risk_scorecard` ->
+  `artifacts/stage4_ops_risk_scorecard/summary.json`.
 
 Exit criteria:
 
 - A bad answer can be traced from API request to retrieval, tool calls, judge
   result, and final error/fallback behavior.
 - Guardrail metrics meet R5 thresholds.
+- `stage4_ops_risk_scorecard_complete=true` and `failed=[]`.
 
 ### Stage 5. Publish The Hiring Surface
 
