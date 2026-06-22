@@ -35,6 +35,8 @@ Current public claim:
 ```bash
 python3 -m rfp_rag.gate_status
 python3 -m rfp_rag.stage2_quality_scorecard --out artifacts/stage2_quality_scorecard/summary.json
+python3 -m rfp_rag.agent_orchestration
+python3 -m rfp_rag.stage3_agent_scorecard --out artifacts/stage3_agent_scorecard/summary.json
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m pytest -m "not real" -q
 # Equivalent after putting the repo venv first on PATH:
@@ -51,6 +53,7 @@ Latest checked evidence:
 | Stage 2 frozen evidence | `artifacts/eval_stage2_real/metrics.json`; frozen evidence-set contract | `holdout_quality_complete=true`; `recall@5=1.0`, `mrr=0.9923`, `faithfulness=0.9397`, `answer_relevancy=0.8030`, citation presence/validity `1.0`; not claimed as an independent public-traffic holdout |
 | Stage 2 RAG scorecard | `artifacts/stage2_quality_scorecard/summary.json`; `docs/portfolio/stage2-rag-quality-scorecard.md` | deterministic parser/retrieval/citation/context scorecard; `context_precision_at5`, `context_recall_at5`, and `citation_precision_proxy` are computed from Stage 3 raw predictions without reintroducing Ragas |
 | Agent workflow | `artifacts/eval_agent_stress/metrics.json` | constrained LangGraph workflow with deterministic replay evidence; `trajectory_pass_rate=1.0`, checkpoint/HITL/thread isolation/checkpointer close/audit-argument redaction checks pass |
+| Stage 3 agent scorecard | `artifacts/stage3_agent_scorecard/summary.json`; `docs/portfolio/stage3-agent-workflow-scorecard.md` | deterministic scorecard for routing/tool accuracy, rewrite recovery, HITL approve/reject, checkpoint/thread isolation, planner-executor scenario evidence, and audit surface |
 | Retrieval bakeoff | `artifacts/retrieval_bakeoff/summary.json` | vector, BM25, and hybrid RRF compared on the same frozen set; decision is `keep_vector_until_candidate_wins`; `failed=[]` |
 | Visual/table evidence | `artifacts/visual_quality/summary.json` | `visual_question_count=30`, `visual_evidence_hit_rate=0.92`, unsupported visual claim rate within gate |
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |

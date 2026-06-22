@@ -107,6 +107,9 @@ is at least 90/100.
 - `artifacts/stage2_quality_scorecard/summary.json`: parser, retrieval,
   citation, context, and visual/table quality scorecard.
 - `artifacts/eval_agent_stress/metrics.json`: agent replay and HITL metrics.
+- `artifacts/stage3_agent_scorecard/summary.json`: routing/tool accuracy,
+  recovery, HITL, checkpoint/thread isolation, planner-executor scenario
+  evidence, and audit scorecard.
 - `docs/portfolio/tool-contract-matrix.md`: tool boundary and error contract.
 - `docs/portfolio/company-fit-matrix.md`: role-specific pitch.
 

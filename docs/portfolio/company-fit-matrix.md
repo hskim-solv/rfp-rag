@@ -32,6 +32,7 @@ role-specific framings, no new unsupported claims.
 | Enterprise GenAI Platform | FastAPI/Pydantic service, Docker, CI, production readiness, local-only auth boundary | "I can package GenAI capability behind service contracts and fail-closed gates." |
 | RAG / Knowledge Base Engineer | source parsing, Qdrant index, citation validity, retrieval bakeoff, holdout metrics | "The RAG source of truth is parsed documents, and quality is measured across retrieval and generation." |
 | RAG Quality / Evaluation Engineer | Stage 2 quality scorecard, deterministic context precision/recall, citation proxy, parser quality | "The quality claim is aggregated into a fail-closed scorecard instead of being scattered across ad hoc artifacts." |
+| Agent Workflow Engineer | Stage 3 agent scorecard, replay coverage, HITL approve/reject, checkpoint/thread isolation | "The agent claim is backed by deterministic trajectory evidence, not just a graph diagram." |
 | LLM Eval | real/stage2/stage3 metrics, judge coverage, thresholds, failed-run analysis | "The project treats evaluation as product infrastructure, not an afterthought." |
 | MLOps / LLMOps / AgentOps | observability report, cost budget, service ops, security smoke, CI gates | "Bad answers and failed runs can be traced through request, retrieval, tool, judge, and artifact layers." |
 | Search Ranking / Recommendation Search | recall/MRR, vector/BM25/hybrid comparison, reranker deferral | "Retrieval choices are benchmarked and only promoted when they win on the same set." |
@@ -81,6 +82,7 @@ role-specific framings, no new unsupported claims.
 | --- | --- |
 | source-first RAG | `README.md`, `docs/architecture/system-architecture.md`, `rfp_rag/parse_sources.py` |
 | agent workflow | `rfp_rag/agent`, `artifacts/eval_agent_stress/metrics.json` |
+| agent workflow scorecard | `rfp_rag/stage3_agent_scorecard.py`, `artifacts/stage3_agent_scorecard/summary.json` |
 | service runtime | `rfp_rag/service/app.py`, `Dockerfile`, `.github/workflows/ci.yml` |
 | tool contracts | `docs/portfolio/tool-contract-matrix.md`, `rfp_rag/ops_tool_server.py` |
 | readiness gates | `rfp_rag/portfolio_check.py`, `rfp_rag/production_readiness.py` |

@@ -351,11 +351,15 @@ Implement:
 - R3 multi-step planner-executor or supervisor-worker scenario.
 - Tool contracts and checkpoint replay demo.
 - Recovery and HITL approval metrics.
+- Deterministic Stage 3 agent workflow scorecard:
+  `rfp_rag.stage3_agent_scorecard` ->
+  `artifacts/stage3_agent_scorecard/summary.json`.
 
 Exit criteria:
 
 - Reviewer can see why graph state, retries, checkpoints, and HITL are necessary.
 - Agent task metrics meet R3 thresholds.
+- `stage3_agent_scorecard_complete=true` and `failed=[]`.
 
 ### Stage 4. Make Operations And Risk Management Visible
 
