@@ -449,6 +449,7 @@ with:
 
 - `RFP_RAG_PUBLIC_DEMO_MODE=1`;
 - `RFP_RAG_RATE_LIMIT_PER_MINUTE=20`;
+- `RFP_RAG_GIT_SHA=<deployed commit sha>`;
 - `RFP_RAG_REVIEWER_TOKEN` as an unsynced secret set by the owner in Render.
 
 After the owner approves external deployment and creates the Render service,
@@ -458,12 +459,14 @@ verify the hosted URL with:
 uv run python -m rfp_rag.hosted_demo_smoke \
   --base-url https://<render-service-url> \
   --reviewer-token "$RFP_RAG_REVIEWER_TOKEN" \
+  --expected-git-sha "$(git rev-parse --short HEAD)" \
   --out artifacts/hosted_demo_smoke/summary.json
 ```
 
 This smoke requires the hosted response provider to be `public_demo` and fails
 closed if the answer path exposes raw RFP text, lacks public-safe synthetic
-sources, omits the reviewer-token boundary, or misses the SSE final event.
+sources, omits the reviewer-token boundary, serves a different `RFP_RAG_GIT_SHA`,
+or misses the SSE final event.
 
 Post-deploy logs, metrics, and rollback evidence are captured through
 `docs/portfolio/hosted-deployment-runbook.md` and validated with:

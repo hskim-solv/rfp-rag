@@ -12,6 +12,8 @@ externally reachable URLs require explicit owner approval before execution.
 - Public-safe reviewer profile: the checked-in service can run with
   `RFP_RAG_PUBLIC_DEMO_MODE=1` to serve deterministic publishable evidence
   without provider credentials or raw RFP source text.
+- Revision evidence: hosted `/healthz` returns `RFP_RAG_GIT_SHA` so the smoke
+  test can prove the reviewer URL is serving the expected deployed revision.
 - Auth boundary: hosted reviewer mode requires `RFP_RAG_REVIEWER_TOKEN` before
   query, trace, or artifact access. `/healthz` remains public.
 - Rate limit boundary: `RFP_RAG_RATE_LIMIT_PER_MINUTE` enforces a small

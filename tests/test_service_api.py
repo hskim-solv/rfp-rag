@@ -15,7 +15,17 @@ def test_healthz_reports_service_ready() -> None:
     response = client.get("/healthz")
 
     assert response.status_code == 200
-    assert response.json() == {"ok": True, "service": "rfp-rag"}
+    assert response.json() == {"ok": True, "service": "rfp-rag", "git_sha": None}
+
+
+def test_healthz_reports_deployed_git_sha(monkeypatch) -> None:
+    monkeypatch.setenv("RFP_RAG_GIT_SHA", "abc1234")
+    client = TestClient(service_app.create_app())
+
+    response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json()["git_sha"] == "abc1234"
 
 
 def test_answer_endpoint_returns_typed_rag_response(monkeypatch) -> None:

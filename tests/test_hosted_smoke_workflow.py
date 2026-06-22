@@ -32,6 +32,7 @@ def test_hosted_smoke_workflow_is_manual_and_secret_backed() -> None:
     run_script = "\n".join(str(step.get("run", "")) for step in steps)
     assert "secrets.RFP_RAG_REVIEWER_TOKEN" in str(steps)
     assert "rfp_rag.hosted_demo_smoke" in run_script
+    assert "--expected-git-sha" in run_script
     assert "rfp_rag.hosted_ops_summary" in run_script
     assert "--confirm-logs-redacted" in run_script
     assert "--confirm-metrics-visible" in run_script

@@ -10,5 +10,7 @@ services:
         value: "1"
       - key: RFP_RAG_RATE_LIMIT_PER_MINUTE
         value: "20"
+      - key: RFP_RAG_GIT_SHA
+        sync: false
       - key: RFP_RAG_REVIEWER_TOKEN
         sync: false

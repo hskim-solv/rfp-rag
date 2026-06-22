@@ -94,12 +94,29 @@ def _public_safe_sources_pass(answer_body: dict[str, Any] | None) -> bool:
     )
 
 
+def _git_sha_matches(actual: object, expected: str | None) -> bool:
+    if expected is None:
+        return True
+    if not isinstance(actual, str):
+        return False
+    actual = actual.strip()
+    expected = expected.strip()
+    if len(actual) < 7 or len(expected) < 7:
+        return False
+    return actual.startswith(expected) or expected.startswith(actual)
+
+
+def _valid_expected_git_sha(expected: str | None) -> bool:
+    return isinstance(expected, str) and len(expected.strip()) >= 7
+
+
 def run_hosted_demo_smoke(
     *,
     base_url: str,
     reviewer_token: str | None = None,
     out: Path = Path("artifacts/hosted_demo_smoke/summary.json"),
     question: str = DEFAULT_QUESTION,
+    expected_git_sha: str | None = None,
     transport: Transport = urllib_transport,
 ) -> dict[str, Any]:
     protected_headers = _auth_headers(reviewer_token)
@@ -145,6 +162,10 @@ def run_hosted_demo_smoke(
             stream.status_code == 200 and "event: final" in stream.text
         ),
         "public_safe_sources_pass": _metric(_public_safe_sources_pass(answer_body)),
+        "expected_git_sha_present": _metric(_valid_expected_git_sha(expected_git_sha)),
+        "revision_match_pass": _metric(
+            _git_sha_matches((health.json_body or {}).get("git_sha"), expected_git_sha)
+        ),
     }
     thresholds = {key: 1.0 for key in metrics}
     failed = [key for key, threshold in thresholds.items() if metrics[key] != threshold]
@@ -152,6 +173,8 @@ def run_hosted_demo_smoke(
         "hosted_demo_smoke_complete": not failed,
         "base_url": base_url.rstrip("/"),
         "reviewer_token_boundary": "required" if reviewer_token else "missing",
+        "expected_git_sha": expected_git_sha,
+        "observed_git_sha": (health.json_body or {}).get("git_sha"),
         "question": question,
         "metrics": metrics,
         "thresholds": thresholds,
@@ -174,6 +197,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--reviewer-token")
+    parser.add_argument("--expected-git-sha")
     parser.add_argument(
         "--out", type=Path, default=Path("artifacts/hosted_demo_smoke/summary.json")
     )
@@ -188,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
         reviewer_token=args.reviewer_token,
         out=args.out,
         question=args.question,
+        expected_git_sha=args.expected_git_sha,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if summary["hosted_demo_smoke_complete"] else 1

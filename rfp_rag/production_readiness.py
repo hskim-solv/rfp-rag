@@ -87,6 +87,8 @@ externally reachable URLs require explicit owner approval before execution.
 - Public-safe reviewer profile: the checked-in service can run with
   `RFP_RAG_PUBLIC_DEMO_MODE=1` to serve deterministic publishable evidence
   without provider credentials or raw RFP source text.
+- Revision evidence: hosted `/healthz` returns `RFP_RAG_GIT_SHA` so the smoke
+  test can prove the reviewer URL is serving the expected deployed revision.
 - Auth boundary: hosted reviewer mode requires `RFP_RAG_REVIEWER_TOKEN` before
   query, trace, or artifact access. `/healthz` remains public.
 - Rate limit boundary: `RFP_RAG_RATE_LIMIT_PER_MINUTE` enforces a small
@@ -141,6 +143,7 @@ externally reachable URLs require explicit owner approval before execution.
             "RFP_RAG_PUBLIC_DEMO_MODE" in service_text
             and "RFP_RAG_REVIEWER_TOKEN" in service_text
             and "RFP_RAG_RATE_LIMIT_PER_MINUTE" in service_text
+            and "RFP_RAG_GIT_SHA" in service_text
             and (root / "rfp_rag/hosted_demo_smoke.py").is_file()
         ),
         "hosted_demo_smoke_pass": _metric(
@@ -150,6 +153,9 @@ externally reachable URLs require explicit owner approval before execution.
             == 1.0
             and (hosted_smoke.get("metrics") or {}).get("public_safe_sources_pass")
             == 1.0
+            and (hosted_smoke.get("metrics") or {}).get("expected_git_sha_present")
+            == 1.0
+            and (hosted_smoke.get("metrics") or {}).get("revision_match_pass") == 1.0
         ),
         "render_blueprint_contract": _metric(
             "type: web" in render_text
@@ -158,6 +164,7 @@ externally reachable URLs require explicit owner approval before execution.
             and "healthCheckPath: /healthz" in render_text
             and "RFP_RAG_PUBLIC_DEMO_MODE" in render_text
             and "RFP_RAG_RATE_LIMIT_PER_MINUTE" in render_text
+            and "RFP_RAG_GIT_SHA" in render_text
             and "RFP_RAG_REVIEWER_TOKEN" in render_text
             and "sync: false" in render_text
         ),

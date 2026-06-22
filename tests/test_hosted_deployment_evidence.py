@@ -27,6 +27,8 @@ def test_hosted_deployment_evidence_accepts_https_smoke_logs_and_metrics(
                 "answer_pass": 1.0,
                 "stream_pass": 1.0,
                 "public_safe_sources_pass": 1.0,
+                "expected_git_sha_present": 1.0,
+                "revision_match_pass": 1.0,
             },
             "observed_status": {
                 "healthz": 200,

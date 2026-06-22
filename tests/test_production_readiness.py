@@ -37,6 +37,8 @@ def _write_deployment_contract_files(root: Path) -> None:
                 '        value: "1"',
                 "      - key: RFP_RAG_RATE_LIMIT_PER_MINUTE",
                 '        value: "20"',
+                "      - key: RFP_RAG_GIT_SHA",
+                "        sync: false",
                 "      - key: RFP_RAG_REVIEWER_TOKEN",
                 "        sync: false",
                 "",
@@ -54,6 +56,7 @@ def _write_deployment_contract_files(root: Path) -> None:
             'os.getenv("RFP_RAG_PUBLIC_DEMO_MODE")\n'
             'os.getenv("RFP_RAG_REVIEWER_TOKEN")\n'
             'os.getenv("RFP_RAG_RATE_LIMIT_PER_MINUTE")\n'
+            'os.getenv("RFP_RAG_GIT_SHA")\n'
             '_sse_event("error", {"code": "x"})\n'
         ),
     )
@@ -75,6 +78,8 @@ def _write_deployment_contract_files(root: Path) -> None:
                     "answer_pass": 1.0,
                     "stream_pass": 1.0,
                     "public_safe_sources_pass": 1.0,
+                    "expected_git_sha_present": 1.0,
+                    "revision_match_pass": 1.0,
                 },
                 "failed": [],
             }

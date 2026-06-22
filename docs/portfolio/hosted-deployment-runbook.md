@@ -7,8 +7,10 @@ for the public-safe reviewer demo, not for a production SaaS claim.
 
 1. Create a Render Blueprint from `render.yaml`.
 2. Set `RFP_RAG_REVIEWER_TOKEN` as a Render secret value.
-3. Confirm the service starts on Render's injected `PORT`.
-4. Confirm Render health checks use `/healthz`.
+3. Set `RFP_RAG_GIT_SHA` to the deployed commit SHA, for example
+   `git rev-parse --short HEAD`.
+4. Confirm the service starts on Render's injected `PORT`.
+5. Confirm Render health checks use `/healthz`.
 
 ## Smoke
 
@@ -16,6 +18,7 @@ for the public-safe reviewer demo, not for a production SaaS claim.
 uv run python -m rfp_rag.hosted_demo_smoke \
   --base-url https://<render-service-url> \
   --reviewer-token "$RFP_RAG_REVIEWER_TOKEN" \
+  --expected-git-sha "$(git rev-parse --short HEAD)" \
   --out artifacts/hosted_demo_smoke/summary.json
 ```
 
@@ -26,6 +29,7 @@ The smoke must show:
 - authenticated `/v1/answer` returns provider `public_demo`;
 - SSE returns a `final` event;
 - public-safe sources are present;
+- `/healthz` reports the expected `RFP_RAG_GIT_SHA`;
 - no raw RFP text or secrets are emitted.
 
 ## Hosted Logs And Metrics Evidence

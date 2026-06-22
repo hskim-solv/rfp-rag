@@ -57,6 +57,9 @@ def build_hosted_deployment_evidence(
             == 1.0
             and (hosted_smoke.get("metrics") or {}).get("public_safe_sources_pass")
             == 1.0
+            and (hosted_smoke.get("metrics") or {}).get("expected_git_sha_present")
+            == 1.0
+            and (hosted_smoke.get("metrics") or {}).get("revision_match_pass") == 1.0
         ),
         "deploy_smoke_success": _metric(
             hosted_ops.get("deploy_smoke_status") == "SUCCESS"

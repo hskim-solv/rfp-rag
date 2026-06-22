@@ -96,6 +96,7 @@ class AnswerResponse(BaseModel):
 class HealthResponse(BaseModel):
     ok: bool
     service: str
+    git_sha: str | None = None
 
 
 class OpsSummaryResponse(BaseModel):
@@ -128,6 +129,11 @@ def _rate_limit_per_minute() -> int | None:
     except ValueError:
         return None
     return value if value > 0 else None
+
+
+def _git_sha() -> str | None:
+    value = os.getenv("RFP_RAG_GIT_SHA", "").strip()
+    return value or None
 
 
 def _extract_bearer_token(authorization: str | None) -> str | None:
@@ -316,7 +322,7 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz", response_model=HealthResponse)
     async def healthz() -> HealthResponse:
-        return HealthResponse(ok=True, service="rfp-rag")
+        return HealthResponse(ok=True, service="rfp-rag", git_sha=_git_sha())
 
     @app.post(
         "/v1/answer",

@@ -22,6 +22,7 @@ def test_render_blueprint_defines_public_safe_free_web_service() -> None:
     env = {item["key"]: item for item in service["envVars"]}
     assert env["RFP_RAG_PUBLIC_DEMO_MODE"]["value"] == "1"
     assert env["RFP_RAG_RATE_LIMIT_PER_MINUTE"]["value"] == "20"
+    assert env["RFP_RAG_GIT_SHA"]["sync"] is False
     assert env["RFP_RAG_REVIEWER_TOKEN"]["sync"] is False
 
 
