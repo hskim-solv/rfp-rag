@@ -12,6 +12,10 @@ echo "== gate_status =="
 uv run python -m rfp_rag.gate_status
 
 echo
+echo "== stage2_quality_scorecard =="
+uv run python -m rfp_rag.stage2_quality_scorecard --out artifacts/stage2_quality_scorecard/summary.json
+
+echo
 echo "== portfolio_check =="
 uv run python -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 
@@ -27,6 +31,7 @@ for path in \
   docs/portfolio/reviewer-evidence-map.md \
   docs/portfolio/korean-one-page-case-study.md \
   artifacts/portfolio_readiness.json \
+  artifacts/stage2_quality_scorecard/summary.json \
   artifacts/eval_real/metrics.json \
   artifacts/eval_stage2_real/metrics.json \
   artifacts/eval_stage3_holdout/metrics.json \

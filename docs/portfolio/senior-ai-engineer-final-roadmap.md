@@ -332,10 +332,14 @@ Implement:
 - Retrieval ablation.
 - Citation audit.
 - Expanded golden/holdout/adversarial eval sets.
+- Deterministic Stage 2 RAG quality scorecard:
+  `rfp_rag.stage2_quality_scorecard` ->
+  `artifacts/stage2_quality_scorecard/summary.json`.
 
 Exit criteria:
 
 - Metrics meet R2 thresholds.
+- `stage2_quality_scorecard_complete=true` and `failed=[]`.
 - The failure report shows known weaknesses and concrete mitigations.
 
 ### Stage 3. Make The Agent Layer Nontrivial

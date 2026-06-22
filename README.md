@@ -34,6 +34,7 @@ Current public claim:
 
 ```bash
 python3 -m rfp_rag.gate_status
+python3 -m rfp_rag.stage2_quality_scorecard --out artifacts/stage2_quality_scorecard/summary.json
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m pytest -m "not real" -q
 # Equivalent after putting the repo venv first on PATH:
@@ -48,6 +49,7 @@ Latest checked evidence:
 | Portfolio readiness | `artifacts/portfolio_readiness.json` | `portfolio_readiness_check=true`, `local_evidence_bundle_check=true`, `second_stage_readiness.complete=true`, `stage2_contract_schema_enforced=true`; `interview_readiness_check` also requires top-tier and production-facing gates |
 | Real RAG quality | `artifacts/eval_real/metrics.json`; contract `rfp-rag-real-v6`; parsed-source `artifacts/index_real` | `rag_quality_complete=true`; `recall@5=1.0`, `mrr=0.9922`, `faithfulness=0.9369`, `answer_relevancy=0.8109`, citation presence/validity `1.0` |
 | Stage 2 frozen evidence | `artifacts/eval_stage2_real/metrics.json`; frozen evidence-set contract | `holdout_quality_complete=true`; `recall@5=1.0`, `mrr=0.9923`, `faithfulness=0.9397`, `answer_relevancy=0.8030`, citation presence/validity `1.0`; not claimed as an independent public-traffic holdout |
+| Stage 2 RAG scorecard | `artifacts/stage2_quality_scorecard/summary.json`; `docs/portfolio/stage2-rag-quality-scorecard.md` | deterministic parser/retrieval/citation/context scorecard; `context_precision_at5`, `context_recall_at5`, and `citation_precision_proxy` are computed from Stage 3 raw predictions without reintroducing Ragas |
 | Agent workflow | `artifacts/eval_agent_stress/metrics.json` | constrained LangGraph workflow with deterministic replay evidence; `trajectory_pass_rate=1.0`, checkpoint/HITL/thread isolation/checkpointer close/audit-argument redaction checks pass |
 | Retrieval bakeoff | `artifacts/retrieval_bakeoff/summary.json` | vector, BM25, and hybrid RRF compared on the same frozen set; decision is `keep_vector_until_candidate_wins`; `failed=[]` |
 | Visual/table evidence | `artifacts/visual_quality/summary.json` | `visual_question_count=30`, `visual_evidence_hit_rate=0.92`, unsupported visual claim rate within gate |
@@ -336,6 +338,17 @@ the same comparison hash. The bakeoff passes with the decision
 measured, but neither beats vector without regressions. Reranker remains an
 optional/deferred paid/API quality claim until a same-set `reranker="llm"`
 artifact exists. The decision record is `docs/adr/0020-retrieval-bakeoff.md`.
+
+Stage 2 RAG quality scorecard:
+
+```bash
+uv run python -m rfp_rag.stage2_quality_scorecard
+```
+
+This writes `artifacts/stage2_quality_scorecard/summary.json` and aggregates
+parser quality, retrieval bakeoff, visual/table quality, Stage 2 frozen real
+evidence, Stage 3 holdout quality, and deterministic Stage 3 prediction-derived
+context metrics. It is credential-free and does not reintroduce Ragas.
 
 Stage 2 visual quality:
 

@@ -104,6 +104,8 @@ is at least 90/100.
   `interview_readiness_check`, `failed`.
 - `artifacts/production_readiness/summary.json`: production-facing checks.
 - `artifacts/eval_stage3_holdout/metrics.json`: holdout metrics.
+- `artifacts/stage2_quality_scorecard/summary.json`: parser, retrieval,
+  citation, context, and visual/table quality scorecard.
 - `artifacts/eval_agent_stress/metrics.json`: agent replay and HITL metrics.
 - `docs/portfolio/tool-contract-matrix.md`: tool boundary and error contract.
 - `docs/portfolio/company-fit-matrix.md`: role-specific pitch.
