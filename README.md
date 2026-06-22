@@ -462,6 +462,19 @@ This smoke requires the hosted response provider to be `public_demo` and fails
 closed if the answer path exposes raw RFP text, lacks public-safe synthetic
 sources, omits the reviewer-token boundary, or misses the SSE final event.
 
+Post-deploy logs, metrics, and rollback evidence are captured through
+`docs/portfolio/hosted-deployment-runbook.md` and validated with:
+
+```bash
+uv run python -m rfp_rag.hosted_deployment_evidence \
+  --out artifacts/hosted_deployment_evidence/summary.json
+```
+
+Before an actual HTTPS URL exists, this validator must fail closed. It becomes
+green only when `artifacts/hosted_ops/summary.json` records redacted hosted
+logs, visible service metrics, a successful deploy smoke, and rollback evidence
+for the deployed git SHA.
+
 ## MCP-style ops tool server
 
 ADR-0016 records the narrow MCP-style ops tool decision. This is an

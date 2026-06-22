@@ -70,6 +70,9 @@ def evaluate_deployment_readiness(
     render_text = _read_text(root / "render.yaml")
     service_text = _read_text(root / "rfp_rag/service/app.py")
     hosted_smoke = _read_json(root / "artifacts/hosted_demo_smoke/summary.json")
+    hosted_evidence = _read_json(
+        root / "artifacts/hosted_deployment_evidence/summary.json"
+    )
     plan_text = """# Hosted Deployment Readiness Plan
 
 This is production-facing readiness evidence, not a public deployment claim.
@@ -102,6 +105,9 @@ URLs require explicit owner approval before execution.
 - Hosted smoke: `python -m rfp_rag.hosted_demo_smoke` verifies `/healthz`,
   reviewer-token boundary, `/v1/gates`, `/v1/answer`, and SSE final event
   against a local or HTTPS hosted URL.
+- Hosted evidence: `python -m rfp_rag.hosted_deployment_evidence` validates the
+  post-deploy HTTPS URL, redacted hosted logs, service metrics, and rollback
+  runbook after the owner approves external deployment.
 
 ## Non-Claims
 
@@ -155,6 +161,10 @@ URLs require explicit owner approval before execution.
             and "RFP_RAG_REVIEWER_TOKEN" in render_text
             and "sync: false" in render_text
         ),
+        "hosted_deployment_evidence_pass": _metric(
+            hosted_evidence.get("hosted_deployment_evidence_complete") is True
+            and not hosted_evidence.get("failed")
+        ),
     }
     thresholds = {
         "auth_boundary_documented": 1.0,
@@ -172,6 +182,7 @@ URLs require explicit owner approval before execution.
         "hosted_profile_env_contract": 1.0,
         "hosted_demo_smoke_pass": 1.0,
         "render_blueprint_contract": 1.0,
+        "hosted_deployment_evidence_pass": 0.0,
     }
     failed = [key for key, threshold in thresholds.items() if metrics[key] != threshold]
     summary = {
@@ -179,6 +190,7 @@ URLs require explicit owner approval before execution.
         "deployment_mode": "readiness_plan_no_public_exposure",
         "hosted_deployment_plan_path": "docs/portfolio/hosted-deployment-plan.md",
         "hosted_demo_smoke_path": "artifacts/hosted_demo_smoke/summary.json",
+        "hosted_deployment_evidence_path": "artifacts/hosted_deployment_evidence/summary.json",
         "public_deployment_decision": "requires_explicit_owner_approval",
         "auth_boundary": "signed reviewer token or identity-provider session for hosted mode",
         "rate_limit_boundary": "per-token request rate plus max tool-call budget before provider calls",

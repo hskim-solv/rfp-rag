@@ -98,6 +98,8 @@ def test_evaluate_deployment_readiness_writes_hosted_plan(tmp_path: Path) -> Non
     assert summary["metrics"]["hosted_profile_env_contract"] == 1.0
     assert summary["metrics"]["hosted_demo_smoke_pass"] == 1.0
     assert summary["metrics"]["render_blueprint_contract"] == 1.0
+    assert summary["metrics"]["hosted_deployment_evidence_pass"] == 0.0
+    assert summary["thresholds"]["hosted_deployment_evidence_pass"] == 0.0
     assert (tmp_path / "docs/portfolio/hosted-deployment-plan.md").is_file()
 
 

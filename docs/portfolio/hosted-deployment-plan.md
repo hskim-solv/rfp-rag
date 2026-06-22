@@ -30,6 +30,9 @@ URLs require explicit owner approval before execution.
 - Hosted smoke: `python -m rfp_rag.hosted_demo_smoke` verifies `/healthz`,
   reviewer-token boundary, `/v1/gates`, `/v1/answer`, and SSE final event
   against a local or HTTPS hosted URL.
+- Hosted evidence: `python -m rfp_rag.hosted_deployment_evidence` validates the
+  post-deploy HTTPS URL, redacted hosted logs, service metrics, and rollback
+  runbook after the owner approves external deployment.
 
 ## Non-Claims
 
