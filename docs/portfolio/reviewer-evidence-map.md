@@ -7,22 +7,22 @@ credentials.
 
 ## One-line Claim
 
-Production-adjacent Agentic RAG backend for Korean public RFP intelligence:
+Public-safe hosted reviewer demo for Korean public RFP intelligence:
 source-first document parsing, citation-grounded retrieval, typed LangGraph
-workflow, FastAPI/SSE service surface, guardrails, observability summaries, and
-fail-closed evaluation gates.
+workflow, FastAPI/SSE service surface, reviewer-token boundary, guardrails,
+observability summaries, and fail-closed evaluation gates.
 
 ## 10-minute Review Path
 
 | minute | what to inspect | evidence |
 |---:|---|---|
-| 0-1 | Scope and non-claims | `README.md` Portfolio Status; this is local/container evidence, not hosted production |
+| 0-1 | Scope and non-claims | `README.md` Portfolio Status; this is a constrained hosted reviewer demo, not full production SaaS |
 | 1-2 | Architecture shape | `docs/architecture/system-architecture.md` logical/runtime/agent diagrams |
 | 2-3 | Gate freshness | `python3 -m rfp_rag.gate_status` should report `overall_ok=true` |
 | 3-4 | Portfolio contract | `artifacts/portfolio_readiness.json` should show `portfolio_readiness_check=true` and `interview_readiness_check=true` |
 | 4-5 | RAG quality | `artifacts/eval_real/metrics.json`, `artifacts/eval_stage3_holdout/metrics.json` |
 | 5-6 | Agent workflow | `artifacts/eval_agent_stress/metrics.json`, `artifacts/agent_orchestration/summary.json` |
-| 6-7 | Service/streaming/ops | `artifacts/service_ops/summary.json`, `artifacts/top_tier_demo/summary.json` |
+| 6-7 | Service/streaming/ops | `artifacts/service_ops/summary.json`, `artifacts/top_tier_demo/summary.json`, `artifacts/hosted_demo_smoke/summary.json` |
 | 7-8 | Observability and failures | `artifacts/observability/summary.json`, `docs/portfolio/failed-run-analysis.md`, `docs/evidence/demo-package/03-trace-failure-cost.md` |
 | 8-9 | Security and dependency hygiene | `artifacts/security_redteam/summary.json`, `artifacts/reliability_security/summary.json`, `artifacts/security_alerts/summary.json` |
 | 9-10 | Senior judgment | `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `docs/portfolio/resume-interview-bullets.md` |
@@ -36,6 +36,7 @@ fail-closed evaluation gates.
 | Stage 3 holdout | fixed-corpus query holdout, >=100 queries, strong citation/faithfulness | `document_count=20`, `query_count=100`, `recall@5=1.0`, `mrr=1.0`, `citation_validity=1.0`, `faithfulness=0.9887`, `answer_relevancy=0.8797`; not an unseen-document or public-traffic benchmark |
 | LangGraph agent | typed workflow, retry/reflection, HITL/checkpoint, audit | `trajectory_pass_rate=1.0`; planner-executor evidence is scenario replay evidence, not a dynamic planner runtime claim |
 | Service surface | API, SSE, gates, ops summary | `healthz_pass=1.0`, `answer_pass=1.0`, `stream_pass=1.0`, `gates_pass=1.0`, `ops_summary_pass=1.0`, `full_answer_smoke=true`, `full_gates_smoke=true` |
+| Hosted reviewer demo | HTTPS URL, reviewer-token boundary, public-safe source boundary, redacted hosted ops | `hosted_demo_smoke_complete=true`, `hosted_deployment_evidence_complete=true`, `secret_leak_count=0`, `raw_rfp_text_seen=0` |
 | Observability | trace export, latency, cost, tool outcomes, failure analysis | `trace_provider=local_redacted_artifact_export`, `trace_export_present=1.0`, `failed_run_analysis_count=5`; this is local redacted evidence, not provider telemetry |
 | Security/reliability | prompt injection, secrets/PII, fallback, deterministic replay | `redteam_case_count=20`, `prompt_injection_block_recall=1.0`, `secrets_pii_leak_count=0` |
 | Dependency hygiene | no unresolved unaccepted alert | `open_alerts=[]`, `diskcache_absent=1.0`, `langchain_patched=1.0` |
@@ -61,7 +62,7 @@ case study.
 
 | non-claim | why it is not claimed yet | approval needed before doing it |
 |---|---|---|
-| Hosted cloud production | no public deployment, live traffic, auth session, or incident history exists | yes: cloud provider, spend, public exposure |
+| Full hosted production SaaS | reviewer demo is intentionally constrained; no live traffic, account system, or incident history is claimed | yes: cloud provider, spend, public exposure, tenant/account scope |
 | Public dashboard | dashboard scope changes data disclosure and UI surface | yes: publishable artifact/source policy |
 | Provider billing telemetry | current cost evidence is deterministic from persisted predictions | yes: provider telemetry/API access |
 | Live-traffic SLO | no real user traffic or monitoring window exists | yes: deployed service and monitoring scope |

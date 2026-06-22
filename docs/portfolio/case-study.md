@@ -11,9 +11,9 @@ section, page, and chunk lineage.
 
 The portfolio problem is therefore:
 
-> Build a production-adjacent Agentic RAG system that can answer and route RFP
-> questions with evidence, abstain when unsupported, expose service and tool
-> behavior, and prove quality through repeatable gates.
+> Build a public-safe hosted reviewer demo for an Agentic RAG system that can
+> answer and route RFP questions with evidence, abstain when unsupported, expose
+> service and tool behavior, and prove quality through repeatable gates.
 
 ## Architecture decisions
 
@@ -33,9 +33,10 @@ Key decisions:
   scripts.
 - Gate-first evidence: `gate_status`, `portfolio_check`, and CI fail stale or
   shallow artifacts closed.
-- Production-adjacent wording: claim local/container evidence honestly; do not
-  claim hosted production, live-traffic SLOs, or multi-tenant readiness without
-  deployment evidence.
+- Hosted reviewer demo wording: claim the constrained HTTPS reviewer URL and
+  local/container reproducibility evidence honestly; do not claim full hosted
+  production SaaS, live-traffic SLOs, or multi-tenant readiness without separate
+  production evidence.
 
 ## Evaluation evidence
 
@@ -46,10 +47,10 @@ The project uses layered evidence rather than one vanity score:
 - Stage 2 frozen evidence: query coverage, real metrics, agent stress,
   retrieval bakeoff, visual quality, service ops, deterministic security smoke,
   and cost budget;
-- top-tier evidence: one-command reviewer demo, Stage 3 independent holdout,
+- top-tier evidence: hosted reviewer demo, one-command reviewer demo, Stage 3 independent holdout,
   real observability, upgraded orchestration, security/reliability deepening,
   production-facing readiness artifacts, dependency security hygiene, and this
-  case study are checked separately from hosted-production claims.
+  case study are checked separately from full hosted-production claims.
 
 Representative current checks:
 
@@ -64,7 +65,7 @@ Representative current checks:
 The most important failures found during hardening were not model failures. They
 were portfolio-evidence failures:
 
-- overclaiming production readiness without hosted production evidence;
+- overclaiming production readiness without hosted deployment evidence;
 - treating a frozen evidence set like an independent public-traffic holdout;
 - shallow boolean artifacts that could pass without metrics, thresholds, or
   lineage;
@@ -82,12 +83,14 @@ redaction scans, and explicit non-claims.
 
 What is proven:
 
-- local/container reviewer demo path;
+- public-safe hosted reviewer demo path plus local/container reproducibility;
 - independent Stage 3 holdout quality: `document_count=20`, `query_count=100`,
   `recall@5=1.0`, `mrr=1.0`, `citation_validity=1.0`,
   `faithfulness=0.9887`, `answer_relevancy=0.8797`,
   `unsupported_visual_claim_rate=0.0`, `abstention_precision=1.0`;
 - typed API and SSE service surface;
+- reviewer-token boundary, rate limit, public-safe source boundary, and hosted
+  smoke/evidence artifacts;
 - LangGraph replay evidence for routing, rewriting, abstention, HITL, checkpoint
   closure, and audit redaction;
 - deterministic security smoke and artifact redaction scan;
@@ -102,7 +105,7 @@ What is proven:
 
 What is not claimed yet:
 
-- hosted cloud production;
+- full hosted production SaaS;
 - public multi-tenant dashboard;
 - live-traffic SLOs;
 - provider billing telemetry;
@@ -126,13 +129,14 @@ regressions.
 
 **Why not claim production-grade?**
 
-Because production-grade requires hosted deployment, auth, rate limits,
-monitoring, incident/failure evidence, and live-operational boundaries. This repo
-proves production-adjacent engineering evidence and hosted-deployment readiness
-without claiming public traffic.
+Because full production-grade SaaS requires account/session operations,
+monitoring windows, incident/failure evidence, and live-operational boundaries.
+This repo proves a constrained public-safe hosted reviewer demo without claiming
+public traffic or production SLOs.
 
 **What would you build next?**
 
-Hosted deployment is next: auth, rate limits, public dashboard or trace export,
-provider billing telemetry, and live-traffic SLOs. The repo already keeps those
-separate from the local top-tier portfolio evidence.
+Beyond the reviewer demo, the next phase is full SaaS production: account/session
+operations, public dashboard or trace export, provider billing telemetry, and
+live-traffic SLOs. The repo keeps those separate from the hosted reviewer
+portfolio evidence.

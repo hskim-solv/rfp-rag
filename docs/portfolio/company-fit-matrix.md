@@ -8,9 +8,10 @@ relevant recurring categories for this repo are `agent`, `rag`, `llm`,
 `ai_general`, `ml`, `recommendation_search`, `nlp`, `fde`, `ax`, and `MLOps`.
 
 This matrix keeps the portfolio story honest: one technical project, several
-role-specific framings, no new unsupported claims. The shared claim is
-production-adjacent local/container evidence for Korean public RFPs, not hosted
-production, live-traffic SLO, or provider billing telemetry.
+role-specific framings, no new unsupported claims. The shared claim is a
+public-safe hosted reviewer demo for Korean public RFPs backed by
+local/container reproducibility evidence, not full hosted production SaaS,
+live-traffic SLO, or provider billing telemetry.
 
 ## Positioning Summary
 
@@ -31,13 +32,13 @@ production, live-traffic SLO, or provider billing telemetry.
 | --- | --- | --- |
 | AI Agent Platform Engineering | `rfp_rag/agent`, LangGraph graph, HITL, checkpoints, `artifacts/eval_agent_stress/metrics.json` | "I can design controlled agent workflows where state, retries, approvals, and recovery are inspectable." |
 | Senior AI Agent Engineer | service API, tool contracts, guardrails, eval artifacts, reviewer pack | "This is an agentic backend with bounded tools and measured outcomes, not prompt-only automation." |
-| Enterprise GenAI Platform | FastAPI/Pydantic service, Docker, CI, production readiness, local-only auth boundary | "I can package GenAI capability behind service contracts and fail-closed gates." |
+| Enterprise GenAI Platform | FastAPI/Pydantic service, Docker, CI, production readiness, reviewer-token hosted boundary | "I can package GenAI capability behind service contracts and fail-closed gates." |
 | RAG / Knowledge Base Engineer | source parsing, Qdrant index, citation validity, retrieval bakeoff, holdout metrics | "The RAG source of truth is parsed documents, and quality is measured across retrieval and generation." |
 | RAG Quality / Evaluation Engineer | Stage 2 quality scorecard, deterministic context precision/recall, citation proxy, parser quality | "The quality claim is aggregated into a fail-closed scorecard instead of being scattered across ad hoc artifacts." |
 | Agent Workflow Engineer | Stage 3 agent scorecard, replay coverage, HITL approve/reject, checkpoint/thread isolation | "The agent claim is backed by deterministic trajectory evidence, not just a graph diagram." |
 | LLM Eval | real/stage2/stage3 metrics, judge coverage, thresholds, failed-run analysis | "The project treats evaluation as product infrastructure, not an afterthought." |
 | MLOps / LLMOps / AgentOps | observability report, cost budget, service ops, security smoke, CI gates | "Bad answers and failed runs can be traced through request, retrieval, tool, judge, and artifact layers." |
-| AI Risk / AgentOps Engineer | Stage 4 ops/risk scorecard, red-team gates, dependency security, deployment boundary | "The operating claim is bounded by measured evidence and explicit non-claims for public hosting and live SLOs." |
+| AI Risk / AgentOps Engineer | Stage 4 ops/risk scorecard, red-team gates, dependency security, hosted reviewer boundary | "The operating claim is bounded by measured evidence and explicit non-claims for full SaaS production and live SLOs." |
 | Search Ranking / Recommendation Search | recall/MRR, vector/BM25/hybrid comparison, reranker deferral | "Retrieval choices are benchmarked and only promoted when they win on the same set." |
 | FDE / AX Engineer | demo runbook, company-fit matrix, Korean case study, approval and deployment boundaries | "I can turn a messy business document workflow into a measurable AI system and explain trade-offs to stakeholders." |
 
@@ -73,11 +74,12 @@ production, live-traffic SLO, or provider billing telemetry.
 
 ### AI Platform / LLMOps
 
-- Added local/container production evidence: Docker non-root service,
-  healthcheck, CI smoke, readiness artifacts, cost/latency summaries,
-  observability exports, security smoke, and release/runbook documentation.
-- Kept paid/API, public hosting, credential, and cloud-spend paths explicitly
-  approval-gated.
+- Added public-safe hosted reviewer evidence plus local/container
+  reproducibility evidence: Docker non-root service, healthcheck, CI smoke,
+  readiness artifacts, cost/latency summaries, observability exports, security
+  smoke, and release/runbook documentation.
+- Kept paid/API, full SaaS production, credential-risk, and cloud-spend paths
+  explicitly approval-gated.
 
 ## Evidence Links
 
@@ -92,14 +94,15 @@ production, live-traffic SLO, or provider billing telemetry.
 | RAG quality scorecard | `rfp_rag/stage2_quality_scorecard.py`, `artifacts/stage2_quality_scorecard/summary.json` |
 | ops/risk scorecard | `rfp_rag/stage4_ops_risk_scorecard.py`, `artifacts/stage4_ops_risk_scorecard/summary.json` |
 | final portfolio scorecard | `rfp_rag/final_portfolio_scorecard.py`, `artifacts/final_portfolio_scorecard/summary.json` |
+| hosted reviewer demo | `render.yaml`, `rfp_rag/hosted_demo_smoke.py`, `rfp_rag/hosted_deployment_evidence.py`, `artifacts/hosted_demo_smoke/summary.json`, `artifacts/hosted_deployment_evidence/summary.json` |
 | fresh clone smoke | `rfp_rag/fresh_clone_smoke.py`, `artifacts/fresh_clone_smoke/summary.json` |
 | reviewer path | `docs/portfolio/senior-reviewer-pack.md`, `scripts/reviewer-10m.sh` |
 | Korean interview story | `docs/portfolio/korean-one-page-case-study.md` |
 
 ## Non-fit And Non-claims
 
-- Do not pitch this as full hosted production unless cloud/public deployment is
-  explicitly approved and implemented.
+- Do not pitch this as full hosted production SaaS; the approved hosted claim is
+  a constrained public-safe reviewer demo.
 - Do not pitch this as model-training research, RLHF, custom SLM training, or
   robotics.
 - Do not claim a reranker quality win until a same-set artifact proves it.

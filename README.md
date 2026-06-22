@@ -15,7 +15,7 @@ estimates. 이것은 hosted production SaaS나 live-traffic SLO claim이 아닙�
 Current public claim:
 
 - **What is proven:** senior AI Agent Engineer repo/demo review에 제출 가능한
-  public-safe hosted reviewer demo contract plus local/container evidence
+  public-safe hosted reviewer demo plus local/container reproducibility evidence
   bundle and production-facing readiness artifacts.
   `gate_status`, `portfolio_check`, and credential-free tests agree with the
   generated artifacts when the dependency security gate is complete.
@@ -34,8 +34,9 @@ Current public claim:
   security, dependency hygiene, role fit, and explicit non-claims.
 - **Claim manifest:** the public claim is locked in
   `docs/portfolio/claim-manifest.json`: public-safe hosted reviewer demo plus
-  production-adjacent local/container evidence for Korean public RFPs, not
-  hosted production SaaS, live-traffic SLOs, or provider billing telemetry.
+  production-adjacent local/container reproducibility evidence for Korean public
+  RFPs, not full hosted production SaaS, live-traffic SLOs, or provider billing
+  telemetry.
 - **How to verify final local evidence:**
 
 ```bash
@@ -70,7 +71,7 @@ Latest checked evidence:
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
 | Stage 4 ops/risk scorecard | `artifacts/stage4_ops_risk_scorecard/summary.json`; `docs/portfolio/stage4-ops-risk-scorecard.md` | deterministic scorecard for traces, failed-run analysis, latency/token/cost evidence, service smoke, red-team checks, cost budget, dependency security, and deployment boundaries |
 | Stage 5 final scorecard | `artifacts/fresh_clone_smoke/summary.json`, `artifacts/final_portfolio_scorecard/summary.json`; `docs/portfolio/final-portfolio-scorecard.md` | committed HEAD fresh-clone offline smoke plus weighted senior portfolio scorecard; target `score_total >= 90`, final claim requires `failed=[]` |
-| Public-safe hosted reviewer demo | `render.yaml`; `artifacts/hosted_demo_smoke/summary.json`; `rfp_rag.hosted_demo_smoke`; ADR-0022 | Render Free Docker web service blueprint plus smoke verifier for `/healthz`, reviewer-token boundary, `/v1/gates`, `/v1/answer`, SSE final event, and public-safe synthetic source boundary against a local or approved HTTPS hosted URL |
+| Public-safe hosted reviewer demo | `render.yaml`; `artifacts/hosted_demo_smoke/summary.json`; `artifacts/hosted_deployment_evidence/summary.json`; `rfp_rag.hosted_demo_smoke`; `rfp_rag.hosted_deployment_evidence`; ADR-0022 | Render Free Docker web service blueprint plus smoke/evidence verifier for HTTPS URL, `/healthz`, reviewer-token boundary, `/v1/gates`, `/v1/answer`, SSE final event, redacted logs/metrics, rollback evidence, and public-safe synthetic source boundary |
 | Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 
@@ -80,10 +81,11 @@ Explicit limitations:
   until a same-set paid/API reranker artifact exists. The current ADR-0020
   decision keeps vector because BM25/hybrid do not beat it without regressions.
 - Always-on production SaaS, multi-tenant account/session operations,
-  production monitoring, DNS, and public dashboard are deferred product scopes
-  that require separate credentials, spend, and public-disclosure decisions.
-- No live-traffic production SLO is claimed. Current ops evidence is
-  local/container demo evidence plus deterministic artifact gates.
+  public dashboard, provider billing telemetry, and live-traffic SLOs are
+  deferred product scopes that require separate credentials, spend, and
+  public-disclosure decisions.
+- No live-traffic production SLO is claimed. Current ops evidence is the
+  public-safe reviewer demo plus deterministic local/container artifact gates.
 
 ## Gate Semantics
 
@@ -173,19 +175,20 @@ python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 ```
 
 This check verifies local gate status, guardrail regression, Docker/CI build
-evidence, architecture evidence, ADR links, and Stage 2 readiness. Current
-local evidence passes the local/container portfolio contract; rerun this
-command before citing the repo because stale artifacts fail closed. A green
-portfolio check does not claim hosted production operation, provider billing
-telemetry, or public-dashboard readiness.
+evidence, architecture evidence, ADR links, Stage 2 readiness, and hosted
+reviewer evidence. Current evidence must pass the public-safe hosted reviewer
+contract; rerun this command before citing the repo because stale or missing
+hosted artifacts fail closed. A green portfolio check does not claim full
+hosted production operation, provider billing telemetry, or public-dashboard
+readiness.
 
 The same report now includes `top_tier_readiness` for the next portfolio level:
 one-command reviewer demo, Stage 3 independent holdout, real observability,
 upgraded agent orchestration, deeper security/reliability evidence, and a senior
 case study. The CLI also reports `interview_readiness_check`, which is stricter
 than `portfolio_readiness_check` and requires top-tier plus production-facing
-evidence. Local top-tier evidence can pass while hosted production, public
-dashboard, and live-traffic SLO claims stay out of scope.
+evidence. Hosted reviewer evidence can pass while full hosted production,
+public dashboard, and live-traffic SLO claims stay out of scope.
 
 Top-tier one-command demo smoke:
 

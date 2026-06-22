@@ -1,19 +1,19 @@
 # Tool Contract Matrix
 
 This matrix records the current tool and service contracts for senior AI Agent
-Engineer review. It is not a hosted-production claim. Hosted auth, per-user
-quotas, public dashboard access, and external telemetry remain approval-gated
-scopes.
+Engineer review. It supports the public-safe hosted reviewer demo claim, not a
+full hosted-production SaaS claim. Multi-tenant auth, public dashboard access,
+provider billing telemetry, and live-traffic SLOs remain approval-gated scopes.
 
 ## Service Endpoints
 
 | surface | schema | side effect | auth/rate-limit boundary | timeout/output cap | redaction/audit | error fields |
 |---|---|---|---|---|---|---|
-| `GET /healthz` | no input; `{"ok": true, "service": "rfp-rag"}` output | read-only | local/container reviewer mode; hosted token/rate limit not implemented | local runtime only | no sensitive payload | HTTP status |
-| `POST /v1/answer` | `AnswerRequest` fields include `question`, `index_dir`, `provider`, `retrieval_mode`, `reranker`, `rerank_candidate_k`, `visual_candidates`, `visual_gate`; `AnswerResponse` returns answer, confidence, warnings, ids, scores | read-only answer generation over local index | `provider=offline`, `retrieval_mode=vector`, `reranker=none`; hosted auth/rate limit is non-claim | bounded by local request runtime; no provider calls in service mode | citations/ids are returned, not raw secrets | FastAPI validation plus guardrail `400` with `detail.code` |
-| `POST /v1/answer/stream` | same request; SSE `status` then `final` on success | read-only streaming answer | same as `/v1/answer`; streaming budget is future hosted boundary | local SSE smoke only | streamed payload follows answer response policy | HTTP status/SSE event; explicit SSE `error` event remains future hosted hardening |
-| `GET /v1/gates` | optional `root` query param constrained to repo root; local gate status output | read-only artifact inspection | local artifact boundary only | full gate path is required by `artifacts/service_ops/summary.json`; full smoke requires `overall_ok=true` | aggregate gate fields; no raw RFP source | HTTP status |
-| `GET /v1/ops/summary` | artifact path params under allowed prefixes | read-only artifact summary | local artifact boundary only | local summary runtime; path traversal rejected | counts/cost estimates/tool summaries only | HTTP `400` on unsafe paths |
+| `GET /healthz` | no input; `{"ok": true, "service": "rfp-rag"}` output | read-only | public health check in local and hosted reviewer mode | hosted ingress/runtime timeout | no sensitive payload | HTTP status |
+| `POST /v1/answer` | `AnswerRequest` fields include `question`, `index_dir`, `provider`, `retrieval_mode`, `reranker`, `rerank_candidate_k`, `visual_candidates`, `visual_gate`; `AnswerResponse` returns answer, confidence, warnings, ids, scores | read-only answer generation; hosted demo uses public-safe deterministic provider | local `provider=offline`; hosted reviewer mode requires `RFP_RAG_REVIEWER_TOKEN` and `RFP_RAG_RATE_LIMIT_PER_MINUTE` | bounded by service runtime; public demo mode performs no paid provider calls | citations/ids are returned; hosted demo sources are synthetic/public-safe, not raw RFP text | FastAPI validation plus guardrail `400`/`401`/`429` with `detail.code` |
+| `POST /v1/answer/stream` | same request; SSE `status` then `final` on success, `error` on guardrail/runtime failure | read-only streaming answer | same reviewer-token and rate-limit boundary as `/v1/answer` | bounded by service runtime and SSE termination contract | streamed payload follows answer response policy | HTTP status/SSE event including explicit `error` event |
+| `GET /v1/gates` | optional `root` query param constrained to repo root; local gate status output | read-only artifact inspection | hosted reviewer mode requires reviewer token; local artifact boundary only | full gate path is required by `artifacts/service_ops/summary.json`; full smoke requires `overall_ok=true` | aggregate gate fields; no raw RFP source | HTTP status |
+| `GET /v1/ops/summary` | artifact path params under allowed prefixes | read-only artifact summary | hosted reviewer mode requires reviewer token; local artifact boundary only | local summary runtime; path traversal rejected | counts/cost estimates/tool summaries only | HTTP `400` on unsafe paths |
 
 ## MCP-style Ops Tools
 
@@ -34,5 +34,5 @@ scopes.
   portfolio surface. The current workload is source-first RFP artifacts, so
   unbounded web/browser access would weaken publishability and reproducibility.
 - Runtime descriptors now enforce local duration measurement and serialized
-  response byte caps. Full hosted DoS controls still require separate
-  implementation before public exposure.
+  response byte caps. Hosted reviewer mode adds token and rate-limit boundaries,
+  but full SaaS DoS controls remain outside the reviewer-demo claim.

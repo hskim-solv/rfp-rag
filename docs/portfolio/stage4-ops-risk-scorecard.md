@@ -42,9 +42,10 @@ The scorecard makes the operating story reviewable in one place. It aggregates:
 
 ## Important Non-claim
 
-This is local/container operations evidence. It does not claim a public hosted
-service, live-traffic SLO, incident history, or provider billing telemetry.
+This is reviewer-demo operations evidence. It does not claim full hosted
+production SaaS, live-traffic SLO, incident history, or provider billing
+telemetry.
 
 Latency values are preserved as local measured evidence. They are not presented
-as production SLOs until hosted deployment, auth, rate limiting, and monitoring
-scope are explicitly approved.
+as production SLOs until live traffic, monitoring windows, incident response
+scope, and SLO targets are explicitly approved.

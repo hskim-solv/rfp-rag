@@ -1,10 +1,10 @@
 # Senior AI Agent Engineer Portfolio Demo Runbook
 
 This runbook is the reviewer-facing demo path for the RFP Agentic RAG system.
-It shows production-adjacent local/container engineering evidence without
-exposing raw RFP text, secrets, or provider credentials. It does not claim
-hosted production, live-traffic SLO, provider billing telemetry, or a reranker
-quality win.
+It shows a public-safe hosted reviewer demo backed by local/container
+reproducibility evidence without exposing raw RFP text, secrets, or provider
+credentials. It does not claim full hosted production SaaS, live-traffic SLO,
+provider billing telemetry, or a reranker quality win.
 
 ## Demo Goal
 
@@ -15,7 +15,7 @@ separate track.
 - source-first Korean HWP/PDF ingestion for 100 RFP documents;
 - citation-grounded RAG with real-lane quality evidence;
 - LangGraph agent orchestration with checkpoint/HITL and bounded tool behavior;
-- FastAPI/Pydantic/SSE service surface;
+- FastAPI/Pydantic/SSE service surface plus HTTPS reviewer-token demo boundary;
 - artifact-backed evaluation, deterministic security smoke, ops, and
   token/cost-estimate gates.
 
@@ -30,8 +30,9 @@ checklist.
 - Do not show `.env`, API keys, raw prompts, raw provider responses, checkpoint
   databases, or full private/raw RFP text.
 - Prefer redacted artifact summaries, document IDs, metrics, and citations.
-- Use local artifacts as evidence. Cloud deployment and public dashboard are
-  explicitly deferred scopes.
+- Use public-safe hosted artifacts and local reproducibility artifacts as
+  evidence. Public dashboard and full SaaS production are explicitly deferred
+  scopes.
 - Do not claim a reranker quality win. ADR-0020 keeps vector until a same-set
   reranker artifact wins without regressions.
 - For screen sharing, show answer summaries, citation ids, gate booleans, and
@@ -63,6 +64,8 @@ Expected evidence:
 - `portfolio_readiness.json`: `portfolio_readiness_check=true`,
   `local_evidence_bundle_check=true`, `second_stage_readiness.complete=true`,
   `stage2_contract_schema_enforced=true`, `failed=[]`.
+- `hosted_deployment_evidence`: HTTPS URL, hosted smoke, redacted logs/metrics,
+  rollback evidence, and public-safe corpus boundary all pass.
 - pytest: credential-free offline tests pass without `OPENAI_API_KEY`.
 
 If any of these fail, stop the portfolio-readiness claim and say which artifact
@@ -83,13 +86,14 @@ paid/API approval before running.
 
 1. Open `docs/portfolio/reviewer-evidence-map.md` and state the one-line
    project:
-   production-adjacent Agentic RAG backend for 100 Korean public RFP HWP/PDF
-   documents, verified through local/container evidence.
+   public-safe hosted reviewer demo for an Agentic RAG backend over 100 Korean
+   public RFP HWP/PDF documents, backed by local/container reproducibility
+   evidence.
 2. Open `docs/portfolio/korean-one-page-case-study.md` and use it as the Korean
    interview summary: why this is agent/backend engineering evidence, not a
    generic chatbot.
 3. Open `README.md` Portfolio Status and point to the explicit non-claims:
-   no hosted cloud production, public dashboard, live traffic SLO, provider
+   no full hosted production SaaS, public dashboard, live traffic SLO, provider
    billing telemetry, or reranker quality win.
 4. Open `docs/architecture/system-architecture.md` and show the flow:
    source parsing -> chunk/index -> retrieval -> LangGraph agent/service ->
@@ -121,9 +125,9 @@ paid/API approval before running.
    `artifacts/cost_budget/summary.json`,
    `artifacts/observability/summary.json`.
 10. Close with the limitation statement:
-    local/container demo evidence is complete; cloud deployment, public
-    dashboard, live traffic SLOs, and reranker quality-win evidence are deferred
-    scopes, not hidden claims.
+    the public-safe reviewer URL is a constrained demo; full SaaS production,
+    public dashboard, live traffic SLOs, and reranker quality-win evidence are
+    deferred scopes, not hidden claims.
 
 ## Tool Contract Matrix
 

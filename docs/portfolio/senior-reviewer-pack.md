@@ -12,10 +12,10 @@ it turns hard HWP/PDF procurement files into citation-grounded answers through
 measured parsing, retrieval, LangGraph orchestration, guarded tools, service
 contracts, local observability, and fail-closed portfolio gates.
 
-Boundary: the Stage 5 claim manifest defines this as production-adjacent
-local/container evidence for a senior portfolio. It does not claim public
-hosted production, live-traffic SLOs, provider billing telemetry, or unmanaged
-paid-provider execution.
+Boundary: the Stage 5 claim manifest defines this as a public-safe hosted
+reviewer demo backed by local/container reproducibility evidence. It does not
+claim full hosted production SaaS, live-traffic SLOs, provider billing
+telemetry, or unmanaged paid-provider execution.
 
 ## Why This Is Not A Toy RAG Demo
 
@@ -82,7 +82,7 @@ reports `score_total >= 90` and `failed=[]`.
 | source-first RAG quality | 20 | `artifacts/eval_real`, `artifacts/eval_stage2_real`, `artifacts/eval_stage3_holdout` |
 | agentic engineering depth | 20 | `rfp_rag/agent`, `artifacts/eval_agent_stress`, agent orchestration docs |
 | evaluation rigor | 15 | `portfolio_check`, golden/holdout artifacts, failed-run analysis |
-| production operations | 15 | Dockerfile, CI, `production_readiness`, service ops, observability |
+| production operations | 15 | Dockerfile, CI, hosted smoke/evidence, `production_readiness`, service ops, observability |
 | guardrails/security | 10 | `security_redteam`, guardrail regression, tool contract matrix |
 | hiring presentation | 10 | company-fit matrix, README, demo runbook, resume bullets |
 
@@ -90,7 +90,7 @@ reports `score_total >= 90` and `failed=[]`.
 
 | time | screen | talk track |
 | ---: | --- | --- |
-| 0:00-0:30 | README Portfolio Status | "This is a source-first Agentic RAG backend for Korean public RFPs. The claim is local/container production evidence, not hosted SaaS." |
+| 0:00-0:30 | README Portfolio Status | "This is a source-first Agentic RAG backend for Korean public RFPs. The claim includes a public-safe hosted reviewer demo, not full production SaaS." |
 | 0:30-1:00 | Architecture diagram | "The hard part is the evidence chain: HWP/PDF parsing, chunking, retrieval, agent workflow, service, tools, and gates." |
 | 1:00-1:45 | `./scripts/reviewer-10m.sh` | "The reviewer can regenerate gates and credential-free tests. If artifacts are stale, the claim closes." |
 | 1:45-2:30 | RAG/eval artifacts | "Quality is measured by recall, MRR, faithfulness, relevancy, and citation validity, with explicit thresholds and caveats." |
@@ -116,6 +116,10 @@ reports `score_total >= 90` and `failed=[]`.
 - `artifacts/stage4_ops_risk_scorecard/summary.json`: trace, failed-run,
   latency/token/cost, service, red-team, dependency, and deployment-boundary
   scorecard.
+- `artifacts/hosted_demo_smoke/summary.json` and
+  `artifacts/hosted_deployment_evidence/summary.json`: HTTPS reviewer demo,
+  token boundary, public-safe source boundary, redacted logs/metrics, and
+  rollback evidence.
 - `artifacts/fresh_clone_smoke/summary.json`: committed HEAD fresh clone,
   credential-free synthetic corpus, `ruff`, and `pytest -m "not real"` smoke.
 - `artifacts/final_portfolio_scorecard/summary.json`: weighted senior

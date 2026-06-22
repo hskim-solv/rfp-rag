@@ -62,9 +62,12 @@ SAFE_NON_CLAIM_QUALIFIERS = (
     "not claimed",
     "do not claim",
     "does not claim",
+    "not full",
     "not hosted",
     "no hosted",
     "not yet proven",
+    "deferred product scopes",
+    "the repo claims only",
     "without hosted production",
     "without approved",
     "requires separate",
@@ -185,9 +188,19 @@ def _docs_claim_consistency_pass(
         if not text:
             missing_or_drifted.append(rel)
             continue
-        if "production-adjacent" not in text:
+        has_hosted_reviewer_claim = (
+            "public-safe hosted reviewer demo" in text
+            or "hosted reviewer demo" in text
+            or "hosted reviewer claim" in text
+        )
+        has_reproducibility_claim = (
+            "local/container" in text
+            or "local reproducibility" in text
+            or "reproducibility evidence" in text
+        )
+        if not has_hosted_reviewer_claim or not has_reproducibility_claim:
             missing_or_drifted.append(rel)
-        if "hosted" not in text and "live-traffic" not in text:
+        if "slo" not in text and "provider billing telemetry" not in text:
             missing_or_drifted.append(rel)
     return (not missing_or_drifted, sorted(set(missing_or_drifted)))
 

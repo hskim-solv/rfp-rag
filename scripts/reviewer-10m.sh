@@ -59,6 +59,7 @@ for path in \
   artifacts/stage3_agent_scorecard/summary.json \
   artifacts/stage4_ops_risk_scorecard/summary.json \
   artifacts/hosted_demo_smoke/summary.json \
+  artifacts/hosted_deployment_evidence/summary.json \
   artifacts/fresh_clone_smoke/summary.json \
   artifacts/final_portfolio_scorecard/summary.json \
   artifacts/eval_real/metrics.json \

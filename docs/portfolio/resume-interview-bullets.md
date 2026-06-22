@@ -1,12 +1,14 @@
 # Resume and Interview Bullets
 
-Use these bullets only with the current local evidence bundle. Before submitting
-or presenting, rerun:
+Use these bullets only when the public-safe hosted reviewer demo evidence and
+local reproducibility evidence are current. Before submitting or presenting,
+rerun:
 
 ```bash
 python3 -m rfp_rag.gate_status
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m rfp_rag.production_readiness
+uv run python -m rfp_rag.final_portfolio_scorecard --out artifacts/final_portfolio_scorecard/summary.json
 uv run python -m pytest -m "not real" -q
 ```
 
@@ -18,17 +20,18 @@ PATH="$PWD/.venv/bin:$PATH" python3 -m pytest -m "not real" -q
 
 ## Resume Bullets
 
-- Built a production-adjacent Agentic RAG backend for 100 Korean public RFP
-  HWP/PDF documents, using parsed source artifacts as the RAG body source of
-  truth and CSV only as a metadata registry.
+- Built a public-safe hosted reviewer demo for an Agentic RAG backend over 100
+  Korean public RFP HWP/PDF documents, using parsed source artifacts as the RAG
+  body source of truth and CSV only as a metadata registry.
 - Implemented FastAPI/Pydantic async service surfaces, SSE streaming checks,
   constrained LangGraph typed-state orchestration, guarded tool calls,
   checkpoint/HITL approval paths, and deterministic agent stress replay
   artifacts to reduce stale-evidence, uncontrolled-tool, and approval-risk
   failure modes.
-- Established artifact-backed local/container quality gates across real RAG
-  quality, Stage 2 evidence contracts, retrieval bakeoff, visual/table evidence,
-  service smoke, deterministic security smoke, and token/cost estimate checks.
+- Established artifact-backed quality gates across hosted reviewer smoke,
+  hosted deployment evidence, real RAG quality, Stage 2 evidence contracts,
+  retrieval bakeoff, visual/table evidence, service smoke, deterministic security
+  smoke, and token/cost estimate checks.
 - Verified current readiness with `gate_status overall_ok=true`,
   `portfolio_readiness_check=true`,
   `stage2_contract_schema_enforced=true`, and credential-free offline tests
@@ -36,8 +39,9 @@ PATH="$PWD/.venv/bin:$PATH" python3 -m pytest -m "not real" -q
   `interview_readiness_check` additionally requires top-tier and dependency
   security evidence.
 - Added production-facing reviewer packaging: 3-minute demo storyboard,
-  generated evidence artifacts, hosted-deployment readiness plan, auth/rate-limit
-  and secret-handling boundaries, and a fail-closed dependency security register.
+  generated evidence artifacts, hosted-deployment readiness plan, reviewer-token
+  auth/rate-limit and secret-handling boundaries, and a fail-closed dependency
+  security register.
 - Measured parsed-source real-lane quality under `rfp-rag-real-v6` with
   `recall@5=1.0`, `mrr=0.9922`, citation presence/validity `1.0`,
   `faithfulness=0.9369`, and `answer_relevancy=0.8109`; Stage 2 answer
@@ -50,19 +54,19 @@ PATH="$PWD/.venv/bin:$PATH" python3 -m pytest -m "not real" -q
 
 ## 60-second Interview Pitch
 
-I built a production-adjacent Agentic RAG backend around a hard Korean document
+I built a public-safe hosted reviewer demo around a hard Korean document
 workload: 100 public RFP HWP/PDF files. The important design choice is
 source-first ingestion(원문 우선 적재): the RAG body comes from parsed source
 artifacts, while CSV is only metadata. On top of that I implemented a thin
 FastAPI service surface, constrained LangGraph typed-state orchestration,
-guarded tools, checkpoint/HITL behavior, and artifact-backed gates for
-retrieval, generation, agent stress, visual/table evidence, service smoke,
-deterministic security smoke, and token/cost estimates. The repo does not ask
-reviewers to trust a demo; `gate_status`, `portfolio_check`,
-`production_readiness`, and credential-free tests prove whether the
-local/container evidence bundle is current. I also
+guarded tools, checkpoint/HITL behavior, and artifact-backed gates for hosted
+smoke, hosted deployment evidence, retrieval, generation, agent stress,
+visual/table evidence, deterministic security smoke, and token/cost estimates.
+The repo does not ask reviewers to trust a demo; `gate_status`,
+`portfolio_check`, `production_readiness`, `final_portfolio_scorecard`, and
+credential-free tests prove whether the hosted reviewer claim is current. I also
 documented trade-offs honestly: vector remains the baseline until hybrid or
-reranking wins on the same frozen set, and cloud/live-traffic evidence is
+reranking wins on the same frozen set, and full SaaS/live-traffic evidence is
 deferred rather than implied.
 
 ## Attack Questions and Answers
@@ -101,10 +105,12 @@ state redaction or agent-level tool-call budgeting yet.
 
 **What is not proven yet?**
 
-The repo does not claim public cloud deployment, auth/session/rate-limit
-operation, live production traffic SLOs, provider billing telemetry, or a public
-dashboard. Those are separate product, credential, and disclosure decisions. The
-current claim is local/containerized portfolio evidence with passing gates.
+The repo claims only a constrained public-safe hosted reviewer demo, not full
+public cloud production, multi-tenant auth/session operation, live production
+traffic SLOs, provider billing telemetry, or a public dashboard. Those are
+separate product, credential, and disclosure decisions. The current claim opens
+only when hosted smoke, hosted deployment evidence, local reproducibility, and
+portfolio gates all pass.
 
 **What dependency risk remains?**
 

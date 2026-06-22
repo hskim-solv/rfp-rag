@@ -20,10 +20,10 @@ def _write_json(path: Path, payload: dict) -> None:
 
 def _complete_root(root: Path) -> None:
     shared_story = (
-        "public-safe hosted reviewer demo for a production-adjacent Agentic RAG "
-        "backend with source-first Korean public RFP evidence. It does not claim "
-        "hosted cloud production, live-traffic SLO, provider billing telemetry, "
-        "or reranker quality win."
+        "public-safe hosted reviewer demo for an Agentic RAG backend with "
+        "source-first Korean public RFP evidence and local/container "
+        "reproducibility evidence. It does not claim hosted cloud production, "
+        "live-traffic SLO, provider billing telemetry, or reranker quality win."
     )
     for rel in (
         "README.md",

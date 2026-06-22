@@ -229,8 +229,8 @@ Target reviewer: Korean senior AI agent engineer interviewer.
 
 - State the product problem: Korean public RFP documents are complex,
   table-heavy, and citation-sensitive.
-- State the non-claim: this is local/container production-adjacent evidence, not
-  a public hosted service.
+- State the claim boundary: this is a public-safe hosted reviewer demo backed by
+  local/container reproducibility evidence, not full production SaaS.
 
 ## 0:30-1:20 One-Command Demo
 
@@ -252,8 +252,8 @@ Target reviewer: Korean senior AI agent engineer interviewer.
 ## 2:45-3:00 Senior Defense
 
 - Explain why vector retrieval remains until a measured reranker win exists.
-- Explain hosted deployment, auth, rate limit, and live SLOs as explicit future
-  production decisions, not hidden claims.
+- Explain full SaaS production, public dashboard, provider billing telemetry,
+  and live SLOs as explicit future production decisions, not hidden claims.
 """
     _write_text(storyboard_path, storyboard)
     metrics = {
