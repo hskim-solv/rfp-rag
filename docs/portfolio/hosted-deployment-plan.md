@@ -7,6 +7,8 @@ URLs require explicit owner approval before execution.
 ## Target Shape
 
 - Runtime: containerized FastAPI service behind a managed HTTPS ingress.
+- Render Blueprint: `render.yaml` defines a free Docker web service with
+  `/healthz`, public demo env, rate limit env, and an unsynced reviewer token.
 - Public-safe reviewer profile: the checked-in service can run with
   `RFP_RAG_PUBLIC_DEMO_MODE=1` to serve deterministic publishable evidence
   without provider credentials or raw RFP source text.

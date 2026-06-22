@@ -67,6 +67,7 @@ def evaluate_deployment_readiness(
     plan_path = root / "docs/portfolio/hosted-deployment-plan.md"
     dockerfile_text = _read_text(root / "Dockerfile")
     ci_text = _read_text(root / ".github/workflows/ci.yml")
+    render_text = _read_text(root / "render.yaml")
     service_text = _read_text(root / "rfp_rag/service/app.py")
     hosted_smoke = _read_json(root / "artifacts/hosted_demo_smoke/summary.json")
     plan_text = """# Hosted Deployment Readiness Plan
@@ -78,6 +79,8 @@ URLs require explicit owner approval before execution.
 ## Target Shape
 
 - Runtime: containerized FastAPI service behind a managed HTTPS ingress.
+- Render Blueprint: `render.yaml` defines a free Docker web service with
+  `/healthz`, public demo env, rate limit env, and an unsynced reviewer token.
 - Public-safe reviewer profile: the checked-in service can run with
   `RFP_RAG_PUBLIC_DEMO_MODE=1` to serve deterministic publishable evidence
   without provider credentials or raw RFP source text.
@@ -117,6 +120,7 @@ URLs require explicit owner approval before execution.
         "one_command_fallback_documented": 1.0,
         "docker_non_root_user": _metric("USER appuser" in dockerfile_text),
         "docker_healthcheck": _metric("HEALTHCHECK" in dockerfile_text),
+        "docker_render_port_fallback": _metric("${PORT:-8000}" in dockerfile_text),
         "ci_docker_runtime_smoke": _metric(
             "Run service health" in ci_text and "/healthz" in ci_text
         ),
@@ -141,6 +145,16 @@ URLs require explicit owner approval before execution.
             and (hosted_smoke.get("metrics") or {}).get("public_safe_sources_pass")
             == 1.0
         ),
+        "render_blueprint_contract": _metric(
+            "type: web" in render_text
+            and "runtime: docker" in render_text
+            and "plan: free" in render_text
+            and "healthCheckPath: /healthz" in render_text
+            and "RFP_RAG_PUBLIC_DEMO_MODE" in render_text
+            and "RFP_RAG_RATE_LIMIT_PER_MINUTE" in render_text
+            and "RFP_RAG_REVIEWER_TOKEN" in render_text
+            and "sync: false" in render_text
+        ),
     }
     thresholds = {
         "auth_boundary_documented": 1.0,
@@ -150,12 +164,14 @@ URLs require explicit owner approval before execution.
         "one_command_fallback_documented": 1.0,
         "docker_non_root_user": 1.0,
         "docker_healthcheck": 1.0,
+        "docker_render_port_fallback": 1.0,
         "ci_docker_runtime_smoke": 1.0,
         "ci_answer_contract_smoke": 1.0,
         "sse_error_event_contract": 1.0,
         "local_reviewer_profile_documented": 1.0,
         "hosted_profile_env_contract": 1.0,
         "hosted_demo_smoke_pass": 1.0,
+        "render_blueprint_contract": 1.0,
     }
     failed = [key for key, threshold in thresholds.items() if metrics[key] != threshold]
     summary = {
@@ -168,6 +184,7 @@ URLs require explicit owner approval before execution.
         "rate_limit_boundary": "per-token request rate plus max tool-call budget before provider calls",
         "secret_handling_boundary": "environment or secret manager only; redacted traces and artifacts",
         "container_runtime_contract": "non-root Docker image with /healthz HEALTHCHECK",
+        "render_blueprint_path": "render.yaml",
         "service_failure_contract": "HTTP structured errors and SSE error events",
         "metrics": metrics,
         "thresholds": thresholds,

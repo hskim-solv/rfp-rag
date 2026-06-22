@@ -19,7 +19,29 @@ def _write(path: Path, text: str) -> None:
 def _write_deployment_contract_files(root: Path) -> None:
     _write(
         root / "Dockerfile",
-        "FROM python:3.13-slim\nUSER appuser\nHEALTHCHECK CMD true\n",
+        "FROM python:3.13-slim\nUSER appuser\nHEALTHCHECK CMD true\n${PORT:-8000}\n",
+    )
+    _write(
+        root / "render.yaml",
+        "\n".join(
+            [
+                "services:",
+                "  - type: web",
+                "    name: rfp-rag-reviewer-demo",
+                "    runtime: docker",
+                "    dockerfilePath: ./Dockerfile",
+                "    plan: free",
+                "    healthCheckPath: /healthz",
+                "    envVars:",
+                "      - key: RFP_RAG_PUBLIC_DEMO_MODE",
+                '        value: "1"',
+                "      - key: RFP_RAG_RATE_LIMIT_PER_MINUTE",
+                '        value: "20"',
+                "      - key: RFP_RAG_REVIEWER_TOKEN",
+                "        sync: false",
+                "",
+            ]
+        ),
     )
     _write(
         root / ".github/workflows/ci.yml",
@@ -75,6 +97,7 @@ def test_evaluate_deployment_readiness_writes_hosted_plan(tmp_path: Path) -> Non
     assert summary["metrics"]["sse_error_event_contract"] == 1.0
     assert summary["metrics"]["hosted_profile_env_contract"] == 1.0
     assert summary["metrics"]["hosted_demo_smoke_pass"] == 1.0
+    assert summary["metrics"]["render_blueprint_contract"] == 1.0
     assert (tmp_path / "docs/portfolio/hosted-deployment-plan.md").is_file()
 
 

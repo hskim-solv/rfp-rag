@@ -22,6 +22,6 @@ USER appuser
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD uv run --no-sync python -c "import json, urllib.request; payload=json.load(urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)); raise SystemExit(0 if payload.get('ok') is True and payload.get('service') == 'rfp-rag' else 1)"
+    CMD uv run --no-sync python -c "import json, os, urllib.request; port=os.getenv('PORT', '8000'); payload=json.load(urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=2)); raise SystemExit(0 if payload.get('ok') is True and payload.get('service') == 'rfp-rag' else 1)"
 
-CMD ["uv", "run", "--no-sync", "uvicorn", "rfp_rag.service.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uv run --no-sync uvicorn rfp_rag.service.app:app --host 0.0.0.0 --port ${PORT:-8000}"]

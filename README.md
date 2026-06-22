@@ -70,7 +70,7 @@ Latest checked evidence:
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
 | Stage 4 ops/risk scorecard | `artifacts/stage4_ops_risk_scorecard/summary.json`; `docs/portfolio/stage4-ops-risk-scorecard.md` | deterministic scorecard for traces, failed-run analysis, latency/token/cost evidence, service smoke, red-team checks, cost budget, dependency security, and deployment boundaries |
 | Stage 5 final scorecard | `artifacts/fresh_clone_smoke/summary.json`, `artifacts/final_portfolio_scorecard/summary.json`; `docs/portfolio/final-portfolio-scorecard.md` | committed HEAD fresh-clone offline smoke plus weighted senior portfolio scorecard; target `score_total >= 90`, final claim requires `failed=[]` |
-| Public-safe hosted reviewer demo | `artifacts/hosted_demo_smoke/summary.json`; `rfp_rag.hosted_demo_smoke`; ADR-0022 | verifies `/healthz`, reviewer-token boundary, `/v1/gates`, `/v1/answer`, SSE final event, and public-safe synthetic source boundary against a local or approved HTTPS hosted URL |
+| Public-safe hosted reviewer demo | `render.yaml`; `artifacts/hosted_demo_smoke/summary.json`; `rfp_rag.hosted_demo_smoke`; ADR-0022 | Render Free Docker web service blueprint plus smoke verifier for `/healthz`, reviewer-token boundary, `/v1/gates`, `/v1/answer`, SSE final event, and public-safe synthetic source boundary against a local or approved HTTPS hosted URL |
 | Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 
@@ -437,6 +437,30 @@ Ops summary example:
 ```bash
 curl -s 'http://127.0.0.1:8000/v1/ops/summary?eval_dir=artifacts/eval&audit_path=artifacts/eval_agent/agent_artifacts/audit.jsonl'
 ```
+
+## Public-Safe Hosted Reviewer Demo
+
+The approved first hosted target is a public-safe reviewer demo, not a
+production SaaS claim. `render.yaml` defines a Render Free Docker web service
+with:
+
+- `RFP_RAG_PUBLIC_DEMO_MODE=1`;
+- `RFP_RAG_RATE_LIMIT_PER_MINUTE=20`;
+- `RFP_RAG_REVIEWER_TOKEN` as an unsynced secret set by the owner in Render.
+
+After the owner approves external deployment and creates the Render service,
+verify the hosted URL with:
+
+```bash
+uv run python -m rfp_rag.hosted_demo_smoke \
+  --base-url https://<render-service-url> \
+  --reviewer-token "$RFP_RAG_REVIEWER_TOKEN" \
+  --out artifacts/hosted_demo_smoke/summary.json
+```
+
+This smoke requires the hosted response provider to be `public_demo` and fails
+closed if the answer path exposes raw RFP text, lacks public-safe synthetic
+sources, omits the reviewer-token boundary, or misses the SSE final event.
 
 ## MCP-style ops tool server
 

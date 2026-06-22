@@ -58,6 +58,10 @@ separate explicit approval immediately before execution.
   - `RFP_RAG_PUBLIC_DEMO_MODE=1`
   - `RFP_RAG_REVIEWER_TOKEN=<owner-provided reviewer token>`
   - `RFP_RAG_RATE_LIMIT_PER_MINUTE=<small integer>`
+- Deployment config: `render.yaml` defines a Render Free Docker web service
+  with `healthCheckPath: /healthz` and keeps `RFP_RAG_REVIEWER_TOKEN` unsynced.
+- Runtime port: `Dockerfile` honors Render's `PORT` env with local fallback
+  `${PORT:-8000}`.
 - Smoke command after deployment:
 
 ```bash

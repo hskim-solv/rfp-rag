@@ -8,6 +8,7 @@
     "deterministic_stage3_agent_workflow_scorecard",
     "deterministic_stage4_ops_risk_scorecard",
     "fastapi_docker_ci_local_runtime_smoke",
+    "render_free_blueprint_for_reviewer_demo",
     "public_safe_hosted_reviewer_demo_smoke",
     "credential_free_fresh_clone_offline_smoke",
     "public_safe_reviewer_package"

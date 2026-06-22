@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: rfp-rag-reviewer-demo
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: RFP_RAG_PUBLIC_DEMO_MODE
+        value: "1"
+      - key: RFP_RAG_RATE_LIMIT_PER_MINUTE
+        value: "20"
+      - key: RFP_RAG_REVIEWER_TOKEN
+        sync: false
