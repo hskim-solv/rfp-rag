@@ -12,7 +12,16 @@ def _write(path: Path, text: str = "ok") -> None:
 
 
 def _minimal_ready_root(root: Path) -> None:
-    _write(root / "README.md", "docs/architecture/system-architecture.md\n")
+    _write(
+        root / "README.md",
+        "\n".join(
+            [
+                "docs/architecture/system-architecture.md",
+                "docs/portfolio/senior-reviewer-pack.md",
+                "docs/portfolio/company-fit-matrix.md",
+            ]
+        ),
+    )
     _write(root / "REPORT.md", "Architecture evidence map\n")
     _write(root / "Dockerfile", "FROM python:3.13-slim\n")
     _write(
@@ -21,6 +30,14 @@ def _minimal_ready_root(root: Path) -> None:
     )
     _write(
         root / "docs/architecture/system-architecture.md", "## Operational Boundaries\n"
+    )
+    _write(
+        root / "docs/portfolio/senior-reviewer-pack.md",
+        "10-minute Review Path\nScorecard Target\n",
+    )
+    _write(
+        root / "docs/portfolio/company-fit-matrix.md",
+        "Tier A 21 roles and Tier B 107 roles\nAI Agent Platform Engineering\n",
     )
     _write(root / "docs/adr/0014-fastapi-service-surface.md")
     _write(root / "docs/adr/0015-docker-ci-baseline.md")
@@ -648,6 +665,25 @@ def test_collect_portfolio_readiness_requires_paid_lane_plan(
 
     failed = {item["id"] for item in report["failed"]}
     assert "paid_lane_plan" in failed
+
+
+def test_collect_portfolio_readiness_requires_stage1_reviewer_docs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    (tmp_path / "docs/portfolio/senior-reviewer-pack.md").unlink()
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is False
+    assert report["local_evidence_bundle_check"] is False
+    failed = {item["id"] for item in report["failed"]}
+    assert "senior_reviewer_pack_path" in failed
 
 
 def test_portfolio_check_cli_requires_interview_readiness(

@@ -22,6 +22,10 @@ uv run python -m pytest -m "not real" -q
 echo
 echo "== key artifacts =="
 for path in \
+  docs/portfolio/senior-reviewer-pack.md \
+  docs/portfolio/company-fit-matrix.md \
+  docs/portfolio/reviewer-evidence-map.md \
+  docs/portfolio/korean-one-page-case-study.md \
   artifacts/portfolio_readiness.json \
   artifacts/eval_real/metrics.json \
   artifacts/eval_stage2_real/metrics.json \

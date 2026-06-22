@@ -1,13 +1,13 @@
-# Production-adjacent Agentic RAG for Korean Public RFPs
+# Senior AI Agent Engineer Portfolio: Agentic RAG for Korean Public RFPs
 
-AI Agent Engineer 시니어 포트폴리오 검토용 source-first Agentic RAG
-backend입니다. 입찰 RFP 100건의 원본 HWP/PDF를 파싱해 RAG 본문 source of
-truth로 쓰고, CSV는 사업명, 발주기관, 예산, 마감일, 파일명 metadata
-registry로만 사용합니다. 이 레포의 주장은 public hosted service가 아니라
+Tier A AI Agent/RAG 역할에 제출하기 위한 source-first Agentic RAG backend입니다.
+입찰 RFP 100건의 원본 HWP/PDF를 파싱해 RAG 본문 source of truth로 쓰고,
+CSV는 사업명, 발주기관, 예산, 마감일, 파일명 metadata registry로만
+사용합니다. 이 레포의 주장은 public hosted service가 아니라
 local/container 환경에서 재현 가능한 운영형 증거입니다: FastAPI/Pydantic
 thin service, constrained LangGraph workflow, checkpoint/HITL, guarded tools,
-citation-grounded generation, evaluation gates, deterministic security smoke, local ops
-summary, deterministic token/cost estimates.
+citation-grounded generation, evaluation gates, deterministic security smoke,
+local ops summary, deterministic token/cost estimates.
 
 ## Portfolio Status
 
@@ -21,13 +21,15 @@ Current public claim:
   운영, live-traffic SLO, public dashboard, provider billing telemetry, or a
   reranker quality win.
 - **10-minute reviewer path:** start with
-  `docs/portfolio/reviewer-evidence-map.md`, then open
+  `docs/portfolio/senior-reviewer-pack.md`, then open
+  `docs/portfolio/reviewer-evidence-map.md`,
   `docs/portfolio/korean-one-page-case-study.md` for the Korean interview
-  summary, `docs/portfolio/demo-runbook.md` for the screen-share flow, and
+  summary, `docs/portfolio/company-fit-matrix.md` for role-specific positioning,
+  `docs/portfolio/demo-runbook.md` for the screen-share flow, and
   `docs/portfolio/case-study.md` for deeper interview defense. This path is
   designed for Korean senior AI Agent Engineer review: architecture, RAG
   quality, LangGraph orchestration, FastAPI/SSE service evidence, observability,
-  security, dependency hygiene, and explicit non-claims.
+  security, dependency hygiene, role fit, and explicit non-claims.
 - **How to verify in 5 minutes:**
 
 ```bash
@@ -78,7 +80,9 @@ The final portfolio target is recorded in
 recorded in `docs/portfolio/2026-rfp-rag-adversarial-review.md`. The current
 implemented architecture map is recorded in
 `docs/architecture/system-architecture.md`. The Korean 1-page reviewer summary is
-`docs/portfolio/korean-one-page-case-study.md`. The reviewer demo path is
+`docs/portfolio/korean-one-page-case-study.md`. The senior reviewer entry point is
+`docs/portfolio/senior-reviewer-pack.md`, the role-fit matrix is
+`docs/portfolio/company-fit-matrix.md`, the reviewer demo path is
 `docs/portfolio/demo-runbook.md`, the next top-tier roadmap is
 `docs/portfolio/top-tier-roadmap.md`, and resume/interview wording is
 `docs/portfolio/resume-interview-bullets.md`. The project should be framed as a
