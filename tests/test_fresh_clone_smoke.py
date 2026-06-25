@@ -28,6 +28,9 @@ def test_run_fresh_clone_smoke_unsets_provider_env_and_records_checks(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "secret")
+    monkeypatch.setenv("RFP_RAG_REVIEWER_TOKEN", "reviewer-secret")
+    monkeypatch.setenv("RFP_RAG_PUBLIC_DEMO_MODE", "1")
+    monkeypatch.setenv("SERVICE_URL", "https://example.invalid")
     calls: list[dict] = []
 
     def runner(
@@ -64,7 +67,11 @@ def test_run_fresh_clone_smoke_unsets_provider_env_and_records_checks(
         "OPENAI_ORG",
         "OPENAI_ORGANIZATION",
     ]
+    assert "RFP_RAG_REVIEWER_TOKEN" in summary["hosted_env_forbidden"]
     assert all("OPENAI_API_KEY" not in call["env"] for call in calls)
+    assert all("RFP_RAG_REVIEWER_TOKEN" not in call["env"] for call in calls)
+    assert all("RFP_RAG_PUBLIC_DEMO_MODE" not in call["env"] for call in calls)
+    assert all("SERVICE_URL" not in call["env"] for call in calls)
 
 
 def test_run_fresh_clone_smoke_fails_closed_on_command_error(tmp_path: Path) -> None:

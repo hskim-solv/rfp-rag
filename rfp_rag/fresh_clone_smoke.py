@@ -24,6 +24,21 @@ FORBIDDEN_PROVIDER_ENV = [
     "OPENAI_ORGANIZATION",
 ]
 
+FORBIDDEN_HOSTED_ENV = [
+    "CONFIRM_LOGS_REDACTED",
+    "CONFIRM_METRICS_VISIBLE",
+    "CONFIRM_ROLLBACK_RUNBOOK",
+    "DEPLOYED_GIT_SHA",
+    "HOSTED_PROVIDER",
+    "RFP_RAG_GIT_SHA",
+    "RFP_RAG_PUBLIC_DEMO_MODE",
+    "RFP_RAG_RATE_LIMIT_PER_MINUTE",
+    "RFP_RAG_REVIEWER_TOKEN",
+    "SERVICE_URL",
+]
+
+FORBIDDEN_OFFLINE_ENV = FORBIDDEN_PROVIDER_ENV + FORBIDDEN_HOSTED_ENV
+
 THRESHOLDS = {
     "git_sha_recorded": 1.0,
     "git_clone_pass": 1.0,
@@ -85,7 +100,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def _offline_env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in FORBIDDEN_PROVIDER_ENV:
+    for key in FORBIDDEN_OFFLINE_ENV:
         env.pop(key, None)
     env["RFP_RAG_OFFLINE_SMOKE"] = "1"
     return env
@@ -225,6 +240,7 @@ def run_fresh_clone_smoke(
         "clone_dir": str(clone_dir),
         "required_command": "uv run python -m rfp_rag.fresh_clone_smoke",
         "provider_env_forbidden": FORBIDDEN_PROVIDER_ENV,
+        "hosted_env_forbidden": FORBIDDEN_HOSTED_ENV,
         "metrics": metrics,
         "thresholds": THRESHOLDS,
         "checks": checks,
@@ -232,7 +248,7 @@ def run_fresh_clone_smoke(
         "run_ms": round((time.monotonic() - started) * 1000, 3),
         "notes": [
             "Runs from a local git clone at HEAD, not from the working tree.",
-            "Provider credential environment variables are removed for every command.",
+            "Provider credential and hosted demo environment variables are removed for every command.",
             "Creates a synthetic CI-parity corpus before running credential-free tests.",
         ],
     }
