@@ -103,6 +103,8 @@ reports `score_total >= 90` and `failed=[]`.
 - README top: claim, non-claims, verification commands.
 - `docs/architecture/system-architecture.md`: logical and runtime diagrams.
 - Terminal: `./scripts/reviewer-10m.sh`.
+- Hosted evidence terminal after approved deployment:
+  `./scripts/hosted-evidence.sh`.
 - `artifacts/portfolio_readiness.json`: `portfolio_readiness_check`,
   `interview_readiness_check`, `failed`.
 - `artifacts/production_readiness/summary.json`: production-facing checks.

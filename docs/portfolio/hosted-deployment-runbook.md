@@ -40,6 +40,23 @@ Create `artifacts/hosted_ops/summary.json` from Render dashboard or Render CLI
 observations. Do not paste raw request payloads, raw prompts, secrets, full raw
 RFP text, or private user data.
 
+After the hosted URL is approved, the reviewer token is configured, and the
+operator has checked logs, metrics, and rollback evidence, run the full evidence
+chain with:
+
+```bash
+SERVICE_URL=https://<render-service-url> \
+RFP_RAG_REVIEWER_TOKEN="$RFP_RAG_REVIEWER_TOKEN" \
+DEPLOYED_GIT_SHA="$(git rev-parse --short HEAD)" \
+CONFIRM_LOGS_REDACTED=true \
+CONFIRM_METRICS_VISIBLE=true \
+CONFIRM_ROLLBACK_RUNBOOK=true \
+./scripts/hosted-evidence.sh
+```
+
+The script fails closed unless `SERVICE_URL` is HTTPS and all three confirmation
+variables are explicitly `true`.
+
 Use the helper after confirming the required observations in Render:
 
 ```bash
