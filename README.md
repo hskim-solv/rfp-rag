@@ -51,6 +51,7 @@ python3 -m rfp_rag.fresh_clone_smoke --out artifacts/fresh_clone_smoke/summary.j
 python3 -m rfp_rag.final_portfolio_scorecard --out artifacts/final_portfolio_scorecard/summary.json
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m pytest -m "not real" -q
+./scripts/local-hosted-demo-smoke.sh
 # Equivalent after putting the repo venv first on PATH:
 # PATH="$PWD/.venv/bin:$PATH" python3 -m pytest -m "not real" -q
 ```

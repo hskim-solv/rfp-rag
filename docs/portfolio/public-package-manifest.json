@@ -12,6 +12,7 @@
     "docs/portfolio/resume-interview-bullets.md",
     "docs/portfolio/final-portfolio-scorecard.md",
     "docs/adr/0022-public-safe-hosted-reviewer-demo-platform.md",
+    "scripts/local-hosted-demo-smoke.sh",
     "scripts/hosted-evidence.sh",
     "render.yaml",
     "artifacts/hosted_demo_smoke/summary.json"

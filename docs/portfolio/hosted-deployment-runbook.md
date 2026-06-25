@@ -5,6 +5,16 @@ for the public-safe reviewer demo, not for a production SaaS claim.
 
 ## Deploy
 
+Before external deployment, run the same public-safe hosted profile locally:
+
+```bash
+./scripts/local-hosted-demo-smoke.sh
+```
+
+This starts the FastAPI service with `RFP_RAG_PUBLIC_DEMO_MODE=1`, reviewer-token
+auth, rate limiting, and `RFP_RAG_GIT_SHA`, then runs the hosted smoke against
+`http://127.0.0.1:8017`.
+
 1. Create a Render Blueprint from `render.yaml`.
 2. Set `RFP_RAG_REVIEWER_TOKEN` as a Render secret value.
 3. Set `RFP_RAG_GIT_SHA` to the deployed commit SHA, for example
