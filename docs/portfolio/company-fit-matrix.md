@@ -96,7 +96,7 @@ live-traffic SLO, or provider billing telemetry.
 | final portfolio scorecard | `rfp_rag/final_portfolio_scorecard.py`, `artifacts/final_portfolio_scorecard/summary.json` |
 | hosted reviewer demo | `render.yaml`, `rfp_rag/hosted_demo_smoke.py`, `rfp_rag/hosted_deployment_evidence.py`, `artifacts/hosted_demo_smoke/summary.json`, `artifacts/hosted_deployment_evidence/summary.json` |
 | fresh clone smoke | `rfp_rag/fresh_clone_smoke.py`, `artifacts/fresh_clone_smoke/summary.json` |
-| reviewer path | `docs/portfolio/senior-reviewer-pack.md`, `scripts/reviewer-10m.sh` |
+| reviewer path | `docs/portfolio/senior-reviewer-pack.md`, `scripts/reviewer-10m.sh`, `scripts/hosted-evidence.sh` |
 | Korean interview story | `docs/portfolio/korean-one-page-case-study.md` |
 
 ## Non-fit And Non-claims

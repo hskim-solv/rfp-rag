@@ -496,6 +496,18 @@ The same post-deploy check can be run in GitHub Actions via
 `service_url`; it uploads hosted smoke, hosted ops, hosted deployment evidence,
 final scorecard, and portfolio readiness artifacts.
 
+For the same evidence chain from a local terminal after approved deployment:
+
+```bash
+SERVICE_URL=https://<render-service-url> \
+RFP_RAG_REVIEWER_TOKEN="$RFP_RAG_REVIEWER_TOKEN" \
+DEPLOYED_GIT_SHA="$(git rev-parse --short HEAD)" \
+CONFIRM_LOGS_REDACTED=true \
+CONFIRM_METRICS_VISIBLE=true \
+CONFIRM_ROLLBACK_RUNBOOK=true \
+./scripts/hosted-evidence.sh
+```
+
 ## MCP-style ops tool server
 
 ADR-0016 records the narrow MCP-style ops tool decision. This is an
