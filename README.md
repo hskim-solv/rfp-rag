@@ -509,6 +509,22 @@ CONFIRM_ROLLBACK_RUNBOOK=true \
 ./scripts/hosted-evidence.sh
 ```
 
+If Render dashboard/API access is unavailable, the approved fallback is a free
+Hugging Face Docker Space:
+
+```bash
+RFP_RAG_REVIEWER_TOKEN="$(openssl rand -hex 32)" \
+DEPLOYED_GIT_SHA="$(git rev-parse --short HEAD)" \
+./scripts/deploy-hf-space.sh
+
+SERVICE_URL=https://hskim-solv-rfp-rag-reviewer-demo.hf.space \
+HOSTED_PROVIDER=huggingface_spaces \
+CONFIRM_LOGS_REDACTED=true \
+CONFIRM_METRICS_VISIBLE=true \
+CONFIRM_ROLLBACK_RUNBOOK=true \
+./scripts/hosted-evidence.sh
+```
+
 ## MCP-style ops tool server
 
 ADR-0016 records the narrow MCP-style ops tool decision. This is an

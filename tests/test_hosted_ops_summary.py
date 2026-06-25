@@ -86,3 +86,23 @@ def test_hosted_ops_summary_cli_requires_manual_evidence_confirmations(
 
     assert rc == 2
     assert not out.exists()
+
+
+def test_build_hosted_ops_summary_supports_hugging_face_spaces_provider(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "artifacts/hosted_ops/summary.json"
+
+    summary = build_hosted_ops_summary(
+        service_url="https://hskim-solv-rfp-rag-reviewer-demo.hf.space",
+        deployed_git_sha="250b9f9",
+        out=out,
+        provider="huggingface_spaces",
+        confirm_logs_redacted=True,
+        confirm_metrics_visible=True,
+        confirm_rollback_runbook=True,
+    )
+
+    assert summary["provider"] == "huggingface_spaces"
+    assert summary["logs_evidence"]["source"] == "huggingface spaces logs"
+    assert summary["metrics_evidence"]["source"] == "huggingface spaces runtime metrics"

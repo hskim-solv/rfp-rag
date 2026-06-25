@@ -17,6 +17,7 @@ def test_hosted_evidence_script_is_fail_closed_and_runs_full_gate_chain() -> Non
     assert '[[ "$CONFIRM_ROLLBACK_RUNBOOK" != "true" ]]' in script
     assert "rfp_rag.hosted_demo_smoke" in script
     assert "rfp_rag.hosted_ops_summary" in script
+    assert '--provider "$HOSTED_PROVIDER"' in script
     assert "rfp_rag.hosted_deployment_evidence" in script
     assert "rfp_rag.production_readiness" in script
     assert "rfp_rag.final_portfolio_scorecard" in script

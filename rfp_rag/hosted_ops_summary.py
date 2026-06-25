@@ -41,13 +41,23 @@ def build_hosted_ops_summary(
         raise ValueError("confirm_metrics_visible is required")
     if not confirm_rollback_runbook:
         raise ValueError("confirm_rollback_runbook is required")
+    log_source = (
+        "huggingface spaces logs"
+        if provider == "huggingface_spaces"
+        else "render dashboard or render logs"
+    )
+    metrics_source = (
+        "huggingface spaces runtime metrics"
+        if provider == "huggingface_spaces"
+        else "render service metrics"
+    )
     summary = {
         "provider": provider,
         "service_url": service_url.rstrip("/"),
         "deployment_status": "live",
         "deploy_smoke_status": "SUCCESS",
         "logs_evidence": {
-            "source": "render dashboard or render logs",
+            "source": log_source,
             "redacted": True,
             "healthz_2xx_seen": True,
             "answer_2xx_seen": True,
@@ -56,7 +66,7 @@ def build_hosted_ops_summary(
             "raw_rfp_text_seen": False,
         },
         "metrics_evidence": {
-            "source": "render service metrics",
+            "source": metrics_source,
             "redacted": True,
             "http_request_count_visible": True,
             "latency_visible": True,
@@ -78,6 +88,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--service-url", required=True)
     parser.add_argument("--deployed-git-sha", required=True)
+    parser.add_argument("--provider", default="render")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--confirm-logs-redacted", action="store_true")
     parser.add_argument("--confirm-metrics-visible", action="store_true")
@@ -92,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
             service_url=args.service_url,
             deployed_git_sha=args.deployed_git_sha,
             out=args.out,
+            provider=args.provider,
             confirm_logs_redacted=args.confirm_logs_redacted,
             confirm_metrics_visible=args.confirm_metrics_visible,
             confirm_rollback_runbook=args.confirm_rollback_runbook,

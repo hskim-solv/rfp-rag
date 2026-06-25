@@ -15,6 +15,30 @@ This starts the FastAPI service with `RFP_RAG_PUBLIC_DEMO_MODE=1`, reviewer-toke
 auth, rate limiting, and `RFP_RAG_GIT_SHA`, then runs the hosted smoke against
 `http://127.0.0.1:8017`.
 
+## Hugging Face Space Deploy
+
+When Render dashboard/API access is unavailable, deploy the same public-safe
+Docker service to a free Hugging Face Space:
+
+```bash
+RFP_RAG_REVIEWER_TOKEN="$(openssl rand -hex 32)" \
+DEPLOYED_GIT_SHA="$(git rev-parse --short HEAD)" \
+./scripts/deploy-hf-space.sh
+```
+
+The script creates or updates `hskim-solv/rfp-rag-reviewer-demo`, uploads the
+Docker Space bundle, sets public demo variables, and stores the reviewer token
+as a Space secret. The expected HTTPS URL is:
+
+```text
+https://hskim-solv-rfp-rag-reviewer-demo.hf.space
+```
+
+Then run `./scripts/hosted-evidence.sh` with
+`HOSTED_PROVIDER=huggingface_spaces`.
+
+## Render Blueprint Deploy
+
 1. Create a Render Blueprint from `render.yaml`.
 2. Set `RFP_RAG_REVIEWER_TOKEN` as a Render secret value.
 3. Set `RFP_RAG_GIT_SHA` to the deployed commit SHA, for example

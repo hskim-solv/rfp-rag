@@ -31,6 +31,7 @@ if [[ "$CONFIRM_ROLLBACK_RUNBOOK" != "true" ]]; then
 fi
 
 DEPLOYED_GIT_SHA="${DEPLOYED_GIT_SHA:-$(git rev-parse --short HEAD)}"
+HOSTED_PROVIDER="${HOSTED_PROVIDER:-render}"
 
 echo "== hosted demo smoke =="
 uv run python -m rfp_rag.hosted_demo_smoke \
@@ -44,6 +45,7 @@ echo "== hosted ops summary =="
 uv run python -m rfp_rag.hosted_ops_summary \
   --service-url "$SERVICE_URL" \
   --deployed-git-sha "$DEPLOYED_GIT_SHA" \
+  --provider "$HOSTED_PROVIDER" \
   --out artifacts/hosted_ops/summary.json \
   --confirm-logs-redacted \
   --confirm-metrics-visible \

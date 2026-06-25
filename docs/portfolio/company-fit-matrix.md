@@ -94,7 +94,7 @@ live-traffic SLO, or provider billing telemetry.
 | RAG quality scorecard | `rfp_rag/stage2_quality_scorecard.py`, `artifacts/stage2_quality_scorecard/summary.json` |
 | ops/risk scorecard | `rfp_rag/stage4_ops_risk_scorecard.py`, `artifacts/stage4_ops_risk_scorecard/summary.json` |
 | final portfolio scorecard | `rfp_rag/final_portfolio_scorecard.py`, `artifacts/final_portfolio_scorecard/summary.json` |
-| hosted reviewer demo | `render.yaml`, `rfp_rag/hosted_demo_smoke.py`, `rfp_rag/hosted_deployment_evidence.py`, `artifacts/hosted_demo_smoke/summary.json`, `artifacts/hosted_deployment_evidence/summary.json` |
+| hosted reviewer demo | `render.yaml`, `deploy/hf-space/Dockerfile`, `scripts/deploy-hf-space.sh`, `rfp_rag/hosted_demo_smoke.py`, `rfp_rag/hosted_deployment_evidence.py`, `artifacts/hosted_demo_smoke/summary.json`, `artifacts/hosted_deployment_evidence/summary.json` |
 | fresh clone smoke | `rfp_rag/fresh_clone_smoke.py`, `artifacts/fresh_clone_smoke/summary.json` |
 | reviewer path | `docs/portfolio/senior-reviewer-pack.md`, `scripts/reviewer-10m.sh`, `scripts/local-hosted-demo-smoke.sh`, `scripts/hosted-evidence.sh` |
 | Korean interview story | `docs/portfolio/korean-one-page-case-study.md` |
