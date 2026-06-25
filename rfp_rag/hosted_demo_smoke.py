@@ -110,6 +110,14 @@ def _valid_expected_git_sha(expected: str | None) -> bool:
     return isinstance(expected, str) and len(expected.strip()) >= 7
 
 
+def _rate_limit_boundary_pass(results: list[HttpResult]) -> bool:
+    for result in results:
+        detail = (result.json_body or {}).get("detail") or {}
+        if result.status_code == 429 and detail.get("code") == "rate_limited":
+            return True
+    return False
+
+
 def run_hosted_demo_smoke(
     *,
     base_url: str,
@@ -117,6 +125,7 @@ def run_hosted_demo_smoke(
     out: Path = Path("artifacts/hosted_demo_smoke/summary.json"),
     question: str = DEFAULT_QUESTION,
     expected_git_sha: str | None = None,
+    rate_limit_probe_count: int = 25,
     transport: Transport = urllib_transport,
 ) -> dict[str, Any]:
     protected_headers = _auth_headers(reviewer_token)
@@ -141,6 +150,15 @@ def run_hosted_demo_smoke(
         headers=protected_headers,
         json_payload=answer_payload,
     )
+    rate_limit_probe_results = [
+        transport(
+            "POST",
+            _url(base_url, "/v1/answer"),
+            headers=protected_headers,
+            json_payload=answer_payload,
+        )
+        for _ in range(max(0, rate_limit_probe_count))
+    ]
 
     answer_body = answer.json_body or {}
     metrics = {
@@ -167,6 +185,10 @@ def run_hosted_demo_smoke(
             stream.status_code == 200 and "event: final" in stream.text
         ),
         "public_safe_sources_pass": _metric(_public_safe_sources_pass(answer_body)),
+        "rate_limit_boundary_pass": _metric(
+            rate_limit_probe_count > 0
+            and _rate_limit_boundary_pass(rate_limit_probe_results)
+        ),
         "expected_git_sha_present": _metric(_valid_expected_git_sha(expected_git_sha)),
         "revision_match_pass": _metric(
             _git_sha_matches((health.json_body or {}).get("git_sha"), expected_git_sha)
@@ -180,6 +202,7 @@ def run_hosted_demo_smoke(
         "reviewer_token_boundary": "required" if reviewer_token else "missing",
         "expected_git_sha": expected_git_sha,
         "observed_git_sha": (health.json_body or {}).get("git_sha"),
+        "rate_limit_probe_count": max(0, rate_limit_probe_count),
         "question": question,
         "metrics": metrics,
         "thresholds": thresholds,
@@ -190,6 +213,9 @@ def run_hosted_demo_smoke(
             "gates": gates.status_code,
             "answer": answer.status_code,
             "stream": stream.status_code,
+            "rate_limit_probe": [
+                result.status_code for result in rate_limit_probe_results
+            ],
         },
     }
     _write_json(out, summary)
@@ -207,6 +233,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--out", type=Path, default=Path("artifacts/hosted_demo_smoke/summary.json")
     )
     parser.add_argument("--question", default=DEFAULT_QUESTION)
+    parser.add_argument("--rate-limit-probe-count", type=int, default=25)
     return parser
 
 
@@ -218,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
         out=args.out,
         question=args.question,
         expected_git_sha=args.expected_git_sha,
+        rate_limit_probe_count=args.rate_limit_probe_count,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if summary["hosted_demo_smoke_complete"] else 1

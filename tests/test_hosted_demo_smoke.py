@@ -11,6 +11,7 @@ def test_hosted_demo_smoke_verifies_public_safe_reviewer_contract(
     tmp_path: Path,
 ) -> None:
     seen: list[dict[str, Any]] = []
+    authenticated_answer_count = 0
 
     def fake_transport(
         method: str,
@@ -19,6 +20,7 @@ def test_hosted_demo_smoke_verifies_public_safe_reviewer_contract(
         headers: dict[str, str] | None = None,
         json_payload: dict[str, Any] | None = None,
     ) -> HttpResult:
+        nonlocal authenticated_answer_count
         seen.append(
             {
                 "method": method,
@@ -50,6 +52,9 @@ def test_hosted_demo_smoke_verifies_public_safe_reviewer_contract(
         if url.endswith("/v1/answer") and not headers:
             return HttpResult(401, {"detail": {"code": "reviewer_token_required"}}, "")
         if url.endswith("/v1/answer"):
+            authenticated_answer_count += 1
+            if authenticated_answer_count >= 3:
+                return HttpResult(429, {"detail": {"code": "rate_limited"}}, "")
             return HttpResult(
                 200,
                 {
@@ -66,6 +71,7 @@ def test_hosted_demo_smoke_verifies_public_safe_reviewer_contract(
         base_url="https://example.invalid",
         reviewer_token="review-token",
         expected_git_sha="abc1234",
+        rate_limit_probe_count=2,
         out=out,
         transport=fake_transport,
     )
@@ -78,6 +84,7 @@ def test_hosted_demo_smoke_verifies_public_safe_reviewer_contract(
         "answer_pass": 1.0,
         "stream_pass": 1.0,
         "public_safe_sources_pass": 1.0,
+        "rate_limit_boundary_pass": 1.0,
         "expected_git_sha_present": 1.0,
         "revision_match_pass": 1.0,
     }
@@ -93,6 +100,7 @@ def test_hosted_demo_smoke_verifies_public_safe_reviewer_contract(
         item["headers"].get("X-Reviewer-Token") == "review-token"
         for item in protected_calls
     )
+    assert summary["observed_status"]["rate_limit_probe"] == [200, 429]
 
 
 def test_hosted_demo_smoke_fails_closed_on_revision_mismatch(
@@ -215,3 +223,48 @@ def test_hosted_demo_smoke_fails_closed_on_non_demo_answer(tmp_path: Path) -> No
     assert summary["hosted_demo_smoke_complete"] is False
     assert "answer_pass" in summary["failed"]
     assert "public_safe_sources_pass" in summary["failed"]
+
+
+def test_hosted_demo_smoke_requires_observed_rate_limit(tmp_path: Path) -> None:
+    def fake_transport(
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        json_payload: dict[str, Any] | None = None,
+    ) -> HttpResult:
+        if url.endswith("/healthz"):
+            return HttpResult(
+                200, {"ok": True, "service": "rfp-rag", "git_sha": "abc1234"}, ""
+            )
+        if url.endswith("/v1/gates"):
+            return HttpResult(200, {"overall_ok": True, "public_demo_gate": True}, "")
+        if url.endswith("/v1/answer/stream"):
+            return HttpResult(200, None, "event: final\ndata: {}\n\n")
+        if url.endswith("/v1/answer") and not headers:
+            return HttpResult(401, {"detail": {"code": "reviewer_token_required"}}, "")
+        if url.endswith("/v1/answer"):
+            return HttpResult(
+                200,
+                {
+                    "answer": "public-safe",
+                    "metadata": {"provider": "public_demo"},
+                    "sources": [{"filename": "public-safe-demo.md"}],
+                },
+                "",
+            )
+        raise AssertionError(url)
+
+    summary = run_hosted_demo_smoke(
+        base_url="https://example.invalid",
+        reviewer_token="review-token",
+        expected_git_sha="abc1234",
+        rate_limit_probe_count=2,
+        out=tmp_path / "summary.json",
+        transport=fake_transport,
+    )
+
+    assert summary["hosted_demo_smoke_complete"] is False
+    assert summary["metrics"]["rate_limit_boundary_pass"] == 0.0
+    assert "rate_limit_boundary_pass" in summary["failed"]
+    assert summary["observed_status"]["rate_limit_probe"] == [200, 200]

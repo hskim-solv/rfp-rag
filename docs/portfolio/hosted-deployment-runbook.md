@@ -19,6 +19,7 @@ uv run python -m rfp_rag.hosted_demo_smoke \
   --base-url https://<render-service-url> \
   --reviewer-token "$RFP_RAG_REVIEWER_TOKEN" \
   --expected-git-sha "$(git rev-parse --short HEAD)" \
+  --rate-limit-probe-count 25 \
   --out artifacts/hosted_demo_smoke/summary.json
 ```
 
@@ -27,6 +28,7 @@ The smoke must show:
 - `hosted_demo_smoke_complete=true`;
 - unauthenticated `/v1/answer` returns `401`;
 - authenticated `/v1/answer` returns provider `public_demo`;
+- repeated authenticated probes observe `429 rate_limited`;
 - SSE returns a `final` event;
 - public-safe sources are present;
 - `/healthz` reports the expected `RFP_RAG_GIT_SHA`;

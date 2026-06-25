@@ -45,7 +45,7 @@ python3 -m rfp_rag.stage2_quality_scorecard --out artifacts/stage2_quality_score
 python3 -m rfp_rag.agent_orchestration
 python3 -m rfp_rag.stage3_agent_scorecard --out artifacts/stage3_agent_scorecard/summary.json
 python3 -m rfp_rag.production_readiness
-python3 -m rfp_rag.hosted_demo_smoke --base-url <hosted-or-local-url> --reviewer-token "$RFP_RAG_REVIEWER_TOKEN"
+python3 -m rfp_rag.hosted_demo_smoke --base-url <hosted-or-local-url> --reviewer-token "$RFP_RAG_REVIEWER_TOKEN" --rate-limit-probe-count 25
 python3 -m rfp_rag.stage4_ops_risk_scorecard --out artifacts/stage4_ops_risk_scorecard/summary.json
 python3 -m rfp_rag.fresh_clone_smoke --out artifacts/fresh_clone_smoke/summary.json
 python3 -m rfp_rag.final_portfolio_scorecard --out artifacts/final_portfolio_scorecard/summary.json
@@ -71,7 +71,7 @@ Latest checked evidence:
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
 | Stage 4 ops/risk scorecard | `artifacts/stage4_ops_risk_scorecard/summary.json`; `docs/portfolio/stage4-ops-risk-scorecard.md` | deterministic scorecard for traces, failed-run analysis, latency/token/cost evidence, service smoke, red-team checks, cost budget, dependency security, and deployment boundaries |
 | Stage 5 final scorecard | `artifacts/fresh_clone_smoke/summary.json`, `artifacts/final_portfolio_scorecard/summary.json`; `docs/portfolio/final-portfolio-scorecard.md` | committed HEAD fresh-clone offline smoke plus weighted senior portfolio scorecard; target `score_total >= 90`, final claim requires `failed=[]` |
-| Public-safe hosted reviewer demo | `render.yaml`; `artifacts/hosted_demo_smoke/summary.json`; `artifacts/hosted_deployment_evidence/summary.json`; `rfp_rag.hosted_demo_smoke`; `rfp_rag.hosted_deployment_evidence`; ADR-0022 | Render Free Docker web service blueprint plus smoke/evidence verifier for HTTPS URL, `/healthz`, reviewer-token boundary, `/v1/gates`, `/v1/answer`, SSE final event, redacted logs/metrics, rollback evidence, and public-safe synthetic source boundary |
+| Public-safe hosted reviewer demo | `render.yaml`; `artifacts/hosted_demo_smoke/summary.json`; `artifacts/hosted_deployment_evidence/summary.json`; `rfp_rag.hosted_demo_smoke`; `rfp_rag.hosted_deployment_evidence`; ADR-0022 | Render Free Docker web service blueprint plus smoke/evidence verifier for HTTPS URL, `/healthz`, reviewer-token boundary, rate-limit boundary, `/v1/gates`, `/v1/answer`, SSE final event, redacted logs/metrics, rollback evidence, and public-safe synthetic source boundary |
 | Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 
@@ -460,13 +460,15 @@ uv run python -m rfp_rag.hosted_demo_smoke \
   --base-url https://<render-service-url> \
   --reviewer-token "$RFP_RAG_REVIEWER_TOKEN" \
   --expected-git-sha "$(git rev-parse --short HEAD)" \
+  --rate-limit-probe-count 25 \
   --out artifacts/hosted_demo_smoke/summary.json
 ```
 
 This smoke requires the hosted response provider to be `public_demo` and fails
 closed if the answer path exposes raw RFP text, lacks public-safe synthetic
-sources, omits the reviewer-token boundary, serves a different `RFP_RAG_GIT_SHA`,
-returns a non-demo `/v1/gates` payload, or misses the SSE final event.
+sources, omits the reviewer-token boundary, fails to observe a `429 rate_limited`
+rate-limit boundary, serves a different `RFP_RAG_GIT_SHA`, returns a non-demo
+`/v1/gates` payload, or misses the SSE final event.
 
 Post-deploy logs, metrics, and rollback evidence are captured through
 `docs/portfolio/hosted-deployment-runbook.md` and validated with:

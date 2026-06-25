@@ -105,8 +105,8 @@ externally reachable URLs require explicit owner approval before execution.
 - Service failure contract: synchronous endpoints use structured HTTP errors;
   SSE emits `event: error` and terminates on guardrail/runtime failure.
 - Hosted smoke: `python -m rfp_rag.hosted_demo_smoke` verifies `/healthz`,
-  reviewer-token boundary, `/v1/gates`, `/v1/answer`, and SSE final event
-  against a local or HTTPS hosted URL.
+  reviewer-token boundary, rate-limit boundary, `/v1/gates`, `/v1/answer`,
+  and SSE final event against a local or HTTPS hosted URL.
 - Hosted evidence: `python -m rfp_rag.hosted_deployment_evidence` must validate
   the post-deploy HTTPS URL, redacted hosted logs, service metrics, and rollback
   runbook after the owner approves external deployment.
@@ -152,6 +152,8 @@ externally reachable URLs require explicit owner approval before execution.
             and (hosted_smoke.get("metrics") or {}).get("reviewer_token_boundary_pass")
             == 1.0
             and (hosted_smoke.get("metrics") or {}).get("public_safe_sources_pass")
+            == 1.0
+            and (hosted_smoke.get("metrics") or {}).get("rate_limit_boundary_pass")
             == 1.0
             and (hosted_smoke.get("metrics") or {}).get("expected_git_sha_present")
             == 1.0

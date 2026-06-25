@@ -57,6 +57,8 @@ def build_hosted_deployment_evidence(
             == 1.0
             and (hosted_smoke.get("metrics") or {}).get("public_safe_sources_pass")
             == 1.0
+            and (hosted_smoke.get("metrics") or {}).get("rate_limit_boundary_pass")
+            == 1.0
             and (hosted_smoke.get("metrics") or {}).get("expected_git_sha_present")
             == 1.0
             and (hosted_smoke.get("metrics") or {}).get("revision_match_pass") == 1.0

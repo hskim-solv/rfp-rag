@@ -78,6 +78,7 @@ def _write_deployment_contract_files(root: Path) -> None:
                     "answer_pass": 1.0,
                     "stream_pass": 1.0,
                     "public_safe_sources_pass": 1.0,
+                    "rate_limit_boundary_pass": 1.0,
                     "expected_git_sha_present": 1.0,
                     "revision_match_pass": 1.0,
                 },
