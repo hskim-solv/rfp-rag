@@ -106,3 +106,29 @@ def test_build_hosted_ops_summary_supports_hugging_face_spaces_provider(
     assert summary["provider"] == "huggingface_spaces"
     assert summary["logs_evidence"]["source"] == "huggingface spaces logs"
     assert summary["metrics_evidence"]["source"] == "huggingface spaces runtime metrics"
+
+
+def test_build_hosted_ops_summary_supports_localhost_run_tunnel_provider(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "artifacts/hosted_ops/summary.json"
+
+    summary = build_hosted_ops_summary(
+        service_url="https://abc123.lhr.life",
+        deployed_git_sha="250b9f9",
+        out=out,
+        provider="localhost_run_tunnel",
+        confirm_logs_redacted=True,
+        confirm_metrics_visible=True,
+        confirm_rollback_runbook=True,
+    )
+
+    assert summary["provider"] == "localhost_run_tunnel"
+    assert (
+        summary["logs_evidence"]["source"]
+        == "localhost.run tunnel output plus local service logs"
+    )
+    assert (
+        summary["metrics_evidence"]["source"]
+        == "local FastAPI smoke metrics plus tunnel request evidence"
+    )

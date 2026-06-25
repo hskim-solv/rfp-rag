@@ -41,15 +41,19 @@ def build_hosted_ops_summary(
         raise ValueError("confirm_metrics_visible is required")
     if not confirm_rollback_runbook:
         raise ValueError("confirm_rollback_runbook is required")
-    log_source = (
-        "huggingface spaces logs"
-        if provider == "huggingface_spaces"
-        else "render dashboard or render logs"
-    )
-    metrics_source = (
-        "huggingface spaces runtime metrics"
-        if provider == "huggingface_spaces"
-        else "render service metrics"
+    evidence_sources = {
+        "huggingface_spaces": (
+            "huggingface spaces logs",
+            "huggingface spaces runtime metrics",
+        ),
+        "localhost_run_tunnel": (
+            "localhost.run tunnel output plus local service logs",
+            "local FastAPI smoke metrics plus tunnel request evidence",
+        ),
+        "render": ("render dashboard or render logs", "render service metrics"),
+    }
+    log_source, metrics_source = evidence_sources.get(
+        provider, (f"{provider} logs", f"{provider} service metrics")
     )
     summary = {
         "provider": provider,

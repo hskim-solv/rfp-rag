@@ -13,6 +13,7 @@
     "docs/portfolio/final-portfolio-scorecard.md",
     "docs/adr/0022-public-safe-hosted-reviewer-demo-platform.md",
     "docs/adr/0023-hugging-face-space-hosted-reviewer-demo.md",
+    "docs/adr/0024-localhost-run-tunnel-reviewer-demo-evidence.md",
     "deploy/hf-space/README.md",
     "deploy/hf-space/Dockerfile",
     "scripts/deploy-hf-space.sh",

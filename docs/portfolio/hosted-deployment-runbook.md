@@ -37,6 +37,25 @@ https://hskim-solv-rfp-rag-reviewer-demo.hf.space
 Then run `./scripts/hosted-evidence.sh` with
 `HOSTED_PROVIDER=huggingface_spaces`.
 
+## localhost.run HTTPS Tunnel Deploy
+
+When dashboard/API hosted providers are unavailable, the current public-safe
+reviewer evidence may be generated through an anonymous `localhost.run` HTTPS
+tunnel. This is not an always-on hosted production claim.
+
+1. Start the local public-safe hosted profile with `RFP_RAG_PUBLIC_DEMO_MODE=1`,
+   `RFP_RAG_REVIEWER_TOKEN`, `RFP_RAG_RATE_LIMIT_PER_MINUTE=20`, and
+   `RFP_RAG_GIT_SHA`.
+2. Open an SSH reverse tunnel:
+
+```bash
+ssh -F /dev/null -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null \
+  -R 80:localhost:8017 nokey@localhost.run
+```
+
+3. Run the evidence script with `HOSTED_PROVIDER=localhost_run_tunnel`.
+
 ## Render Blueprint Deploy
 
 1. Create a Render Blueprint from `render.yaml`.
