@@ -133,7 +133,9 @@ def evaluate_agent_orchestration(
 
     summary = {
         "agent_orchestration_upgrade_complete": not failed,
-        "architecture_pattern": "planner-executor over typed LangGraph workflow",
+        "architecture_pattern": "typed LangGraph workflow with planner-executor scenario replay evidence",
+        "evidence_level": "scenario_replay_over_existing_langgraph_stress_artifacts",
+        "runtime_non_claim": "does_not_claim_dynamic_planner_node_or_supervisor_worker_runtime",
         "scenario_matrix_path": "artifacts/agent_orchestration/scenarios.jsonl",
         "source_artifacts": ["artifacts/eval_agent_stress/metrics.json"],
         "metrics": metrics,

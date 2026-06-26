@@ -638,21 +638,22 @@ evidence and not the full portfolio gate:
 This claim is valid when `portfolio_readiness_check=true`,
 `local_evidence_bundle_check=true`, `second_stage_readiness.complete=true`,
 `stage2_contract_schema_enforced=true`, `gate_status` reports `overall_ok=true`,
-and credential-free offline tests pass. It is a local/containerized portfolio
-claim, not a cloud/live-traffic/public-dashboard claim:
+`production_readiness`, `final_portfolio_scorecard`, and
+`hosted_deployment_evidence` pass, and credential-free offline tests pass. It is
+a public-safe hosted reviewer demo claim with local/container reproducibility
+evidence, not a full SaaS/live-traffic/public-dashboard claim:
 
-> Built a production-adjacent Agentic RAG backend as an
+> Built a public-safe hosted reviewer demo for an Agentic RAG backend as an
 > AI Agent Engineer senior portfolio project for 100 Korean public RFP
 > documents, using parsed HWP/PDF artifacts as the body source of truth,
-> section/page-aware chunking,
-> dense/BM25/hybrid retrieval comparisons, citation-grounded
-> generation, targeted visual/table validation, LangGraph typed-state
-> orchestration with conditional routing, bounded retry/reflection,
-> checkpointing and HITL approval, FastAPI Pydantic async/SSE service
-> endpoints, guarded tool/function calling, traceable latency/token/cost
-> evidence, Docker/CI-backed regression gates, and artifact-backed evaluation
-> for recall, MRR, faithfulness, answer relevancy, abstention, and failed-run
-> analysis.
+> section/page-aware chunking, dense/BM25/hybrid retrieval comparisons,
+> citation-grounded generation, targeted visual/table validation, LangGraph
+> typed-state orchestration with conditional routing, bounded retry/reflection,
+> checkpointing and HITL approval, FastAPI Pydantic async/SSE service endpoints,
+> reviewer-token/rate-limit hosted boundaries, guarded tool/function calling,
+> traceable latency/token/cost evidence, Docker/CI-backed regression gates, and
+> artifact-backed evaluation for recall, MRR, faithfulness, answer relevancy,
+> abstention, and failed-run analysis.
 
 Reranker quality-win evidence is intentionally excluded from the resume claim
 until a same-set paid/API reranker artifact exists and beats vector without

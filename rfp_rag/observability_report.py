@@ -192,6 +192,8 @@ def evaluate_observability(
     summary = {
         "observability_complete": not failed,
         "trace_provider": "local_redacted_artifact_export",
+        "evidence_level": "local_redacted_artifact_export_from_service_cost_agent_audit_sources",
+        "runtime_non_claim": "does_not_claim_external_trace_dashboard_provider_billing_telemetry_or_live_slo",
         "trace_export_path": _display_path(trace_export_path, root),
         "failed_run_analysis_path": _display_path(failed_run_analysis_path, root),
         "source_artifacts": [

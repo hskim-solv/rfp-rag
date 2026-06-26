@@ -1,31 +1,57 @@
-# Production-adjacent Agentic RAG for Korean Public RFPs
+# Senior AI Agent Engineer Portfolio: Agentic RAG for Korean Public RFPs
 
-AI Agent Engineer 시니어 포트폴리오 검토용 source-first Agentic RAG
-backend입니다. 입찰 RFP 100건의 원본 HWP/PDF를 파싱해 RAG 본문 source of
-truth로 쓰고, CSV는 사업명, 발주기관, 예산, 마감일, 파일명 metadata
-registry로만 사용합니다. 이 레포의 주장은 public hosted service가 아니라
-local/container 환경에서 재현 가능한 운영형 증거입니다: FastAPI/Pydantic
-thin service, constrained LangGraph workflow, checkpoint/HITL, guarded tools,
-citation-grounded generation, evaluation gates, deterministic security smoke, local ops
-summary, deterministic token/cost estimates.
+Tier A AI Agent/RAG 역할에 제출하기 위한 source-first Agentic RAG backend입니다.
+입찰 RFP 100건의 원본 HWP/PDF를 파싱해 RAG 본문 source of truth로 쓰고,
+CSV는 사업명, 발주기관, 예산, 마감일, 파일명 metadata registry로만
+사용합니다. 이 레포의 현재 주장은 public-safe hosted reviewer demo를 포함한
+production-adjacent engineering evidence입니다: FastAPI/Pydantic thin service,
+reviewer-token protected public demo mode, constrained LangGraph workflow,
+checkpoint/HITL, guarded tools, citation-grounded generation, evaluation gates,
+deterministic security smoke, local ops summary, deterministic token/cost
+estimates. 이것은 hosted production SaaS나 live-traffic SLO claim이 아닙니다.
 
 ## Portfolio Status
 
 Current public claim:
 
 - **What is proven:** senior AI Agent Engineer repo/demo review에 제출 가능한
-  local/container evidence bundle plus production-facing readiness artifacts.
+  public-safe hosted reviewer demo plus local/container reproducibility evidence
+  bundle and production-facing readiness artifacts.
   `gate_status`, `portfolio_check`, and credential-free tests agree with the
   generated artifacts when the dependency security gate is complete.
-- **What is not claimed:** hosted cloud production, auth/session/rate-limit
-  운영, live-traffic SLO, public dashboard, provider billing telemetry, or a
-  reranker quality win.
-- **How to verify in 5 minutes:**
+- **What is not claimed:** hosted cloud production SaaS, multi-tenant
+  auth/session 운영, live-traffic SLO, public dashboard, provider billing
+  telemetry, or a reranker quality win.
+- **10-minute reviewer path:** start with
+  `docs/portfolio/senior-reviewer-pack.md`, then open
+  `docs/portfolio/reviewer-evidence-map.md`,
+  `docs/portfolio/korean-one-page-case-study.md` for the Korean interview
+  summary, `docs/portfolio/company-fit-matrix.md` for role-specific positioning,
+  `docs/portfolio/demo-runbook.md` for the screen-share flow, and
+  `docs/portfolio/case-study.md` for deeper interview defense. This path is
+  designed for Korean senior AI Agent Engineer review: architecture, RAG
+  quality, LangGraph orchestration, FastAPI/SSE service evidence, observability,
+  security, dependency hygiene, role fit, and explicit non-claims.
+- **Claim manifest:** the public claim is locked in
+  `docs/portfolio/claim-manifest.json`: public-safe hosted reviewer demo plus
+  production-adjacent local/container reproducibility evidence for Korean public
+  RFPs, not full hosted production SaaS, live-traffic SLOs, or provider billing
+  telemetry.
+- **How to verify final local evidence:**
 
 ```bash
 python3 -m rfp_rag.gate_status
+python3 -m rfp_rag.stage2_quality_scorecard --out artifacts/stage2_quality_scorecard/summary.json
+python3 -m rfp_rag.agent_orchestration
+python3 -m rfp_rag.stage3_agent_scorecard --out artifacts/stage3_agent_scorecard/summary.json
+python3 -m rfp_rag.production_readiness
+python3 -m rfp_rag.hosted_demo_smoke --base-url <hosted-or-local-url> --reviewer-token "$RFP_RAG_REVIEWER_TOKEN" --rate-limit-probe-count 25
+python3 -m rfp_rag.stage4_ops_risk_scorecard --out artifacts/stage4_ops_risk_scorecard/summary.json
+python3 -m rfp_rag.fresh_clone_smoke --out artifacts/fresh_clone_smoke/summary.json
+python3 -m rfp_rag.final_portfolio_scorecard --out artifacts/final_portfolio_scorecard/summary.json
 python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 uv run python -m pytest -m "not real" -q
+./scripts/local-hosted-demo-smoke.sh
 # Equivalent after putting the repo venv first on PATH:
 # PATH="$PWD/.venv/bin:$PATH" python3 -m pytest -m "not real" -q
 ```
@@ -38,22 +64,55 @@ Latest checked evidence:
 | Portfolio readiness | `artifacts/portfolio_readiness.json` | `portfolio_readiness_check=true`, `local_evidence_bundle_check=true`, `second_stage_readiness.complete=true`, `stage2_contract_schema_enforced=true`; `interview_readiness_check` also requires top-tier and production-facing gates |
 | Real RAG quality | `artifacts/eval_real/metrics.json`; contract `rfp-rag-real-v6`; parsed-source `artifacts/index_real` | `rag_quality_complete=true`; `recall@5=1.0`, `mrr=0.9922`, `faithfulness=0.9369`, `answer_relevancy=0.8109`, citation presence/validity `1.0` |
 | Stage 2 frozen evidence | `artifacts/eval_stage2_real/metrics.json`; frozen evidence-set contract | `holdout_quality_complete=true`; `recall@5=1.0`, `mrr=0.9923`, `faithfulness=0.9397`, `answer_relevancy=0.8030`, citation presence/validity `1.0`; not claimed as an independent public-traffic holdout |
+| Stage 2 RAG scorecard | `artifacts/stage2_quality_scorecard/summary.json`; `docs/portfolio/stage2-rag-quality-scorecard.md` | deterministic parser/retrieval/citation/context scorecard; `context_precision_at5`, `context_recall_at5`, and `citation_precision_proxy` are computed from Stage 3 raw predictions without reintroducing Ragas |
 | Agent workflow | `artifacts/eval_agent_stress/metrics.json` | constrained LangGraph workflow with deterministic replay evidence; `trajectory_pass_rate=1.0`, checkpoint/HITL/thread isolation/checkpointer close/audit-argument redaction checks pass |
+| Stage 3 agent scorecard | `artifacts/stage3_agent_scorecard/summary.json`; `docs/portfolio/stage3-agent-workflow-scorecard.md` | deterministic scorecard for routing/tool accuracy, rewrite recovery, HITL approve/reject, checkpoint/thread isolation, planner-executor scenario evidence, and audit surface |
 | Retrieval bakeoff | `artifacts/retrieval_bakeoff/summary.json` | vector, BM25, and hybrid RRF compared on the same frozen set; decision is `keep_vector_until_candidate_wins`; `failed=[]` |
 | Visual/table evidence | `artifacts/visual_quality/summary.json` | `visual_question_count=30`, `visual_evidence_hit_rate=0.92`, unsupported visual claim rate within gate |
 | Security/ops/cost | `artifacts/security_redteam/summary.json`, `artifacts/service_ops/summary.json`, `artifacts/cost_budget/summary.json` | deterministic prompt-injection/secrets/tool-policy smoke checks pass; thin FastAPI/SSE local smoke passes; deterministic token/cost estimate coverage is `1.0` for persisted real/open predictions, not provider billing telemetry |
-| Production-facing package | `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | hosted-deployment readiness plan, 3-minute reviewer package, and dependency security register pass; `ragas` was removed by ADR-0021 |
+| Stage 4 ops/risk scorecard | `artifacts/stage4_ops_risk_scorecard/summary.json`; `docs/portfolio/stage4-ops-risk-scorecard.md` | deterministic scorecard for traces, failed-run analysis, latency/token/cost evidence, service smoke, red-team checks, cost budget, dependency security, and deployment boundaries |
+| Stage 5 final scorecard | `artifacts/fresh_clone_smoke/summary.json`, `artifacts/final_portfolio_scorecard/summary.json`; `docs/portfolio/final-portfolio-scorecard.md` | committed HEAD fresh-clone offline smoke plus weighted senior portfolio scorecard; target `score_total >= 90`, final claim requires `failed=[]` |
+| Public-safe hosted reviewer demo | `render.yaml`; `artifacts/hosted_demo_smoke/summary.json`; `artifacts/hosted_deployment_evidence/summary.json`; `rfp_rag.hosted_demo_smoke`; `rfp_rag.hosted_deployment_evidence`; ADR-0022 | Render Free Docker web service blueprint plus smoke/evidence verifier for HTTPS URL, `/healthz`, reviewer-token boundary, rate-limit boundary, `/v1/gates`, `/v1/answer`, SSE final event, redacted logs/metrics, rollback evidence, and public-safe synthetic source boundary |
+| Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
+
+## Career / Freelance / Startup Readiness
+
+This repo is positioned for three different outcomes, with separate evidence
+boundaries:
+
+- **Senior AI Agent/RAG employment:** ready to lead with when
+  `final_portfolio_scorecard`, hosted demo smoke, fresh clone smoke, and
+  portfolio check pass.
+- **Freelance RAG/document-AI work:** ready for scoped discovery and bounded
+  paid projects using `docs/portfolio/freelance-offer-pack.md`.
+- **Startup SaaS:** ready for customer discovery using
+  `docs/portfolio/startup-validation-plan.md`, but not claimed as full SaaS
+  production.
+
+Run:
+
+```bash
+uv run python -m rfp_rag.business_readiness --out artifacts/business_readiness/summary.json
+```
+
+Evidence:
+
+- `docs/portfolio/business-readiness-scorecard.md`
+- `docs/portfolio/freelance-offer-pack.md`
+- `docs/portfolio/startup-validation-plan.md`
 
 Explicit limitations:
 
 - `reranker` is implemented as an interface, but no quality-win claim is made
   until a same-set paid/API reranker artifact exists. The current ADR-0020
   decision keeps vector because BM25/hybrid do not beat it without regressions.
-- `cloud_deployment` and `public_dashboard` are deferred product scopes that
-  require separate credentials, spend, and public-disclosure decisions.
-- No live-traffic production SLO is claimed. Current ops evidence is
-  local/container demo evidence plus deterministic artifact gates.
+- Always-on production SaaS, multi-tenant account/session operations,
+  public dashboard, provider billing telemetry, and live-traffic SLOs are
+  deferred product scopes that require separate credentials, spend, and
+  public-disclosure decisions.
+- No live-traffic production SLO is claimed. Current ops evidence is the
+  public-safe reviewer demo plus deterministic local/container artifact gates.
 
 ## Gate Semantics
 
@@ -69,9 +128,13 @@ The final portfolio target is recorded in
 `docs/portfolio/2026-rfp-rag-final-goal.md`. The adversarial readiness review is
 recorded in `docs/portfolio/2026-rfp-rag-adversarial-review.md`. The current
 implemented architecture map is recorded in
-`docs/architecture/system-architecture.md`. The reviewer demo path is
+`docs/architecture/system-architecture.md`. The Korean 1-page reviewer summary is
+`docs/portfolio/korean-one-page-case-study.md`. The senior reviewer entry point is
+`docs/portfolio/senior-reviewer-pack.md`, the role-fit matrix is
+`docs/portfolio/company-fit-matrix.md`, the reviewer demo path is
 `docs/portfolio/demo-runbook.md`, the next top-tier roadmap is
-`docs/portfolio/top-tier-roadmap.md`, and resume/interview wording is
+`docs/portfolio/top-tier-roadmap.md`, final scorecard wording is
+`docs/portfolio/final-portfolio-scorecard.md`, and resume/interview wording is
 `docs/portfolio/resume-interview-bullets.md`. The project should be framed as a
 production-adjacent Agentic RAG backend for an AI Agent Engineer senior portfolio,
 using Korean public RFP intelligence as the hard workload: complex-document
@@ -139,19 +202,20 @@ python3 -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
 ```
 
 This check verifies local gate status, guardrail regression, Docker/CI build
-evidence, architecture evidence, ADR links, and Stage 2 readiness. Current
-local evidence passes the local/container portfolio contract; rerun this
-command before citing the repo because stale artifacts fail closed. A green
-portfolio check does not claim hosted production operation, provider billing
-telemetry, or public-dashboard readiness.
+evidence, architecture evidence, ADR links, Stage 2 readiness, and hosted
+reviewer evidence. Current evidence must pass the public-safe hosted reviewer
+contract; rerun this command before citing the repo because stale or missing
+hosted artifacts fail closed. A green portfolio check does not claim full
+hosted production operation, provider billing telemetry, or public-dashboard
+readiness.
 
 The same report now includes `top_tier_readiness` for the next portfolio level:
 one-command reviewer demo, Stage 3 independent holdout, real observability,
 upgraded agent orchestration, deeper security/reliability evidence, and a senior
 case study. The CLI also reports `interview_readiness_check`, which is stricter
 than `portfolio_readiness_check` and requires top-tier plus production-facing
-evidence. Local top-tier evidence can pass while hosted production, public
-dashboard, and live-traffic SLO claims stay out of scope.
+evidence. Hosted reviewer evidence can pass while full hosted production,
+public dashboard, and live-traffic SLO claims stay out of scope.
 
 Top-tier one-command demo smoke:
 
@@ -235,10 +299,16 @@ uv run python -m rfp_rag.stage2_service_ops
 ```
 
 This records endpoint/schema/path-safety/token-cost observability evidence in
-`artifacts/service_ops/summary.json`. The default mode uses lightweight answer
-and gate stubs so the service contract can be checked quickly and
-credential-free; use `--full-answer` or `--full-gates` only when intentionally
-testing the heavier offline RAG answer path or full gate-status path.
+`artifacts/service_ops/summary.json`. Portfolio readiness now requires the full
+offline answer path and full gate-status path:
+
+```bash
+uv run python -m rfp_rag.stage2_service_ops --full-answer --full-gates
+```
+
+The lightweight default remains useful for quick local endpoint debugging, but
+it is API-shape evidence only and should not be cited as the current service
+ops portfolio artifact.
 
 Stage 2 deterministic security smoke:
 
@@ -318,6 +388,17 @@ measured, but neither beats vector without regressions. Reranker remains an
 optional/deferred paid/API quality claim until a same-set `reranker="llm"`
 artifact exists. The decision record is `docs/adr/0020-retrieval-bakeoff.md`.
 
+Stage 2 RAG quality scorecard:
+
+```bash
+uv run python -m rfp_rag.stage2_quality_scorecard
+```
+
+This writes `artifacts/stage2_quality_scorecard/summary.json` and aggregates
+parser quality, retrieval bakeoff, visual/table quality, Stage 2 frozen real
+evidence, Stage 3 holdout quality, and deterministic Stage 3 prediction-derived
+context metrics. It is credential-free and does not reintroduce Ragas.
+
 Stage 2 visual quality:
 
 ```bash
@@ -385,6 +466,89 @@ Ops summary example:
 
 ```bash
 curl -s 'http://127.0.0.1:8000/v1/ops/summary?eval_dir=artifacts/eval&audit_path=artifacts/eval_agent/agent_artifacts/audit.jsonl'
+```
+
+## Public-Safe Hosted Reviewer Demo
+
+The approved first hosted target is a public-safe reviewer demo, not a
+production SaaS claim. `render.yaml` defines a Render Free Docker web service
+with:
+
+- `RFP_RAG_PUBLIC_DEMO_MODE=1`;
+- `RFP_RAG_RATE_LIMIT_PER_MINUTE=20`;
+- `RFP_RAG_GIT_SHA=<deployed commit sha>`;
+- `RFP_RAG_REVIEWER_TOKEN` as an unsynced secret set by the owner in Render.
+
+After the owner approves external deployment and creates the Render service,
+verify the hosted URL with:
+
+```bash
+uv run python -m rfp_rag.hosted_demo_smoke \
+  --base-url https://<render-service-url> \
+  --reviewer-token "$RFP_RAG_REVIEWER_TOKEN" \
+  --expected-git-sha "$(git rev-parse --short HEAD)" \
+  --rate-limit-probe-count 25 \
+  --out artifacts/hosted_demo_smoke/summary.json
+```
+
+This smoke requires the hosted response provider to be `public_demo` and fails
+closed if the answer path exposes raw RFP text, lacks public-safe synthetic
+sources, omits the reviewer-token boundary, fails to observe a `429 rate_limited`
+rate-limit boundary, serves a different `RFP_RAG_GIT_SHA`, returns a non-demo
+`/v1/gates` payload, or misses the SSE final event.
+
+Post-deploy logs, metrics, and rollback evidence are captured through
+`docs/portfolio/hosted-deployment-runbook.md` and validated with:
+
+```bash
+uv run python -m rfp_rag.hosted_ops_summary \
+  --service-url https://<render-service-url> \
+  --deployed-git-sha "$(git rev-parse --short HEAD)" \
+  --out artifacts/hosted_ops/summary.json \
+  --confirm-logs-redacted \
+  --confirm-metrics-visible \
+  --confirm-rollback-runbook
+uv run python -m rfp_rag.hosted_deployment_evidence \
+  --out artifacts/hosted_deployment_evidence/summary.json
+```
+
+Before an actual HTTPS URL exists, this validator must fail closed. It becomes
+green only when `artifacts/hosted_ops/summary.json` records redacted hosted
+logs, visible service metrics, a successful deploy smoke, and rollback evidence
+for the deployed git SHA.
+
+The same post-deploy check can be run in GitHub Actions via
+`.github/workflows/hosted-demo-smoke.yml` after adding repository secret
+`RFP_RAG_REVIEWER_TOKEN`. Run the workflow manually with the approved hosted
+`service_url`; it uploads hosted smoke, hosted ops, hosted deployment evidence,
+final scorecard, and portfolio readiness artifacts.
+
+For the same evidence chain from a local terminal after approved deployment:
+
+```bash
+SERVICE_URL=https://<render-service-url> \
+RFP_RAG_REVIEWER_TOKEN="$RFP_RAG_REVIEWER_TOKEN" \
+DEPLOYED_GIT_SHA="$(git rev-parse --short HEAD)" \
+CONFIRM_LOGS_REDACTED=true \
+CONFIRM_METRICS_VISIBLE=true \
+CONFIRM_ROLLBACK_RUNBOOK=true \
+./scripts/hosted-evidence.sh
+```
+
+If Render dashboard/API access is unavailable, the approved fallback is a free
+Hugging Face Docker Space:
+
+```bash
+RFP_RAG_REVIEWER_TOKEN="$(openssl rand -hex 32)" \
+DEPLOYED_GIT_SHA="$(git rev-parse --short HEAD)" \
+./scripts/deploy-hf-space.sh
+
+SERVICE_URL=https://hskim-solv-rfp-rag-reviewer-demo.hf.space \
+HOSTED_PROVIDER=huggingface_spaces \
+CONFIRM_LOGS_REDACTED=true \
+CONFIRM_METRICS_VISIBLE=true \
+CONFIRM_ROLLBACK_RUNBOOK=true \
+./scripts/hosted-evidence.sh
 ```
 
 ## MCP-style ops tool server

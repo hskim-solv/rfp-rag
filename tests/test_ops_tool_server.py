@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from rfp_rag.ops_tool_server import ToolGuardrailError, ToolRegistry, handle_request
+from rfp_rag.ops_tool_server import (
+    TOOL_DESCRIPTORS,
+    ToolGuardrailError,
+    ToolRegistry,
+    handle_request,
+)
 
 
 def _write_eval_fixture(path: Path) -> Path:
@@ -58,6 +63,9 @@ def test_tools_list_exposes_mcp_style_tool_descriptors() -> None:
     names = [tool["name"] for tool in response["result"]["tools"]]
     assert names == ["gate.status", "ops.summary", "eval.metrics"]
     assert response["result"]["tools"][0]["inputSchema"]["type"] == "object"
+    assert response["result"]["tools"][0]["sideEffectClass"] == "read-only"
+    assert "outputSchema" in response["result"]["tools"][1]
+    assert "errorCodes" in response["result"]["tools"][2]
 
 
 def test_ops_summary_tool_call_returns_observability_payload(
@@ -85,6 +93,9 @@ def test_ops_summary_tool_call_returns_observability_payload(
     assert response["id"] == "call-1"
     result = response["result"]
     assert result["tool"] == "ops.summary"
+    assert result["audit"]["tool"] == "ops.summary"
+    assert result["audit"]["status"] == "ok"
+    assert result["audit"]["error_code"] is None
     assert result["content"]["eval"]["prediction_count"] == 1
     assert result["content"]["tools"]["total_calls"] == 1
 
@@ -135,6 +146,29 @@ def test_tool_registry_enforces_max_tool_call_budget(
         registry.call_tool(
             "eval.metrics", {"eval_dir": str(eval_dir.relative_to(tmp_path))}
         )
+
+
+def test_tool_registry_enforces_response_byte_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    eval_dir = _write_eval_fixture(tmp_path)
+    registry = ToolRegistry()
+    descriptor = next(
+        tool for tool in TOOL_DESCRIPTORS if tool["name"] == "eval.metrics"
+    )
+    old_cap = descriptor["maxResponseBytes"]
+    descriptor["maxResponseBytes"] = 1
+    try:
+        with pytest.raises(ToolGuardrailError, match="tool_response_too_large"):
+            registry.call_tool(
+                "eval.metrics", {"eval_dir": str(eval_dir.relative_to(tmp_path))}
+            )
+    finally:
+        descriptor["maxResponseBytes"] = old_cap
+    assert registry.last_audit_record is not None
+    assert registry.last_audit_record["status"] == "error"
+    assert registry.last_audit_record["error_code"] == "tool_response_too_large"
 
 
 def test_tool_call_rejects_unknown_arguments() -> None:

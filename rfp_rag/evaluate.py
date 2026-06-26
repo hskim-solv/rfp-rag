@@ -1258,6 +1258,8 @@ def reaggregate_metrics(
         "rerank_candidate_k": previous.get("rerank_candidate_k", previous.get("top_k")),
         "error_rate": error_rate,
         "evaluation_valid": evaluation_valid,
+        "eval_set_hash": previous.get("eval_set_hash")
+        or previous.get("source_eval_set_hash"),
         "score_distribution": _score_distribution(predictions),
         "query_set_counts": previous.get("query_set_counts", {}),
         "aggregate": aggregate,

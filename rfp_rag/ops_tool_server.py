@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, TextIO
@@ -28,6 +29,21 @@ TOOL_DESCRIPTORS: list[dict[str, Any]] = [
             "properties": {"root": {"type": "string", "default": "."}},
             "additionalProperties": False,
         },
+        "outputSchema": {"type": "object", "required": ["overall_ok", "lanes"]},
+        "sideEffectClass": "read-only",
+        "authBoundary": "local reviewer process only; hosted mode requires separate auth/rate-limit approval",
+        "timeoutMs": 30000,
+        "maxResponseBytes": 200000,
+        "redactionPolicy": "aggregate gate status only; no raw prompts, source text, secrets, or provider payloads",
+        "auditFields": ["tool", "status", "duration_ms", "error_code"],
+        "errorCodes": [
+            "artifact_path_not_allowed",
+            "tool_not_allowed",
+            "tool_budget_exceeded",
+            "tool_timeout",
+            "tool_response_too_large",
+            "invalid_arguments",
+        ],
     },
     {
         "name": "ops.summary",
@@ -45,6 +61,22 @@ TOOL_DESCRIPTORS: list[dict[str, Any]] = [
             },
             "additionalProperties": False,
         },
+        "outputSchema": {"type": "object", "required": ["eval", "tools"]},
+        "sideEffectClass": "read-only",
+        "authBoundary": "local reviewer process only; hosted mode requires separate auth/rate-limit approval",
+        "timeoutMs": 30000,
+        "maxResponseBytes": 200000,
+        "redactionPolicy": "summaries and counts only; audit args are pre-redacted by agent tooling",
+        "auditFields": ["tool", "status", "duration_ms", "error_code"],
+        "errorCodes": [
+            "artifact_missing",
+            "artifact_path_not_allowed",
+            "tool_not_allowed",
+            "tool_budget_exceeded",
+            "tool_timeout",
+            "tool_response_too_large",
+            "invalid_arguments",
+        ],
     },
     {
         "name": "eval.metrics",
@@ -54,6 +86,23 @@ TOOL_DESCRIPTORS: list[dict[str, Any]] = [
             "properties": {"eval_dir": {"type": "string", "default": "artifacts/eval"}},
             "additionalProperties": False,
         },
+        "outputSchema": {"type": "object"},
+        "sideEffectClass": "read-only",
+        "authBoundary": "local reviewer process only; hosted mode requires separate auth/rate-limit approval",
+        "timeoutMs": 10000,
+        "maxResponseBytes": 200000,
+        "redactionPolicy": "metrics only; prediction bodies and source text are not returned",
+        "auditFields": ["tool", "status", "duration_ms", "error_code"],
+        "errorCodes": [
+            "metrics_missing",
+            "metrics_invalid_json",
+            "artifact_path_not_allowed",
+            "tool_not_allowed",
+            "tool_budget_exceeded",
+            "tool_timeout",
+            "tool_response_too_large",
+            "invalid_arguments",
+        ],
     },
 ]
 
@@ -109,23 +158,43 @@ class ToolRegistry:
         }
         self.max_tool_calls = max_tool_calls
         self.tool_call_count = 0
+        self.last_audit_record: dict[str, Any] | None = None
 
     def call_tool(
         self, name: str, arguments: dict[str, Any] | None = None
     ) -> dict[str, Any]:
+        started = time.perf_counter()
+        status = "error"
+        error_code: str | None = None
         if name not in self.allowed_tools:
+            self._record_audit(name, started, status, "tool_not_allowed")
             raise ToolGuardrailError(
                 "tool_not_allowed", f"tool {name!r} is not in the allowlist"
             )
         if self.tool_call_count >= self.max_tool_calls:
+            self._record_audit(name, started, status, "tool_budget_exceeded")
             raise ToolGuardrailError(
                 "tool_budget_exceeded",
                 f"max tool-call budget {self.max_tool_calls} exceeded",
             )
 
         self.tool_call_count += 1
-        args = _validate_arguments(name, arguments or {})
+        try:
+            args = _validate_arguments(name, arguments or {})
+            content = self._call_tool_unchecked(name, args)
+            self._enforce_tool_runtime_contract(name, content, started)
+            status = "ok"
+            return content
+        except ToolGuardrailError as exc:
+            error_code = exc.code
+            raise
+        except ArtifactPathError as exc:
+            error_code = exc.code
+            raise
+        finally:
+            self._record_audit(name, started, status, error_code)
 
+    def _call_tool_unchecked(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         if name == "gate.status":
             root = safe_artifact_path(
                 Path(str(args.get("root", "."))), allowed_relatives=(".",)
@@ -190,6 +259,38 @@ class ToolRegistry:
 
         raise ToolGuardrailError("unknown_tool", f"tool {name!r} is not registered")
 
+    def _enforce_tool_runtime_contract(
+        self, name: str, content: dict[str, Any], started: float
+    ) -> None:
+        descriptor = _tool_descriptor(name)
+        duration_ms = (time.perf_counter() - started) * 1000
+        timeout_ms = descriptor.get("timeoutMs")
+        if isinstance(timeout_ms, int | float) and duration_ms > float(timeout_ms):
+            raise ToolGuardrailError(
+                "tool_timeout",
+                f"tool {name!r} exceeded timeoutMs={timeout_ms}",
+            )
+        max_response_bytes = descriptor.get("maxResponseBytes")
+        if isinstance(max_response_bytes, int | float):
+            response_bytes = len(
+                json.dumps(content, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            )
+            if response_bytes > int(max_response_bytes):
+                raise ToolGuardrailError(
+                    "tool_response_too_large",
+                    f"tool {name!r} response exceeded maxResponseBytes={max_response_bytes}",
+                )
+
+    def _record_audit(
+        self, name: str, started: float, status: str, error_code: str | None
+    ) -> None:
+        self.last_audit_record = {
+            "tool": name,
+            "status": status,
+            "duration_ms": round((time.perf_counter() - started) * 1000, 3),
+            "error_code": error_code,
+        }
+
 
 def _error_response(request_id: Any, code: str, message: str) -> dict[str, Any]:
     return {
@@ -226,7 +327,11 @@ def handle_request(
         return {
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": {"tool": name, "content": content},
+            "result": {
+                "tool": name,
+                "content": content,
+                "audit": tool_registry.last_audit_record,
+            },
         }
 
     return _error_response(request_id, "method_not_found", f"unknown method {method!r}")

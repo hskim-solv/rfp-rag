@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from rfp_rag.gate_status import collect_gate_status
+from rfp_rag.stage2_real import prediction_judge_coverage_summary
 
 
 DEFERRED_GAPS = [
@@ -141,7 +142,14 @@ SECOND_STAGE_GATES = [
         "id": "service_ops",
         "path": "artifacts/service_ops/summary.json",
         "complete_field": "service_ops_complete",
-        "required_fields": ("docker_demo_command", "metrics", "thresholds", "failed"),
+        "required_fields": (
+            "docker_demo_command",
+            "full_answer_smoke",
+            "full_gates_smoke",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
         "metric_checks": (
             ("healthz_pass", "==", 1.0),
             ("answer_pass", "==", 1.0),
@@ -258,6 +266,33 @@ TOP_TIER_GATES = [
         ),
     },
     {
+        "id": "stage2_quality_scorecard",
+        "path": "artifacts/stage2_quality_scorecard/summary.json",
+        "complete_field": "stage2_quality_scorecard_complete",
+        "required_fields": (
+            "evidence_paths",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("parser_doc_count", ">=", 100),
+            ("parser_average_quality_score", ">=", 0.90),
+            ("parser_page_citation_coverage", "==", 1.0),
+            ("parser_low_quality_doc_count", "==", 0),
+            ("stage2_query_count", ">=", 150),
+            ("stage3_query_count", ">=", 100),
+            ("context_precision_at5", ">=", 0.70),
+            ("context_recall_at5", ">=", 0.75),
+            ("citation_precision_proxy", ">=", 0.90),
+            ("unsupported_claim_rate", "<=", 0.03),
+            ("stage3_faithfulness", ">=", 0.85),
+            ("stage3_answer_relevancy", ">=", 0.85),
+            ("retrieval_no_regression", "==", 1.0),
+            ("visual_evidence_hit_rate", ">=", 0.90),
+        ),
+    },
+    {
         "id": "real_observability",
         "path": "artifacts/observability/summary.json",
         "complete_field": "observability_complete",
@@ -298,6 +333,42 @@ TOP_TIER_GATES = [
         ),
     },
     {
+        "id": "stage3_agent_scorecard",
+        "path": "artifacts/stage3_agent_scorecard/summary.json",
+        "complete_field": "stage3_agent_scorecard_complete",
+        "required_fields": (
+            "evidence_paths",
+            "required_replay_ids",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("agent_lane_complete", "==", 1.0),
+            ("routing_accuracy", ">=", 0.90),
+            ("tool_accuracy", ">=", 0.90),
+            ("rewrite_recovery", ">=", 0.80),
+            ("loop_termination", "==", 1.0),
+            ("trajectory_pass_rate", "==", 1.0),
+            ("branch_coverage", "==", 1.0),
+            ("thread_id_isolation_pass", "==", 1.0),
+            ("hitl_approval_convergence", "==", 1.0),
+            ("no_side_effect_before_approval", "==", 1.0),
+            ("checkpoint_close_path_pass", "==", 1.0),
+            ("audit_arg_redaction_pass", "==", 1.0),
+            ("ops_tool_budget_violation_count", "==", 0),
+            ("planner_executor_or_supervisor_worker_pass", "==", 1.0),
+            ("multi_tool_plan_pass", "==", 1.0),
+            ("bounded_retry_reflection_pass", "==", 1.0),
+            ("human_approval_node_pass", "==", 1.0),
+            ("state_schema_validation_pass", "==", 1.0),
+            ("required_replay_coverage", "==", 1.0),
+            ("scenario_plan_count", ">=", 2),
+            ("approval_scenario_count", ">=", 1),
+            ("audit_line_count", ">=", 100),
+        ),
+    },
+    {
         "id": "security_reliability_deepening",
         "path": "artifacts/reliability_security/summary.json",
         "complete_field": "security_reliability_complete",
@@ -314,6 +385,142 @@ TOP_TIER_GATES = [
             ("secrets_pii_leak_count", "==", 0),
             ("fallback_recovery_pass", "==", 1.0),
             ("deterministic_replay_pass", "==", 1.0),
+        ),
+    },
+    {
+        "id": "stage4_ops_risk_scorecard",
+        "path": "artifacts/stage4_ops_risk_scorecard/summary.json",
+        "complete_field": "stage4_ops_risk_scorecard_complete",
+        "required_fields": (
+            "evidence_paths",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("observability_complete", "==", 1.0),
+            ("trace_export_present", "==", 1.0),
+            ("latency_p50_ms_recorded", "==", 1.0),
+            ("latency_p95_ms_recorded", "==", 1.0),
+            ("token_cost_recorded", "==", 1.0),
+            ("tool_success_rate_recorded", "==", 1.0),
+            ("failed_run_analysis_count", ">=", 5),
+            ("service_ops_complete", "==", 1.0),
+            ("healthz_pass", "==", 1.0),
+            ("answer_pass", "==", 1.0),
+            ("stream_pass", "==", 1.0),
+            ("gates_pass", "==", 1.0),
+            ("ops_summary_pass", "==", 1.0),
+            ("path_safety_pass", "==", 1.0),
+            ("security_redteam_complete", "==", 1.0),
+            ("block_recall", "==", 1.0),
+            ("secret_pii_leak_count", "==", 0),
+            ("raw_persistence_count", "==", 0),
+            ("tool_policy_violation_count", "==", 0),
+            ("security_reliability_complete", "==", 1.0),
+            ("redteam_case_count", ">=", 20),
+            ("prompt_injection_block_recall", "==", 1.0),
+            ("secrets_pii_leak_count", "==", 0),
+            ("fallback_recovery_pass", "==", 1.0),
+            ("deterministic_replay_pass", "==", 1.0),
+            ("cost_budget_complete", "==", 1.0),
+            ("token_record_coverage", "==", 1.0),
+            ("cost_record_coverage", "==", 1.0),
+            ("budget_violation_count", "==", 0),
+            ("dependency_security_complete", "==", 1.0),
+            ("unresolved_unaccepted_alert_count", "==", 0),
+            ("deployment_readiness_complete", "==", 1.0),
+            ("public_exposure_requires_approval", "==", 1.0),
+            ("rate_limit_plan_documented", "==", 1.0),
+            ("secret_handling_documented", "==", 1.0),
+        ),
+    },
+    {
+        "id": "fresh_clone_offline_smoke",
+        "path": "artifacts/fresh_clone_smoke/summary.json",
+        "complete_field": "fresh_clone_offline_smoke_complete",
+        "required_fields": (
+            "stage5_schema_version",
+            "offline_only",
+            "git_sha",
+            "required_command",
+            "provider_env_forbidden",
+            "checks",
+            "metrics",
+            "thresholds",
+            "failed",
+        ),
+        "metric_checks": (
+            ("git_sha_recorded", "==", 1.0),
+            ("git_clone_pass", "==", 1.0),
+            ("checkout_head_pass", "==", 1.0),
+            ("uv_sync_pass", "==", 1.0),
+            ("synthetic_corpus_pass", "==", 1.0),
+            ("ruff_format_pass", "==", 1.0),
+            ("ruff_lint_pass", "==", 1.0),
+            ("pytest_not_real_pass", "==", 1.0),
+            ("no_credentials_required", "==", 1.0),
+        ),
+    },
+    {
+        "id": "business_readiness",
+        "path": "artifacts/business_readiness/summary.json",
+        "complete_field": "business_readiness_complete",
+        "required_fields": (
+            "schema_version",
+            "scores",
+            "thresholds",
+            "employment_ready",
+            "freelance_ready",
+            "startup_discovery_ready",
+            "startup_saas_ready",
+            "checks",
+            "evidence",
+            "failed",
+            "non_claims",
+        ),
+        "metric_source": "scores",
+        "metric_checks": (
+            ("employment", ">=", 90),
+            ("freelance", ">=", 80),
+            ("startup_discovery", ">=", 65),
+        ),
+    },
+    {
+        "id": "final_portfolio_scorecard",
+        "path": "artifacts/final_portfolio_scorecard/summary.json",
+        "complete_field": "final_portfolio_scorecard_complete",
+        "required_fields": (
+            "stage5_schema_version",
+            "claim_boundary",
+            "score_total",
+            "score_threshold",
+            "dimensions",
+            "metrics",
+            "thresholds",
+            "failed",
+            "evidence_paths",
+            "non_claims",
+        ),
+        "metric_checks": (
+            ("score_total", ">=", 90),
+            ("dimension_business_problem_sharpness", "==", 10),
+            ("dimension_source_first_rag_quality", "==", 20),
+            ("dimension_agentic_engineering_depth", "==", 20),
+            ("dimension_evaluation_rigor", "==", 15),
+            ("dimension_production_operations", "==", 15),
+            ("dimension_guardrails_security", "==", 10),
+            ("dimension_hiring_presentation", "==", 10),
+            ("claim_boundary_pass", "==", 1.0),
+            ("docs_claim_consistency_pass", "==", 1.0),
+            ("public_package_redaction_pass", "==", 1.0),
+            ("fresh_clone_offline_smoke_pass", "==", 1.0),
+            ("ci_docker_runtime_smoke_present", "==", 1.0),
+            ("hosted_cloud_claim", "==", 0),
+            ("live_traffic_slo_claim", "==", 0),
+            ("provider_billing_telemetry_claim", "==", 0),
+            ("reranker_quality_win_claim", "==", 0),
+            ("unqualified_production_grade_claim", "==", 0),
         ),
     },
     {
@@ -350,6 +557,7 @@ TOP_TIER_GATES = [
             ("secret_handling_documented", "==", 1.0),
             ("public_exposure_requires_approval", "==", 1.0),
             ("one_command_fallback_documented", "==", 1.0),
+            ("hosted_deployment_evidence_pass", "==", 1.0),
         ),
     },
     {
@@ -466,8 +674,7 @@ def _second_stage_gate_issues(
     for field in gate.get("required_fields", ()):
         if field not in summary or summary.get(field) in (None, ""):
             issues.append(field)
-    failed = summary.get("failed")
-    if failed:
+    if _failed_field_is_invalid(summary):
         issues.append("failed")
     metrics = summary.get("metrics")
     thresholds = summary.get("thresholds")
@@ -503,6 +710,25 @@ def _second_stage_gate_issues(
             issues.append("per_slice_failed")
         if coverage_hash and summary.get("eval_set_hash") != coverage_hash:
             issues.append("eval_set_hash_mismatch")
+        prediction_coverage = prediction_judge_coverage_summary(
+            root / "artifacts/eval_stage2_real/predictions.jsonl",
+            _read_json(root / "artifacts/eval_stage2/coverage.json"),
+        )
+        if prediction_coverage.get("ok") is not True:
+            issues.extend(prediction_coverage.get("issues") or [])
+        summary_prediction_coverage = summary.get("prediction_judge_coverage")
+        if not isinstance(summary_prediction_coverage, dict):
+            issues.append("prediction_judge_coverage")
+        else:
+            for field in (
+                "counts_by_slice",
+                "faithfulness_min_by_answerable_slice",
+                "answer_relevancy_min_by_answerable_slice",
+            ):
+                if summary_prediction_coverage.get(field) != prediction_coverage.get(
+                    field
+                ):
+                    issues.append(f"prediction_judge_coverage.{field}")
         coverage_counts = _read_json(root / "artifacts/eval_stage2/coverage.json").get(
             "counts_by_slice", {}
         )
@@ -539,6 +765,11 @@ def _second_stage_gate_issues(
             issues.append("prompt_template_hash")
     if gate["id"] == "eval_stage2_coverage":
         issues.extend(_stage2_support_issues(root, summary, coverage_hash))
+    if gate["id"] == "service_ops":
+        if summary.get("full_answer_smoke") is not True:
+            issues.append("full_answer_smoke")
+        if summary.get("full_gates_smoke") is not True:
+            issues.append("full_gates_smoke")
     return sorted(set(issues))
 
 
@@ -599,6 +830,10 @@ def _threshold_matches(value: Any, op: str, expected: int | float) -> bool:
     return value == expected
 
 
+def _failed_field_is_invalid(summary: dict[str, Any]) -> bool:
+    return "failed" in summary and summary.get("failed") != []
+
+
 def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
     present: list[str] = []
     missing: list[str] = []
@@ -647,13 +882,13 @@ def _top_tier_gate_issues(gate: dict[str, Any], summary: dict[str, Any]) -> list
     for field in gate.get("required_fields", ()):
         if field not in summary or summary.get(field) in (None, ""):
             issues.append(field)
-    failed = summary.get("failed")
-    if failed:
+    if _failed_field_is_invalid(summary):
         issues.append("failed")
-    metrics = summary.get("metrics")
+    metric_source = str(gate.get("metric_source", "metrics"))
+    metrics = summary.get(metric_source)
     thresholds = summary.get("thresholds")
     if not isinstance(metrics, dict):
-        issues.append("metrics")
+        issues.append(metric_source)
         metrics = {}
     if not isinstance(thresholds, dict):
         issues.append("thresholds")
@@ -673,6 +908,16 @@ def _document_gate_issues(root: Path, gate: dict[str, Any]) -> list[str]:
     issues: list[str] = []
     if not text:
         issues.append("document_missing")
+    stripped = text.strip()
+    if stripped and len(stripped) < 120:
+        issues.append("document_too_short")
+    heading_count = sum(
+        1
+        for line in text.splitlines()
+        if line.startswith("# ") or line.startswith("## ")
+    )
+    if stripped and heading_count < 2:
+        issues.append("document_structure")
     for term in gate.get("required_terms", ()):
         if term not in text:
             issues.append(f"term:{term}")
@@ -747,6 +992,30 @@ def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
             _check_file(root, "Dockerfile"),
             _check_file(root, ".github/workflows/ci.yml"),
             _check_file(root, "docs/architecture/system-architecture.md"),
+            _check_text(
+                root,
+                "docs/portfolio/senior-reviewer-pack.md",
+                "10-minute Review Path",
+                "senior_reviewer_pack_path",
+            ),
+            _check_text(
+                root,
+                "docs/portfolio/senior-reviewer-pack.md",
+                "Scorecard Target",
+                "senior_reviewer_pack_scorecard",
+            ),
+            _check_text(
+                root,
+                "docs/portfolio/company-fit-matrix.md",
+                "Tier A 21 roles and Tier B 107 roles",
+                "company_fit_matrix_tier_snapshot",
+            ),
+            _check_text(
+                root,
+                "docs/portfolio/company-fit-matrix.md",
+                "AI Agent Platform Engineering",
+                "company_fit_matrix_agent_platform",
+            ),
             _check_file(root, "docs/adr/0014-fastapi-service-surface.md"),
             _check_file(root, "docs/adr/0015-docker-ci-baseline.md"),
             _check_file(root, "docs/adr/0016-mcp-style-ops-tool-server.md"),
@@ -755,6 +1024,18 @@ def collect_portfolio_readiness(root: Path = Path(".")) -> dict[str, Any]:
                 "README.md",
                 "docs/architecture/system-architecture.md",
                 "readme_architecture_link",
+            ),
+            _check_text(
+                root,
+                "README.md",
+                "docs/portfolio/senior-reviewer-pack.md",
+                "readme_senior_reviewer_pack_link",
+            ),
+            _check_text(
+                root,
+                "README.md",
+                "docs/portfolio/company-fit-matrix.md",
+                "readme_company_fit_matrix_link",
             ),
             _check_text(
                 root,

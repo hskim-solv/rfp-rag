@@ -12,7 +12,16 @@ def _write(path: Path, text: str = "ok") -> None:
 
 
 def _minimal_ready_root(root: Path) -> None:
-    _write(root / "README.md", "docs/architecture/system-architecture.md\n")
+    _write(
+        root / "README.md",
+        "\n".join(
+            [
+                "docs/architecture/system-architecture.md",
+                "docs/portfolio/senior-reviewer-pack.md",
+                "docs/portfolio/company-fit-matrix.md",
+            ]
+        ),
+    )
     _write(root / "REPORT.md", "Architecture evidence map\n")
     _write(root / "Dockerfile", "FROM python:3.13-slim\n")
     _write(
@@ -21,6 +30,14 @@ def _minimal_ready_root(root: Path) -> None:
     )
     _write(
         root / "docs/architecture/system-architecture.md", "## Operational Boundaries\n"
+    )
+    _write(
+        root / "docs/portfolio/senior-reviewer-pack.md",
+        "10-minute Review Path\nScorecard Target\n",
+    )
+    _write(
+        root / "docs/portfolio/company-fit-matrix.md",
+        "Tier A 21 roles and Tier B 107 roles\nAI Agent Platform Engineering\n",
     )
     _write(root / "docs/adr/0014-fastapi-service-surface.md")
     _write(root / "docs/adr/0015-docker-ci-baseline.md")
@@ -70,6 +87,16 @@ def _minimal_ready_root(root: Path) -> None:
 
 def _write_complete_second_stage(root: Path) -> None:
     eval_set_hash = "stage2-eval-set-v1"
+    prediction_judge_coverage = {
+        "ok": True,
+        "path": str(root / "artifacts/eval_stage2_real/predictions.jsonl"),
+        "issues": [],
+        "counts_by_slice": {"metadata": 1},
+        "faithfulness_by_slice": {"metadata": 1.0},
+        "answer_relevancy_by_slice": {"metadata": 1.0},
+        "faithfulness_min_by_answerable_slice": 1.0,
+        "answer_relevancy_min_by_answerable_slice": 1.0,
+    }
     complete_payloads = {
         "artifacts/eval_stage2/coverage.json": {
             "eval_set_audit_complete": True,
@@ -116,6 +143,7 @@ def _write_complete_second_stage(root: Path) -> None:
                 "cross_document": 20,
                 "visual_table": 30,
             },
+            "prediction_judge_coverage": prediction_judge_coverage,
             "metrics": {
                 "recall@5": 0.95,
                 "recall@3": 0.90,
@@ -215,6 +243,8 @@ def _write_complete_second_stage(root: Path) -> None:
         "artifacts/service_ops/summary.json": {
             "service_ops_complete": True,
             "docker_demo_command": "docker run --rm rfp-rag-service:ci",
+            "full_answer_smoke": True,
+            "full_gates_smoke": True,
             "metrics": {
                 "healthz_pass": 1.0,
                 "answer_pass": 1.0,
@@ -289,6 +319,16 @@ def _write_complete_second_stage(root: Path) -> None:
     for rel, payload in complete_payloads.items():
         _write(root / rel, json.dumps(payload))
     _write(
+        root / "artifacts/eval_stage2_real/predictions.jsonl",
+        json.dumps(
+            {
+                "query_id": "metadata_budget_000",
+                "judge": {"faithfulness": 1.0, "answer_relevancy": 1.0},
+            }
+        )
+        + "\n",
+    )
+    _write(
         root / "artifacts/eval_stage2/split_manifest.json",
         json.dumps(
             {
@@ -316,8 +356,10 @@ def _write_complete_top_tier(root: Path) -> None:
         "\n".join(
             [
                 "# Top-tier roadmap",
+                "## Demo",
                 "Hosted or one-command reviewer demo",
                 "Stage 3 independent holdout",
+                "## Signals",
                 "Real observability",
                 "Upgraded agent orchestration",
                 "Senior case study",
@@ -330,9 +372,11 @@ def _write_complete_top_tier(root: Path) -> None:
         "\n".join(
             [
                 "# Case study",
+                "## Context",
                 "Problem",
                 "Architecture decisions",
                 "Evaluation evidence",
+                "## Review",
                 "Failure analysis",
                 "Operational boundaries",
                 "Interview defense",
@@ -392,6 +436,45 @@ def _write_complete_top_tier(root: Path) -> None:
             },
             "failed": [],
         },
+        "artifacts/stage2_quality_scorecard/summary.json": {
+            "stage2_quality_scorecard_complete": True,
+            "evidence_paths": {
+                "parser_quality": "artifacts/parser_quality/summary.json"
+            },
+            "metrics": {
+                "parser_doc_count": 100,
+                "parser_average_quality_score": 0.95,
+                "parser_page_citation_coverage": 1.0,
+                "parser_low_quality_doc_count": 0,
+                "stage2_query_count": 150,
+                "stage3_query_count": 100,
+                "context_precision_at5": 0.9,
+                "context_recall_at5": 0.9,
+                "citation_precision_proxy": 0.95,
+                "unsupported_claim_rate": 0.0,
+                "stage3_faithfulness": 0.9,
+                "stage3_answer_relevancy": 0.86,
+                "retrieval_no_regression": 1.0,
+                "visual_evidence_hit_rate": 0.92,
+            },
+            "thresholds": {
+                "parser_doc_count": 100,
+                "parser_average_quality_score": 0.90,
+                "parser_page_citation_coverage": 1.0,
+                "parser_low_quality_doc_count": 0,
+                "stage2_query_count": 150,
+                "stage3_query_count": 100,
+                "context_precision_at5": 0.70,
+                "context_recall_at5": 0.75,
+                "citation_precision_proxy": 0.90,
+                "unsupported_claim_rate": 0.03,
+                "stage3_faithfulness": 0.85,
+                "stage3_answer_relevancy": 0.85,
+                "retrieval_no_regression": 1.0,
+                "visual_evidence_hit_rate": 0.90,
+            },
+            "failed": [],
+        },
         "artifacts/observability/summary.json": {
             "observability_complete": True,
             "trace_provider": "phoenix",
@@ -435,6 +518,60 @@ def _write_complete_top_tier(root: Path) -> None:
             },
             "failed": [],
         },
+        "artifacts/stage3_agent_scorecard/summary.json": {
+            "stage3_agent_scorecard_complete": True,
+            "evidence_paths": {"agent_lane": "artifacts/eval_agent/metrics.json"},
+            "required_replay_ids": ["direct_rag"],
+            "metrics": {
+                "agent_lane_complete": 1.0,
+                "routing_accuracy": 1.0,
+                "tool_accuracy": 1.0,
+                "rewrite_recovery": 1.0,
+                "loop_termination": 1.0,
+                "trajectory_pass_rate": 1.0,
+                "branch_coverage": 1.0,
+                "thread_id_isolation_pass": 1.0,
+                "hitl_approval_convergence": 1.0,
+                "no_side_effect_before_approval": 1.0,
+                "checkpoint_close_path_pass": 1.0,
+                "audit_arg_redaction_pass": 1.0,
+                "ops_tool_budget_violation_count": 0,
+                "planner_executor_or_supervisor_worker_pass": 1.0,
+                "multi_tool_plan_pass": 1.0,
+                "bounded_retry_reflection_pass": 1.0,
+                "human_approval_node_pass": 1.0,
+                "state_schema_validation_pass": 1.0,
+                "required_replay_coverage": 1.0,
+                "scenario_plan_count": 2,
+                "approval_scenario_count": 1,
+                "audit_line_count": 100,
+            },
+            "thresholds": {
+                "agent_lane_complete": 1.0,
+                "routing_accuracy": 0.90,
+                "tool_accuracy": 0.90,
+                "rewrite_recovery": 0.80,
+                "loop_termination": 1.0,
+                "trajectory_pass_rate": 1.0,
+                "branch_coverage": 1.0,
+                "thread_id_isolation_pass": 1.0,
+                "hitl_approval_convergence": 1.0,
+                "no_side_effect_before_approval": 1.0,
+                "checkpoint_close_path_pass": 1.0,
+                "audit_arg_redaction_pass": 1.0,
+                "ops_tool_budget_violation_count": 0,
+                "planner_executor_or_supervisor_worker_pass": 1.0,
+                "multi_tool_plan_pass": 1.0,
+                "bounded_retry_reflection_pass": 1.0,
+                "human_approval_node_pass": 1.0,
+                "state_schema_validation_pass": 1.0,
+                "required_replay_coverage": 1.0,
+                "scenario_plan_count": 2,
+                "approval_scenario_count": 1,
+                "audit_line_count": 100,
+            },
+            "failed": [],
+        },
         "artifacts/reliability_security/summary.json": {
             "security_reliability_complete": True,
             "redteam_suite_path": "artifacts/reliability_security/redteam.jsonl",
@@ -455,9 +592,209 @@ def _write_complete_top_tier(root: Path) -> None:
             },
             "failed": [],
         },
+        "artifacts/stage4_ops_risk_scorecard/summary.json": {
+            "stage4_ops_risk_scorecard_complete": True,
+            "evidence_paths": {"observability": "artifacts/observability/summary.json"},
+            "metrics": {
+                "observability_complete": 1.0,
+                "trace_export_present": 1.0,
+                "latency_p50_ms_recorded": 1.0,
+                "latency_p95_ms_recorded": 1.0,
+                "token_cost_recorded": 1.0,
+                "tool_success_rate_recorded": 1.0,
+                "failed_run_analysis_count": 5,
+                "service_ops_complete": 1.0,
+                "healthz_pass": 1.0,
+                "answer_pass": 1.0,
+                "stream_pass": 1.0,
+                "gates_pass": 1.0,
+                "ops_summary_pass": 1.0,
+                "path_safety_pass": 1.0,
+                "security_redteam_complete": 1.0,
+                "block_recall": 1.0,
+                "secret_pii_leak_count": 0,
+                "raw_persistence_count": 0,
+                "tool_policy_violation_count": 0,
+                "security_reliability_complete": 1.0,
+                "redteam_case_count": 20,
+                "prompt_injection_block_recall": 1.0,
+                "secrets_pii_leak_count": 0,
+                "fallback_recovery_pass": 1.0,
+                "deterministic_replay_pass": 1.0,
+                "cost_budget_complete": 1.0,
+                "token_record_coverage": 1.0,
+                "cost_record_coverage": 1.0,
+                "budget_violation_count": 0,
+                "dependency_security_complete": 1.0,
+                "unresolved_unaccepted_alert_count": 0,
+                "deployment_readiness_complete": 1.0,
+                "public_exposure_requires_approval": 1.0,
+                "rate_limit_plan_documented": 1.0,
+                "secret_handling_documented": 1.0,
+            },
+            "thresholds": {
+                "observability_complete": 1.0,
+                "trace_export_present": 1.0,
+                "latency_p50_ms_recorded": 1.0,
+                "latency_p95_ms_recorded": 1.0,
+                "token_cost_recorded": 1.0,
+                "tool_success_rate_recorded": 1.0,
+                "failed_run_analysis_count": 5,
+                "service_ops_complete": 1.0,
+                "healthz_pass": 1.0,
+                "answer_pass": 1.0,
+                "stream_pass": 1.0,
+                "gates_pass": 1.0,
+                "ops_summary_pass": 1.0,
+                "path_safety_pass": 1.0,
+                "security_redteam_complete": 1.0,
+                "block_recall": 1.0,
+                "secret_pii_leak_count": 0,
+                "raw_persistence_count": 0,
+                "tool_policy_violation_count": 0,
+                "security_reliability_complete": 1.0,
+                "redteam_case_count": 20,
+                "prompt_injection_block_recall": 1.0,
+                "secrets_pii_leak_count": 0,
+                "fallback_recovery_pass": 1.0,
+                "deterministic_replay_pass": 1.0,
+                "cost_budget_complete": 1.0,
+                "token_record_coverage": 1.0,
+                "cost_record_coverage": 1.0,
+                "budget_violation_count": 0,
+                "dependency_security_complete": 1.0,
+                "unresolved_unaccepted_alert_count": 0,
+                "deployment_readiness_complete": 1.0,
+                "public_exposure_requires_approval": 1.0,
+                "rate_limit_plan_documented": 1.0,
+                "secret_handling_documented": 1.0,
+            },
+            "failed": [],
+        },
+        "artifacts/fresh_clone_smoke/summary.json": {
+            "fresh_clone_offline_smoke_complete": True,
+            "stage5_schema_version": "fresh-clone-smoke-v1",
+            "offline_only": True,
+            "git_sha": "abc123",
+            "required_command": "uv run python -m rfp_rag.fresh_clone_smoke",
+            "provider_env_forbidden": ["OPENAI_API_KEY"],
+            "checks": [{"id": "pytest_not_real", "ok": True}],
+            "metrics": {
+                "git_sha_recorded": 1.0,
+                "git_clone_pass": 1.0,
+                "checkout_head_pass": 1.0,
+                "uv_sync_pass": 1.0,
+                "synthetic_corpus_pass": 1.0,
+                "ruff_format_pass": 1.0,
+                "ruff_lint_pass": 1.0,
+                "pytest_not_real_pass": 1.0,
+                "no_credentials_required": 1.0,
+            },
+            "thresholds": {
+                "git_sha_recorded": 1.0,
+                "git_clone_pass": 1.0,
+                "checkout_head_pass": 1.0,
+                "uv_sync_pass": 1.0,
+                "synthetic_corpus_pass": 1.0,
+                "ruff_format_pass": 1.0,
+                "ruff_lint_pass": 1.0,
+                "pytest_not_real_pass": 1.0,
+                "no_credentials_required": 1.0,
+            },
+            "failed": [],
+        },
+        "artifacts/final_portfolio_scorecard/summary.json": {
+            "final_portfolio_scorecard_complete": True,
+            "stage5_schema_version": "senior-final-portfolio-scorecard-v1",
+            "claim_boundary": "production_adjacent_local_container_evidence",
+            "score_total": 100,
+            "score_threshold": 90,
+            "dimensions": {
+                "business_problem_sharpness": {"score": 10, "weight": 10, "ok": True},
+                "source_first_rag_quality": {"score": 20, "weight": 20, "ok": True},
+                "agentic_engineering_depth": {"score": 20, "weight": 20, "ok": True},
+                "evaluation_rigor": {"score": 15, "weight": 15, "ok": True},
+                "production_operations": {"score": 15, "weight": 15, "ok": True},
+                "guardrails_security": {"score": 10, "weight": 10, "ok": True},
+                "hiring_presentation": {"score": 10, "weight": 10, "ok": True},
+            },
+            "metrics": {
+                "score_total": 100.0,
+                "dimension_business_problem_sharpness": 10.0,
+                "dimension_source_first_rag_quality": 20.0,
+                "dimension_agentic_engineering_depth": 20.0,
+                "dimension_evaluation_rigor": 15.0,
+                "dimension_production_operations": 15.0,
+                "dimension_guardrails_security": 10.0,
+                "dimension_hiring_presentation": 10.0,
+                "claim_boundary_pass": 1.0,
+                "docs_claim_consistency_pass": 1.0,
+                "public_package_redaction_pass": 1.0,
+                "fresh_clone_offline_smoke_pass": 1.0,
+                "ci_docker_runtime_smoke_present": 1.0,
+                "hosted_cloud_claim": 0.0,
+                "live_traffic_slo_claim": 0.0,
+                "provider_billing_telemetry_claim": 0.0,
+                "reranker_quality_win_claim": 0.0,
+                "unqualified_production_grade_claim": 0.0,
+            },
+            "thresholds": {
+                "score_total": 90,
+                "dimension_business_problem_sharpness": 10,
+                "dimension_source_first_rag_quality": 20,
+                "dimension_agentic_engineering_depth": 20,
+                "dimension_evaluation_rigor": 15,
+                "dimension_production_operations": 15,
+                "dimension_guardrails_security": 10,
+                "dimension_hiring_presentation": 10,
+                "claim_boundary_pass": 1.0,
+                "docs_claim_consistency_pass": 1.0,
+                "public_package_redaction_pass": 1.0,
+                "fresh_clone_offline_smoke_pass": 1.0,
+                "ci_docker_runtime_smoke_present": 1.0,
+                "hosted_cloud_claim": 0.0,
+                "live_traffic_slo_claim": 0.0,
+                "provider_billing_telemetry_claim": 0.0,
+                "reranker_quality_win_claim": 0.0,
+                "unqualified_production_grade_claim": 0.0,
+            },
+            "evidence_paths": {
+                "fresh_clone_smoke": "artifacts/fresh_clone_smoke/summary.json"
+            },
+            "non_claims": {"hosted_cloud_production": False},
+            "failed": [],
+        },
+        "artifacts/business_readiness/summary.json": {
+            "business_readiness_complete": True,
+            "schema_version": "business-readiness-v1",
+            "scores": {
+                "employment": 90,
+                "freelance": 80,
+                "startup_discovery": 65,
+                "startup_saas": 0,
+            },
+            "thresholds": {
+                "employment": 90,
+                "freelance": 80,
+                "startup_discovery": 65,
+                "startup_saas": 100,
+            },
+            "employment_ready": True,
+            "freelance_ready": True,
+            "startup_discovery_ready": True,
+            "startup_saas_ready": False,
+            "checks": [{"id": "final_portfolio_scorecard_present", "ok": True}],
+            "evidence": {
+                "employment": {"final_portfolio_scorecard": True},
+                "freelance": {"freelance_offer_pack": True},
+                "startup": {"startup_validation_plan": True},
+            },
+            "failed": [],
+            "non_claims": ["full_saas_production"],
+        },
         "artifacts/deployment_readiness/summary.json": {
             "deployment_readiness_complete": True,
-            "deployment_mode": "readiness_plan_no_public_exposure",
+            "deployment_mode": "public_safe_hosted_reviewer_demo",
             "hosted_deployment_plan_path": "docs/portfolio/hosted-deployment-plan.md",
             "public_deployment_decision": "requires_explicit_owner_approval",
             "auth_boundary": "signed reviewer token",
@@ -469,6 +806,7 @@ def _write_complete_top_tier(root: Path) -> None:
                 "secret_handling_documented": 1.0,
                 "public_exposure_requires_approval": 1.0,
                 "one_command_fallback_documented": 1.0,
+                "hosted_deployment_evidence_pass": 1.0,
             },
             "thresholds": {
                 "auth_boundary_documented": 1.0,
@@ -476,6 +814,7 @@ def _write_complete_top_tier(root: Path) -> None:
                 "secret_handling_documented": 1.0,
                 "public_exposure_requires_approval": 1.0,
                 "one_command_fallback_documented": 1.0,
+                "hosted_deployment_evidence_pass": 1.0,
             },
             "failed": [],
         },
@@ -627,6 +966,25 @@ def test_collect_portfolio_readiness_requires_paid_lane_plan(
     assert "paid_lane_plan" in failed
 
 
+def test_collect_portfolio_readiness_requires_stage1_reviewer_docs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    (tmp_path / "docs/portfolio/senior-reviewer-pack.md").unlink()
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is False
+    assert report["local_evidence_bundle_check"] is False
+    failed = {item["id"] for item in report["failed"]}
+    assert "senior_reviewer_pack_path" in failed
+
+
 def test_portfolio_check_cli_requires_interview_readiness(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -671,6 +1029,81 @@ def test_top_tier_readiness_tracks_next_portfolio_level(
     assert report["top_tier_readiness"]["failed"] == []
 
 
+def test_top_tier_readiness_requires_business_readiness(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+    (tmp_path / "artifacts/business_readiness/summary.json").unlink()
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is True
+    assert report["interview_readiness_check"] is False
+    assert report["top_tier_readiness"]["complete"] is False
+    assert "business_readiness" in report["top_tier_readiness"]["missing"]
+
+
+def test_top_tier_readiness_rejects_low_business_readiness_score(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+    _write(
+        tmp_path / "artifacts/business_readiness/summary.json",
+        json.dumps(
+            {
+                "business_readiness_complete": True,
+                "schema_version": "business-readiness-v1",
+                "scores": {
+                    "employment": 89,
+                    "freelance": 80,
+                    "startup_discovery": 65,
+                    "startup_saas": 0,
+                },
+                "thresholds": {
+                    "employment": 90,
+                    "freelance": 80,
+                    "startup_discovery": 65,
+                    "startup_saas": 100,
+                },
+                "employment_ready": False,
+                "freelance_ready": True,
+                "startup_discovery_ready": True,
+                "startup_saas_ready": False,
+                "checks": [{"id": "final_portfolio_scorecard_present", "ok": True}],
+                "evidence": {
+                    "employment": {"final_portfolio_scorecard": True},
+                    "freelance": {"freelance_offer_pack": True},
+                    "startup": {"startup_validation_plan": True},
+                },
+                "failed": [],
+                "non_claims": ["full_saas_production"],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["interview_readiness_check"] is False
+    assert report["top_tier_readiness"]["complete"] is False
+    assert "business_readiness" in report["top_tier_readiness"]["failed"]
+    details = {item["id"]: item for item in report["top_tier_readiness"]["details"]}
+    assert "employment" in details["business_readiness"]["issues"]
+
+
 def test_top_tier_readiness_rejects_shallow_artifacts(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -709,6 +1142,91 @@ def test_top_tier_readiness_rejects_shallow_artifacts(
         in details["top_tier_roadmap"]["issues"]
     )
     assert "query_count" in details["stage3_independent_holdout"]["issues"]
+
+
+def test_top_tier_readiness_rejects_shallow_documents_with_terms(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+    _write(
+        tmp_path / "docs/portfolio/top-tier-roadmap.md",
+        (
+            "Hosted or one-command reviewer demo Stage 3 independent holdout "
+            "Real observability Upgraded agent orchestration Senior case study "
+            "Failure conditions\n"
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["interview_readiness_check"] is False
+    assert "top_tier_roadmap" in report["top_tier_readiness"]["failed"]
+    details = {item["id"]: item for item in report["top_tier_readiness"]["details"]}
+    assert "document_structure" in details["top_tier_roadmap"]["issues"]
+    assert (
+        "document_too_short" in details["top_tier_roadmap"]["issues"]
+        or "document_structure" in details["top_tier_roadmap"]["issues"]
+    )
+
+
+def test_top_tier_readiness_requires_failed_to_be_empty_list(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+    _write(
+        tmp_path / "artifacts/business_readiness/summary.json",
+        json.dumps(
+            {
+                "business_readiness_complete": True,
+                "schema_version": "business-readiness-v1",
+                "scores": {
+                    "employment": 90,
+                    "freelance": 80,
+                    "startup_discovery": 65,
+                    "startup_saas": 0,
+                },
+                "thresholds": {
+                    "employment": 90,
+                    "freelance": 80,
+                    "startup_discovery": 65,
+                    "startup_saas": 100,
+                },
+                "employment_ready": True,
+                "freelance_ready": True,
+                "startup_discovery_ready": True,
+                "startup_saas_ready": False,
+                "checks": [{"id": "final_portfolio_scorecard_present", "ok": True}],
+                "evidence": {
+                    "employment": {"final_portfolio_scorecard": True},
+                    "freelance": {"freelance_offer_pack": True},
+                    "startup": {"startup_validation_plan": True},
+                },
+                "failed": False,
+                "non_claims": ["full_saas_production"],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["interview_readiness_check"] is False
+    assert "business_readiness" in report["top_tier_readiness"]["failed"]
+    details = {item["id"]: item for item in report["top_tier_readiness"]["details"]}
+    assert "failed" in details["business_readiness"]["issues"]
 
 
 def test_portfolio_check_reports_second_stage_separately(
@@ -774,6 +1292,60 @@ def test_second_stage_readiness_rejects_bool_only_artifacts(
     assert "generation_model_id" in details["eval_stage2_real"]["issues"]
 
 
+def test_second_stage_readiness_requires_failed_to_be_empty_list(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write(
+        tmp_path / "artifacts/security_redteam/summary.json",
+        json.dumps(
+            {
+                "security_redteam_complete": True,
+                "publishable_allowlist_path": "docs/evidence/publishable-artifacts.md",
+                "retention_scope_path": "docs/evidence/artifact-retention.md",
+                "metrics": {
+                    "block_recall": 1.0,
+                    "malicious_document_pass": 1.0,
+                    "malicious_retrieved_evidence_pass": 1.0,
+                    "malicious_tool_output_pass": 1.0,
+                    "artifact_redaction_scan_pass": 1.0,
+                    "publishable_allowlist_pass": 1.0,
+                    "retention_scope_pass": 1.0,
+                    "secret_pii_leak_count": 0,
+                    "raw_persistence_count": 0,
+                    "tool_policy_violation_count": 0,
+                },
+                "thresholds": {
+                    "block_recall": 1.0,
+                    "malicious_document_pass": 1.0,
+                    "malicious_retrieved_evidence_pass": 1.0,
+                    "malicious_tool_output_pass": 1.0,
+                    "artifact_redaction_scan_pass": 1.0,
+                    "publishable_allowlist_pass": 1.0,
+                    "retention_scope_pass": 1.0,
+                    "secret_pii_leak_count": 0,
+                    "raw_persistence_count": 0,
+                    "tool_policy_violation_count": 0,
+                },
+                "failed": {},
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is False
+    assert "security_redteam" in report["second_stage_readiness"]["failed"]
+    details = {item["id"]: item for item in report["second_stage_readiness"]["details"]}
+    assert "failed" in details["security_redteam"]["issues"]
+
+
 def test_second_stage_readiness_rejects_shallow_contract_payloads(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -821,6 +1393,8 @@ def test_second_stage_readiness_rejects_shallow_contract_payloads(
         },
         "artifacts/service_ops/summary.json": {
             "service_ops_complete": True,
+            "full_answer_smoke": True,
+            "full_gates_smoke": True,
             "metrics": {},
             "thresholds": {},
             "failed": [],

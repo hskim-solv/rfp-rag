@@ -26,63 +26,7 @@ jobs:
         run: uv sync --frozen --group dev
 
       - name: Create synthetic corpus fixture
-        run: |
-          python - <<'PY'
-          import csv
-          from pathlib import Path
-
-          data_dir = Path("data")
-          files_dir = data_dir / "files"
-          files_dir.mkdir(parents=True, exist_ok=True)
-          csv_path = data_dir / "data_list.csv"
-          fieldnames = [
-              "공고 번호",
-              "공고 차수",
-              "사업명",
-              "사업 금액",
-              "발주 기관",
-              "공개 일자",
-              "입찰 참여 시작일",
-              "입찰 참여 마감일",
-              "사업 요약",
-              "파일형식",
-              "파일명",
-              "텍스트",
-          ]
-          with csv_path.open("w", encoding="utf-8-sig", newline="") as f:
-              writer = csv.DictWriter(f, fieldnames=fieldnames)
-              writer.writeheader()
-              for idx in range(100):
-                  suffix = "pdf" if idx >= 96 else "hwp"
-                  filename = f"ci_fixture_{idx:03d}.{suffix}"
-                  project = (
-                      "한영대학교 특성화 맞춤형 교육환경 구축 - 트랙운영 학사정보시스템 고도화"
-                      if idx == 0
-                      else f"CI 합성 RFP 사업 {idx:03d}"
-                  )
-                  issuer = "한영대학" if idx == 0 else f"CI 발주기관 {idx:03d}"
-                  text = (
-                      f"{project} 제안요청서 본문. 발주기관은 {issuer}. "
-                      "평가 기준은 기술능력평가와 가격평가로 구성한다."
-                  )
-                  writer.writerow(
-                      {
-                          "공고 번호": f"2026{idx:06d}",
-                          "공고 차수": "0",
-                          "사업명": project,
-                          "사업 금액": str(100_000_000 + idx),
-                          "발주 기관": issuer,
-                          "공개 일자": "2026-06-17 09:00:00",
-                          "입찰 참여 시작일": "2026-06-18 09:00:00",
-                          "입찰 참여 마감일": "2026-06-30 17:00:00",
-                          "사업 요약": f"{project} 요약",
-                          "파일형식": suffix,
-                          "파일명": filename,
-                          "텍스트": text,
-                      }
-                  )
-                  (files_dir / filename).write_text(text, encoding="utf-8")
-          PY
+        run: uv run python -m rfp_rag.synthetic_corpus
 
       - name: Ruff format check
         run: uv run ruff format --check rfp_rag tests
@@ -93,8 +37,17 @@ jobs:
       - name: Offline tests
         run: uv run pytest -m "not real"
 
+      - name: Local artifact freshness check when evidence artifacts are present
+        run: |
+          if [ -d artifacts ]; then
+            uv run python -m rfp_rag.gate_status
+            uv run python -m rfp_rag.portfolio_check --out artifacts/portfolio_readiness.json
+          else
+            echo "artifacts/ is absent in credential-free CI; local portfolio freshness is verified before release."
+          fi
+
   docker-build:
-    name: docker build
+    name: docker build and runtime smoke
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -102,3 +55,49 @@ jobs:
 
       - name: Build service image
         run: docker build -t rfp-rag-service:ci .
+
+      - name: Run service health and answer contract smoke
+        run: |
+          docker run --rm -d --name rfp-rag-service-ci -p 8000:8000 rfp-rag-service:ci
+          trap 'docker rm -f rfp-rag-service-ci >/dev/null 2>&1 || true' EXIT
+          python - <<'PY'
+          import json
+          import time
+          import urllib.error
+          import urllib.request
+
+          last_error = None
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=2) as response:
+                      payload = json.loads(response.read().decode("utf-8"))
+                  if payload.get("ok") is True and payload.get("service") == "rfp-rag":
+                      print("docker_runtime_smoke_ok=true")
+                      break
+                  last_error = f"unexpected payload: {payload}"
+              except Exception as exc:
+                  last_error = str(exc)
+              time.sleep(1)
+          else:
+              raise SystemExit(f"health smoke failed: {last_error}")
+
+          payload = json.dumps(
+              {"question": "CI contract smoke", "index_dir": "../outside-index"}
+          ).encode("utf-8")
+          request = urllib.request.Request(
+              "http://127.0.0.1:8000/v1/answer",
+              data=payload,
+              headers={"content-type": "application/json"},
+              method="POST",
+          )
+          try:
+              urllib.request.urlopen(request, timeout=5)
+          except urllib.error.HTTPError as exc:
+              body = json.loads(exc.read().decode("utf-8"))
+              if exc.code == 422 and "detail" in body:
+                  print("docker_answer_contract_smoke_ok=true")
+              else:
+                  raise SystemExit(f"unexpected answer contract response: {exc.code} {body}")
+          else:
+              raise SystemExit("/v1/answer contract smoke unexpectedly succeeded")
+          PY

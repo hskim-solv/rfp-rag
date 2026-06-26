@@ -1,17 +1,23 @@
 # Hosted Deployment Readiness Plan
 
-This is production-facing readiness evidence, not a public deployment claim.
-Public exposure, cloud credentials, paid services, DNS, and externally reachable
-URLs require explicit owner approval before execution.
+This is production-facing readiness evidence for the public-safe hosted reviewer
+demo claim. Public exposure, cloud credentials, paid services, DNS, and
+externally reachable URLs require explicit owner approval before execution.
 
 ## Target Shape
 
 - Runtime: containerized FastAPI service behind a managed HTTPS ingress.
-- Auth boundary: reviewer demo uses local mode; hosted mode requires a signed
-  reviewer token or identity-provider session before query, trace, or artifact
-  access.
-- Rate limit boundary: per-token request rate, per-minute streaming budget, and
-  per-run max tool-call budget must fail closed before provider calls.
+- Render Blueprint: `render.yaml` defines a free Docker web service with
+  `/healthz`, public demo env, rate limit env, and an unsynced reviewer token.
+- Public-safe reviewer profile: the checked-in service can run with
+  `RFP_RAG_PUBLIC_DEMO_MODE=1` to serve deterministic publishable evidence
+  without provider credentials or raw RFP source text.
+- Revision evidence: hosted `/healthz` returns `RFP_RAG_GIT_SHA` so the smoke
+  test can prove the reviewer URL is serving the expected deployed revision.
+- Auth boundary: hosted reviewer mode requires `RFP_RAG_REVIEWER_TOKEN` before
+  query, trace, or artifact access. `/healthz` remains public.
+- Rate limit boundary: `RFP_RAG_RATE_LIMIT_PER_MINUTE` enforces a small
+  per-token or per-client request budget before provider calls.
 - Secret handling: `OPENAI_API_KEY`, tracing keys, and deployment secrets stay in
   environment or secret manager only; no persisted trace or screenshot may store
   raw secrets, raw prompts, raw tool inputs, or full RFP source text.
@@ -19,6 +25,16 @@ URLs require explicit owner approval before execution.
   token/cost summaries, tool-call success/failure, and failed-run analysis.
 - Rollback: deployment health check, credential-free regression, and local
   portfolio check must pass before traffic is enabled.
+- Container hardening: runtime image uses a non-root user and Docker
+  `HEALTHCHECK` for `/healthz`.
+- Service failure contract: synchronous endpoints use structured HTTP errors;
+  SSE emits `event: error` and terminates on guardrail/runtime failure.
+- Hosted smoke: `python -m rfp_rag.hosted_demo_smoke` verifies `/healthz`,
+  reviewer-token boundary, rate-limit boundary, `/v1/gates`, `/v1/answer`,
+  and SSE final event against a local or HTTPS hosted URL.
+- Hosted evidence: `python -m rfp_rag.hosted_deployment_evidence` must validate
+  the post-deploy HTTPS URL, redacted hosted logs, service metrics, and rollback
+  runbook after the owner approves external deployment.
 
 ## Non-Claims
 

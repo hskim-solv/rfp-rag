@@ -150,7 +150,13 @@ def evaluate_service_ops(
 
         gates, latency = _request_latency_ms(lambda: client.get("/v1/gates"))
         latencies.append(latency)
-        gates_ok = gates.status_code == 200 and "overall_ok" in gates.json()
+        gates_payload = gates.json() if gates.status_code == 200 else {}
+        if full_gates:
+            gates_ok = (
+                gates.status_code == 200 and gates_payload.get("overall_ok") is True
+            )
+        else:
+            gates_ok = gates.status_code == 200 and "overall_ok" in gates_payload
 
         ops_summary, latency = _request_latency_ms(
             lambda: client.get("/v1/ops/summary")
