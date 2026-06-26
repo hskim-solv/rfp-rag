@@ -99,6 +99,14 @@ live-traffic SLO, or provider billing telemetry.
 | reviewer path | `docs/portfolio/senior-reviewer-pack.md`, `scripts/reviewer-10m.sh`, `scripts/local-hosted-demo-smoke.sh`, `scripts/hosted-evidence.sh` |
 | Korean interview story | `docs/portfolio/korean-one-page-case-study.md` |
 
+## Outcome Lens
+
+| Outcome | How to pitch this repo | Boundary |
+| --- | --- | --- |
+| Employment | Senior AI Agent/RAG system with source-first retrieval, LangGraph workflow, FastAPI service, CI, hosted reviewer evidence, and fail-closed scorecards. | Do not imply full SaaS operations or live SLOs. |
+| Freelance | Proof that similar document-AI systems can be scoped, evaluated, deployed, and handed over with runbooks. | Do not accept unbounded data cleanup or undefined production support. |
+| Startup | Technical base for procurement/RFP workflow discovery and paid-pilot interviews. | Do not claim product-market fit, revenue, or multi-tenant SaaS readiness. |
+
 ## Non-fit And Non-claims
 
 - Do not pitch this as full hosted production SaaS; the approved hosted claim is

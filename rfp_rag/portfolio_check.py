@@ -463,6 +463,30 @@ TOP_TIER_GATES = [
         ),
     },
     {
+        "id": "business_readiness",
+        "path": "artifacts/business_readiness/summary.json",
+        "complete_field": "business_readiness_complete",
+        "required_fields": (
+            "schema_version",
+            "scores",
+            "thresholds",
+            "employment_ready",
+            "freelance_ready",
+            "startup_discovery_ready",
+            "startup_saas_ready",
+            "checks",
+            "evidence",
+            "failed",
+            "non_claims",
+        ),
+        "metric_source": "scores",
+        "metric_checks": (
+            ("employment", ">=", 90),
+            ("freelance", ">=", 80),
+            ("startup_discovery", ">=", 65),
+        ),
+    },
+    {
         "id": "final_portfolio_scorecard",
         "path": "artifacts/final_portfolio_scorecard/summary.json",
         "complete_field": "final_portfolio_scorecard_complete",
@@ -650,8 +674,7 @@ def _second_stage_gate_issues(
     for field in gate.get("required_fields", ()):
         if field not in summary or summary.get(field) in (None, ""):
             issues.append(field)
-    failed = summary.get("failed")
-    if failed:
+    if _failed_field_is_invalid(summary):
         issues.append("failed")
     metrics = summary.get("metrics")
     thresholds = summary.get("thresholds")
@@ -807,6 +830,10 @@ def _threshold_matches(value: Any, op: str, expected: int | float) -> bool:
     return value == expected
 
 
+def _failed_field_is_invalid(summary: dict[str, Any]) -> bool:
+    return "failed" in summary and summary.get("failed") != []
+
+
 def _collect_second_stage_readiness(root: Path) -> dict[str, Any]:
     present: list[str] = []
     missing: list[str] = []
@@ -855,13 +882,13 @@ def _top_tier_gate_issues(gate: dict[str, Any], summary: dict[str, Any]) -> list
     for field in gate.get("required_fields", ()):
         if field not in summary or summary.get(field) in (None, ""):
             issues.append(field)
-    failed = summary.get("failed")
-    if failed:
+    if _failed_field_is_invalid(summary):
         issues.append("failed")
-    metrics = summary.get("metrics")
+    metric_source = str(gate.get("metric_source", "metrics"))
+    metrics = summary.get(metric_source)
     thresholds = summary.get("thresholds")
     if not isinstance(metrics, dict):
-        issues.append("metrics")
+        issues.append(metric_source)
         metrics = {}
     if not isinstance(thresholds, dict):
         issues.append("thresholds")
@@ -881,6 +908,16 @@ def _document_gate_issues(root: Path, gate: dict[str, Any]) -> list[str]:
     issues: list[str] = []
     if not text:
         issues.append("document_missing")
+    stripped = text.strip()
+    if stripped and len(stripped) < 120:
+        issues.append("document_too_short")
+    heading_count = sum(
+        1
+        for line in text.splitlines()
+        if line.startswith("# ") or line.startswith("## ")
+    )
+    if stripped and heading_count < 2:
+        issues.append("document_structure")
     for term in gate.get("required_terms", ()):
         if term not in text:
             issues.append(f"term:{term}")

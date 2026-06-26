@@ -356,8 +356,10 @@ def _write_complete_top_tier(root: Path) -> None:
         "\n".join(
             [
                 "# Top-tier roadmap",
+                "## Demo",
                 "Hosted or one-command reviewer demo",
                 "Stage 3 independent holdout",
+                "## Signals",
                 "Real observability",
                 "Upgraded agent orchestration",
                 "Senior case study",
@@ -370,9 +372,11 @@ def _write_complete_top_tier(root: Path) -> None:
         "\n".join(
             [
                 "# Case study",
+                "## Context",
                 "Problem",
                 "Architecture decisions",
                 "Evaluation evidence",
+                "## Review",
                 "Failure analysis",
                 "Operational boundaries",
                 "Interview defense",
@@ -760,6 +764,34 @@ def _write_complete_top_tier(root: Path) -> None:
             "non_claims": {"hosted_cloud_production": False},
             "failed": [],
         },
+        "artifacts/business_readiness/summary.json": {
+            "business_readiness_complete": True,
+            "schema_version": "business-readiness-v1",
+            "scores": {
+                "employment": 90,
+                "freelance": 80,
+                "startup_discovery": 65,
+                "startup_saas": 0,
+            },
+            "thresholds": {
+                "employment": 90,
+                "freelance": 80,
+                "startup_discovery": 65,
+                "startup_saas": 100,
+            },
+            "employment_ready": True,
+            "freelance_ready": True,
+            "startup_discovery_ready": True,
+            "startup_saas_ready": False,
+            "checks": [{"id": "final_portfolio_scorecard_present", "ok": True}],
+            "evidence": {
+                "employment": {"final_portfolio_scorecard": True},
+                "freelance": {"freelance_offer_pack": True},
+                "startup": {"startup_validation_plan": True},
+            },
+            "failed": [],
+            "non_claims": ["full_saas_production"],
+        },
         "artifacts/deployment_readiness/summary.json": {
             "deployment_readiness_complete": True,
             "deployment_mode": "public_safe_hosted_reviewer_demo",
@@ -997,6 +1029,81 @@ def test_top_tier_readiness_tracks_next_portfolio_level(
     assert report["top_tier_readiness"]["failed"] == []
 
 
+def test_top_tier_readiness_requires_business_readiness(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+    (tmp_path / "artifacts/business_readiness/summary.json").unlink()
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is True
+    assert report["interview_readiness_check"] is False
+    assert report["top_tier_readiness"]["complete"] is False
+    assert "business_readiness" in report["top_tier_readiness"]["missing"]
+
+
+def test_top_tier_readiness_rejects_low_business_readiness_score(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+    _write(
+        tmp_path / "artifacts/business_readiness/summary.json",
+        json.dumps(
+            {
+                "business_readiness_complete": True,
+                "schema_version": "business-readiness-v1",
+                "scores": {
+                    "employment": 89,
+                    "freelance": 80,
+                    "startup_discovery": 65,
+                    "startup_saas": 0,
+                },
+                "thresholds": {
+                    "employment": 90,
+                    "freelance": 80,
+                    "startup_discovery": 65,
+                    "startup_saas": 100,
+                },
+                "employment_ready": False,
+                "freelance_ready": True,
+                "startup_discovery_ready": True,
+                "startup_saas_ready": False,
+                "checks": [{"id": "final_portfolio_scorecard_present", "ok": True}],
+                "evidence": {
+                    "employment": {"final_portfolio_scorecard": True},
+                    "freelance": {"freelance_offer_pack": True},
+                    "startup": {"startup_validation_plan": True},
+                },
+                "failed": [],
+                "non_claims": ["full_saas_production"],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["interview_readiness_check"] is False
+    assert report["top_tier_readiness"]["complete"] is False
+    assert "business_readiness" in report["top_tier_readiness"]["failed"]
+    details = {item["id"]: item for item in report["top_tier_readiness"]["details"]}
+    assert "employment" in details["business_readiness"]["issues"]
+
+
 def test_top_tier_readiness_rejects_shallow_artifacts(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -1035,6 +1142,91 @@ def test_top_tier_readiness_rejects_shallow_artifacts(
         in details["top_tier_roadmap"]["issues"]
     )
     assert "query_count" in details["stage3_independent_holdout"]["issues"]
+
+
+def test_top_tier_readiness_rejects_shallow_documents_with_terms(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+    _write(
+        tmp_path / "docs/portfolio/top-tier-roadmap.md",
+        (
+            "Hosted or one-command reviewer demo Stage 3 independent holdout "
+            "Real observability Upgraded agent orchestration Senior case study "
+            "Failure conditions\n"
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["interview_readiness_check"] is False
+    assert "top_tier_roadmap" in report["top_tier_readiness"]["failed"]
+    details = {item["id"]: item for item in report["top_tier_readiness"]["details"]}
+    assert "document_structure" in details["top_tier_roadmap"]["issues"]
+    assert (
+        "document_too_short" in details["top_tier_roadmap"]["issues"]
+        or "document_structure" in details["top_tier_roadmap"]["issues"]
+    )
+
+
+def test_top_tier_readiness_requires_failed_to_be_empty_list(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write_complete_top_tier(tmp_path)
+    _write(
+        tmp_path / "artifacts/business_readiness/summary.json",
+        json.dumps(
+            {
+                "business_readiness_complete": True,
+                "schema_version": "business-readiness-v1",
+                "scores": {
+                    "employment": 90,
+                    "freelance": 80,
+                    "startup_discovery": 65,
+                    "startup_saas": 0,
+                },
+                "thresholds": {
+                    "employment": 90,
+                    "freelance": 80,
+                    "startup_discovery": 65,
+                    "startup_saas": 100,
+                },
+                "employment_ready": True,
+                "freelance_ready": True,
+                "startup_discovery_ready": True,
+                "startup_saas_ready": False,
+                "checks": [{"id": "final_portfolio_scorecard_present", "ok": True}],
+                "evidence": {
+                    "employment": {"final_portfolio_scorecard": True},
+                    "freelance": {"freelance_offer_pack": True},
+                    "startup": {"startup_validation_plan": True},
+                },
+                "failed": False,
+                "non_claims": ["full_saas_production"],
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["interview_readiness_check"] is False
+    assert "business_readiness" in report["top_tier_readiness"]["failed"]
+    details = {item["id"]: item for item in report["top_tier_readiness"]["details"]}
+    assert "failed" in details["business_readiness"]["issues"]
 
 
 def test_portfolio_check_reports_second_stage_separately(
@@ -1098,6 +1290,60 @@ def test_second_stage_readiness_rejects_bool_only_artifacts(
     details = {item["id"]: item for item in report["second_stage_readiness"]["details"]}
     assert "eval_set_hash" in details["eval_stage2_real"]["issues"]
     assert "generation_model_id" in details["eval_stage2_real"]["issues"]
+
+
+def test_second_stage_readiness_requires_failed_to_be_empty_list(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _minimal_ready_root(tmp_path)
+    _write_complete_second_stage(tmp_path)
+    _write(
+        tmp_path / "artifacts/security_redteam/summary.json",
+        json.dumps(
+            {
+                "security_redteam_complete": True,
+                "publishable_allowlist_path": "docs/evidence/publishable-artifacts.md",
+                "retention_scope_path": "docs/evidence/artifact-retention.md",
+                "metrics": {
+                    "block_recall": 1.0,
+                    "malicious_document_pass": 1.0,
+                    "malicious_retrieved_evidence_pass": 1.0,
+                    "malicious_tool_output_pass": 1.0,
+                    "artifact_redaction_scan_pass": 1.0,
+                    "publishable_allowlist_pass": 1.0,
+                    "retention_scope_pass": 1.0,
+                    "secret_pii_leak_count": 0,
+                    "raw_persistence_count": 0,
+                    "tool_policy_violation_count": 0,
+                },
+                "thresholds": {
+                    "block_recall": 1.0,
+                    "malicious_document_pass": 1.0,
+                    "malicious_retrieved_evidence_pass": 1.0,
+                    "malicious_tool_output_pass": 1.0,
+                    "artifact_redaction_scan_pass": 1.0,
+                    "publishable_allowlist_pass": 1.0,
+                    "retention_scope_pass": 1.0,
+                    "secret_pii_leak_count": 0,
+                    "raw_persistence_count": 0,
+                    "tool_policy_violation_count": 0,
+                },
+                "failed": {},
+            }
+        ),
+    )
+
+    monkeypatch.setattr(
+        "rfp_rag.portfolio_check.collect_gate_status",
+        lambda root: {"overall_ok": True, "lanes": {}},
+    )
+
+    report = collect_portfolio_readiness(tmp_path)
+
+    assert report["portfolio_readiness_check"] is False
+    assert "security_redteam" in report["second_stage_readiness"]["failed"]
+    details = {item["id"]: item for item in report["second_stage_readiness"]["details"]}
+    assert "failed" in details["security_redteam"]["issues"]
 
 
 def test_second_stage_readiness_rejects_shallow_contract_payloads(

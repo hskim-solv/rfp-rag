@@ -76,6 +76,32 @@ Latest checked evidence:
 | Production-facing package | `docs/portfolio/reviewer-evidence-map.md`, `docs/portfolio/korean-one-page-case-study.md`, `docs/portfolio/tool-contract-matrix.md`, `artifacts/deployment_readiness/summary.json`, `artifacts/interview_demo_package/summary.json`, `artifacts/security_alerts/summary.json` | 10-minute reviewer evidence map, Korean 1-page case study, tool contract matrix, hosted-deployment readiness plan, 3-minute reviewer storyboard, and dependency security register pass; `ragas` was removed by ADR-0021 |
 | Credential-free regression | `uv run python -m pytest -m "not real" -q`; equivalent venv-path `python3 -m pytest -m "not real" -q` | rerun before citing; this command must pass with no provider credentials |
 
+## Career / Freelance / Startup Readiness
+
+This repo is positioned for three different outcomes, with separate evidence
+boundaries:
+
+- **Senior AI Agent/RAG employment:** ready to lead with when
+  `final_portfolio_scorecard`, hosted demo smoke, fresh clone smoke, and
+  portfolio check pass.
+- **Freelance RAG/document-AI work:** ready for scoped discovery and bounded
+  paid projects using `docs/portfolio/freelance-offer-pack.md`.
+- **Startup SaaS:** ready for customer discovery using
+  `docs/portfolio/startup-validation-plan.md`, but not claimed as full SaaS
+  production.
+
+Run:
+
+```bash
+uv run python -m rfp_rag.business_readiness --out artifacts/business_readiness/summary.json
+```
+
+Evidence:
+
+- `docs/portfolio/business-readiness-scorecard.md`
+- `docs/portfolio/freelance-offer-pack.md`
+- `docs/portfolio/startup-validation-plan.md`
+
 Explicit limitations:
 
 - `reranker` is implemented as an interface, but no quality-win claim is made

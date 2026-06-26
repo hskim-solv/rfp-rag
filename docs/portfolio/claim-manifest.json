@@ -12,7 +12,8 @@
     "public_safe_hosted_reviewer_demo_smoke",
     "post_deploy_hosted_logs_metrics_rollback_validator",
     "credential_free_fresh_clone_offline_smoke",
-    "public_safe_reviewer_package"
+    "public_safe_reviewer_package",
+    "business_readiness_scorecard"
   ],
   "non_claims": {
     "hosted_cloud_production": false,
@@ -35,6 +36,7 @@
     "artifacts/stage4_ops_risk_scorecard/summary.json",
     "artifacts/hosted_demo_smoke/summary.json",
     "artifacts/fresh_clone_smoke/summary.json",
-    "artifacts/final_portfolio_scorecard/summary.json"
+    "artifacts/final_portfolio_scorecard/summary.json",
+    "artifacts/business_readiness/summary.json"
   ]
 }
